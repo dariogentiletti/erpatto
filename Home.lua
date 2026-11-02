@@ -108,12 +108,14 @@ local function Build()
   end
   v.tomb = H.Text(d, "GameFontNormalSmall", "", 344)
   v.tomb:SetPoint("TOPLEFT", 12, -136)
-  v.tombBtn = H.Btn(d, "Tombola", 100, function() UI.ShowProgress("tombola") end, 20)
+  v.tombBtn = H.Btn(d, "Tombola", 78, function() UI.ShowProgress("tombola") end, 20)
   v.tombBtn:SetPoint("BOTTOMLEFT", 12, 10)
-  v.advBtn = H.Btn(d, "Avventure", 100, function() UI.ShowProgress("adv") end, 20)
-  v.advBtn:SetPoint("LEFT", v.tombBtn, "RIGHT", 6, 0)
-  v.bullBtn = H.Btn(d, "Er bollettino", 120, function() Home.ShowBulletin(true) end, 20)
-  v.bullBtn:SetPoint("LEFT", v.advBtn, "RIGHT", 6, 0)
+  v.bullBtn = H.Btn(d, "Bollettino", 88, function() Home.ShowBulletin(true) end, 20)
+  v.bullBtn:SetPoint("LEFT", v.tombBtn, "RIGHT", 6, 0)
+  v.shareBtn = H.Btn(d, "Condividi", 88, function() if ns.Extras then ns.Extras.ShowShare() end end, 20)
+  v.shareBtn:SetPoint("LEFT", v.bullBtn, "RIGHT", 6, 0)
+  v.helpBtn = H.Btn(d, "Aiuto", 64, function() if ns.Extras then ns.Extras.ShowGuide() end end, 20)
+  v.helpBtn:SetPoint("LEFT", v.shareBtn, "RIGHT", 6, 0)
 end
 
 ----------------------------------------------------------------------

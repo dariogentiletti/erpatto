@@ -867,7 +867,19 @@ local function RefreshDiary(v, list)
     local at = rec.ms and rec.ms[lv]
     if mode == "t" or (at and at >= since) then
       local isFirst = at and first[lv] and first[lv].m.guid == rec.guid
-      miles[#miles + 1] = { "Livello " .. lv .. (isFirst and " |cffffd100primo der patto|r" or ""), at and U.Day(at) or GREY .. "ancora no|r" }
+      -- the race: hours played to get there, and the place among those who made it
+      local sec = rec.mp and rec.mp[lv]
+      local race = ""
+      if sec then
+        local place, n = 1, 0
+        for _, m in ipairs(list) do
+          local o = m.mp and m.mp[lv]
+          if o then n = n + 1 if o < sec then place = place + 1 end end
+        end
+        race = " in " .. math.floor(sec / 3600) .. "h" .. string.format("%02d", math.floor(sec % 3600 / 60)) ..
+          (n > 1 and ((place == 1 and " |cffffd100" or " " .. GREY) .. Ordinal(place) .. "|r") or "")
+      end
+      miles[#miles + 1] = { "Livello " .. lv .. race .. ((isFirst and race == "") and " |cffffd100primo|r" or ""), at and U.Day(at) or GREY .. "ancora no|r" }
     end
   end
   if #miles == 0 then miles[1] = { GREY .. "Nessun traguardo 'sta settimana|r" } end

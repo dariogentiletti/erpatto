@@ -2,7 +2,7 @@
 local ADDON, ns = ...
 local U, M, P, C, T = ns.U, ns.M, ns.P, ns.C, ns.T
 
-local DEFAULT_OPTS = { hud = true, notify = true, sound = true, testMode = false, questWarn = true, toasts = true, toastSound = true }
+local DEFAULT_OPTS = { hud = true, notify = true, sound = true, testMode = false, questWarn = true, toasts = true, toastSound = true, minimap = true }
 
 ns.me, ns.myName, ns.state, ns.recordGuid, ns.alt = nil, nil, nil, nil, false
 
@@ -234,6 +234,9 @@ local function Help()
   U.Say("  /patto annuncio - rivedi l'annuncio der capo")
   U.Say("  /patto invita Nome - invita 'n amico ner patto")
   U.Say("  /patto bollettino - er riassunto de la settimana scorsa")
+  U.Say("  /patto condividi - la settimana in testo, da incollà su Discord")
+  U.Say("  /patto aiuto - come funziona")
+  U.Say("  /patto bug - rapporto pe' segnalà 'n problema")
   U.Say("  /patto prova - modalità de prova, solo pe' er capo (membri finti, li vedi solo te)")
   U.Say("  /patto diag - diagnosi (pe' segnalà problemi)")
 end
@@ -267,6 +270,15 @@ SlashCmdList.ERPATTO = function(raw)
     U.Say("scrivi /patto invita Nome (o tasto destro sur ritratto, \"Invita ner patto\").")
   elseif msg == "bollettino" then
     if ns.Home then ns.Home.ShowBulletin(true) end
+  elseif msg == "condividi" or msg == "discord" then
+    if ns.Extras then ns.Extras.ShowShare() end
+  elseif msg == "aiuto" or msg == "guida" or msg == "help" then
+    if ns.Extras then ns.Extras.ShowGuide() end
+  elseif msg == "bug" then
+    if ns.Extras then ns.Extras.BugReport() end
+  elseif msg == "minimappa" then
+    ns.db.opts.minimap = not ns.db.opts.minimap
+    ns.Fire("Refresh")
   elseif msg == "" then
     if ns.UI then ns.UI.Toggle() end
   elseif msg == "diag" or msg == "diagnosi" then

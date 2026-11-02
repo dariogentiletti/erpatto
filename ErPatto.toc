@@ -23,4 +23,5 @@ Titles.lua
 Tombola.lua
 Progress.lua
 News.lua
+Extras.lua
 Diag.lua

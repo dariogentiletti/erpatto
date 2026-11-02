@@ -532,7 +532,13 @@ end
 
 -- deaths
 function T.OnDeath()
-  if Ready() then Bump("dt") end
+  if not Ready() then return end
+  -- when and where: two members dying close together is a wipe
+  local rec = state.members[me]
+  rec.dat = U.Now()
+  local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+  rec.dz = (z and z ~= "") and z or nil
+  Bump("dt")
 end
 
 -- time played while the patto runs: one minute at a time, not while away
@@ -552,10 +558,39 @@ end
 function Milestone(level)
   local rec = state.members[me]
   rec.ms = rec.ms or {}
-  if level % 10 == 0 and level >= 10 and level <= 60 and not rec.ms[level] then rec.ms[level] = U.Now() end
+  if level % 10 == 0 and level >= 10 and level <= 60 and not rec.ms[level] then
+    rec.ms[level] = U.Now()
+    -- the race: time played (since the patto started) when the milestone came
+    rec.mp = rec.mp or {}
+    rec.mp[level] = rec.stats and rec.stats.t and rec.stats.t.pt or nil
+  end
 end
 
 -- professions: modern API if present, otherwise the classic skill list (professions are the ones you can unlearn)
+-- profession names as the English client writes them, whatever the client's language, so titles and boards
+-- match between friends with different clients: the spell of each profession gives its local name
+local EN_BY_SPELL = { [2259] = "Alchemy", [2018] = "Blacksmithing", [7411] = "Enchanting", [4036] = "Engineering",
+  [2575] = "Mining", [8613] = "Skinning", [2108] = "Leatherworking", [3908] = "Tailoring", [2550] = "Cooking",
+  [7620] = "Fishing", [3273] = "First Aid" }
+local EN_STATIC = { ["Erbalismo"] = "Herbalism", ["Kräuterkunde"] = "Herbalism", ["Herboristería"] = "Herbalism",
+  ["Herboristerie"] = "Herbalism", ["Alchimia"] = "Alchemy", ["Forgiatura"] = "Blacksmithing", ["Incantamento"] = "Enchanting",
+  ["Ingegneria"] = "Engineering", ["Estrazione"] = "Mining", ["Scuoiatura"] = "Skinning", ["Conciatura"] = "Leatherworking",
+  ["Sartoria"] = "Tailoring", ["Cucina"] = "Cooking", ["Pesca"] = "Fishing", ["Primo Soccorso"] = "First Aid", ["Primo soccorso"] = "First Aid" }
+local enBySpellName
+local function English(name)
+  if EN_STATIC[name] then return EN_STATIC[name] end
+  if not enBySpellName then
+    enBySpellName = {}
+    for id, en in pairs(EN_BY_SPELL) do
+      local ok, n = pcall(function() return (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or (GetSpellInfo and GetSpellInfo(id)) end)
+      n = ok and U.Plain(n, "string")
+      if n then enBySpellName[n] = en end
+    end
+  end
+  return enBySpellName[name] or name
+end
+T.EnglishProfession = English
+
 function T.Professions()
   local out = {}
   if GetProfessions and GetProfessionInfo then
@@ -564,7 +599,7 @@ function T.Professions()
       local idx = list[i]
       if type(idx) == "number" then
         local ok, name, _, lvl, max = pcall(GetProfessionInfo, idx)
-        if ok and U.Plain(name, "string") then out[#out + 1] = { n = name:sub(1, 30), l = U.Plain(lvl, "number") or 0, m = U.Plain(max, "number") or 0 } end
+        if ok and U.Plain(name, "string") then out[#out + 1] = { n = English(name):sub(1, 30), l = U.Plain(lvl, "number") or 0, m = U.Plain(max, "number") or 0 } end
       end
     end
   elseif GetNumSkillLines and GetSkillLineInfo then
@@ -576,7 +611,7 @@ function T.Professions()
     for i = 1, GetNumSkillLines() do
       local ok, name, header, _, rank, _, _, max, abandon = pcall(GetSkillLineInfo, i)
       if ok and name and not header and (abandon or secondary[name]) and #out < 6 then
-        out[#out + 1] = { n = tostring(name):sub(1, 30), l = rank or 0, m = max or 0 }
+        out[#out + 1] = { n = English(tostring(name)):sub(1, 30), l = rank or 0, m = max or 0 }
       end
     end
   end

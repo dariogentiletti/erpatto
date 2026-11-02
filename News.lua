@@ -152,7 +152,7 @@ local function Hex(rec) return "|c" .. H.ClassHex(rec.cls) .. Short(rec) .. "|r"
 local function T0(rec, k) return rec.stats and rec.stats.t and rec.stats.t[k] or 0 end
 
 local function Snapshot(rec)
-  local s = { lv = rec.lv, le = T0(rec, "le"), em = T0(rec, "em"), rk = T0(rec, "rk"), dg = T0(rec, "dg"),
+  local s = { lv = rec.lv, le = T0(rec, "le"), em = T0(rec, "em"), rk = T0(rec, "rk"), dg = T0(rec, "dg"), dt = T0(rec, "dt"),
     ed = rec.ed and rec.ed.at, fe = rec.fe and rec.fe.at, nk = {} }
   for _, x in ipairs(rec.nkl or {}) do s.nk[x.n] = x.c end
   if ns.Tombola then
@@ -162,8 +162,51 @@ local function Snapshot(rec)
   return s
 end
 
+-- wipes: two or more members dying within 20 seconds in the same zone
+local function Wipe(rec, quiet)
+  local s = Store()
+  if not (s and rec.dat) then return end
+  s.deaths = s.deaths or {}
+  s.wipes = s.wipes or {}
+  table.insert(s.deaths, 1, { g = rec.guid, at = rec.dat, z = rec.dz })
+  while #s.deaths > 60 do table.remove(s.deaths) end
+  local group, seen = {}, {}
+  for _, d in ipairs(s.deaths) do
+    if math.abs(d.at - rec.dat) <= 20 and (d.z == rec.dz or not d.z or not rec.dz) and not seen[d.g] then
+      seen[d.g] = true
+      group[#group + 1] = d
+    end
+  end
+  if #group < 2 then return end
+  -- one wipe per cluster: keyed by the earliest death in it
+  local first = rec.dat
+  for _, d in ipairs(group) do first = math.min(first, d.at) end
+  local key = tostring(math.floor(first / 30))
+  local names = {}
+  for _, d in ipairs(group) do
+    local m = ns.state.members[d.g]
+    names[#names + 1] = m and Short(m) or "?"
+  end
+  if s.wipes[key] then
+    -- a later death joins a wipe already told: just count it
+    if not s.wipes[key][rec.guid] then s.wipes[key][rec.guid] = true end
+    return
+  end
+  s.wipes[key] = {}
+  for _, d in ipairs(group) do s.wipes[key][d.g] = true end
+  s.wipeCount = (s.wipeCount or 0) + 1
+  N.Add("|cffff4040Wipe|r" .. (rec.dz and (" a " .. rec.dz) or "") .. ": " .. table.concat(names, ", "))
+  if not quiet then N.Banner("WIPE!", table.concat(names, ", ") .. (rec.dz and (" a " .. rec.dz) or ""), { 1, 0.3, 0.3 }, "evento") end
+end
+
+function N.WipeCount()
+  local s = Store()
+  return s and s.wipeCount or 0
+end
+
 local quietUntil = 0
 local function Diff(rec, old, quiet)
+  if T0(rec, "dt") > (old.dt or 0) then Wipe(rec, quiet) end
   local you = rec.guid == ns.recordGuid
   local name = Hex(rec)
   local st = ns.state

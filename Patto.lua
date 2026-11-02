@@ -222,6 +222,14 @@ function P.CleanMember(r)
       if at then c.ms[lv] = at end
     end
   end
+  if type(r.mp) == "table" then
+    c.mp = {}
+    for lv = 10, 60, 10 do
+      local sec = Num(r.mp[lv], 0, 1e8)
+      if sec then c.mp[lv] = math.floor(sec) end
+    end
+  end
+  c.dat, c.dz = Num(r.dat, 0, 4e9), Str(r.dz, 40)
   if type(r.stats) == "table" and type(r.stats.w) == "table" then
     -- only the latest two weeks travel
     local newest = 0

@@ -176,6 +176,42 @@ check(C.ns.P.HasSettings(C.ns.state), 'she got the settings from the others')
 A.ns.InviteFriend('Nessuno'); secs(10)
 check(any('nun risponne' in str(x) for x in A.g.CHAT.values()), 'nobody answers: told to give the code')
 
+# ---- wipes: Dario and Pietro die ten seconds apart in the same zone
+A.g.FIRE('PLAYER_DEAD'); secs(10)
+B.g.FIRE('PLAYER_DEAD'); secs(15)
+check(any('Wipe' in n and 'Dario' in n and 'Pietro' in n for n in A.news()), 'wipe in the news: ' + str([n for n in A.news() if 'Wipe' in n][:1]))
+check(A.ns.News.WipeCount() == 1 and B.ns.News.WipeCount() == 1, 'one wipe counted, on both sides')
+
+# ---- the race to each milestone: hours played when reaching level 10
+B.g.P_LEVEL = 10; B.g.FIRE('PLAYER_LEVEL_UP', 10); secs(10)
+mp = A.ns.state.members['Player-1-BBB'].mp
+check(mp is not None and mp[10] is not None, 'played time at level 10 shared: %s' % (mp and mp[10]))
+A.ns.UI.ShowProgress('diary')
+diary = A.ns.UI._views.progresso.diary
+row = [b for b in diary.list.rows.values() if b.shown and b.guid == 'Player-1-BBB'][0]
+row.Click(row)
+check(A.has('Livello 10 in '), 'diary shows the time to reach level 10')
+
+# ---- versions: a friend with a newer one gets you told once
+A.ns.VERSION = '0.10.0'
+B.ns.P.UpdateSelf(B.ns.state, B.ns.recordGuid, B.lua.table_from({'ver': '0.11.2'}), 'ver'); secs(10)
+check(any('0.11.2' in str(x) and 'aggiorna' in str(x) for x in A.g.CHAT.values()), 'newer version noticed')
+check(A.ns.Extras.VersionKey('dev') is None and A.ns.Extras.VersionKey('v0.10.3') > A.ns.Extras.VersionKey('0.9.9'), 'version compare')
+
+# ---- the small things
+check(A.g.ErPattoMinimapButton is not None and A.g.ErPattoMinimapButton.shown, 'minimap button')
+A.ns.db.opts.minimap = False; A.ns.Fire('Refresh')
+check(not A.g.ErPattoMinimapButton.shown, 'minimap button can be hidden')
+check(A.g.ErPattoGuide is not None, 'the guide opened once after creating the patto')
+A.lua.eval("""function() UNITS.target = { guid = "Player-1-BBB", name = "Pietro" } TT = {} end""")()
+A.ns.Extras.TooltipLine(A.g.GameTooltip, 'target')
+A.lua.eval("function() UNITS.target = nil end")()
+check(any('Er Patto' in str(x) for x in A.g.TT.values()), 'patto line on a member\'s tooltip: ' + str(list(A.g.TT.values())))
+txt = str(A.ns.Extras.ShareText())
+check('Er Patto der Cap' in txt and 'Pietro' in txt and 'Dario' in txt, 'share text for Discord: ' + txt.split('\n')[0])
+A.ns.Extras.ShowShare()
+check(A.g.ErPattoShare.shown, 'share window')
+
 nils = []
 for page in ['adv', 'tombola', 'titles', 'rank', 'diary']:
     A.ns.UI.ShowProgress(page)

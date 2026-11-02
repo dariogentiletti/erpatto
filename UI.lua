@@ -1184,7 +1184,7 @@ local function BuildImp()
   v.diag = Btn(b1, "Diagnosi", 130, function() if ns.Diag then ns.Diag.Toggle() end end)
   v.diag:SetPoint("TOPRIGHT", -12, -66)
 
-  local b3 = Box(v, 744, 152)
+  local b3 = Box(v, 744, 172)
   b3:SetPoint("TOPLEFT", 0, -118)
   local ot = Text(b3, "GameFontNormal", "Opzioni")
   ot:SetPoint("TOPLEFT", 12, -10)
@@ -1196,11 +1196,12 @@ local function BuildImp()
     Check(b3, "Titoli dell'amichi in chat davanti a quello che scriveno", function() return o().chatTitles ~= false end, function(x) o().chatTitles = x end),
     Check(b3, "Annunci a schermo (ding, epici, morti ridicole, tombole)", function() return o().toasts end, function(x) o().toasts = x end),
     Check(b3, "Sonoro co' l'annunci", function() return o().toastSound end, function(x) o().toastSound = x end),
+    Check(b3, "Bottone su la minimappa", function() return o().minimap ~= false end, function(x) o().minimap = x end),
   }
   for i, c in ipairs(v.checks) do c:SetPoint("TOPLEFT", 12, -26 - (i - 1) * 20) end
 
   local b4 = Box(v, 744, 69)
-  b4:SetPoint("TOPLEFT", 0, -278)
+  b4:SetPoint("TOPLEFT", 0, -298)
   v.altText = Text(b4, "GameFontHighlightSmall", "", 470)
   v.altText:SetPoint("TOPLEFT", 12, -12)
   v.altText:SetJustifyV("TOP")
