@@ -1,0 +1,21 @@
+## Interface: 16001, 16000, 120000, 120001, 120005, 120007, 120100, 120101, 120102, 120105, 120107, 120200
+## Title: Er Patto
+## Notes: Er patto de livellamento pe' 'n gruppo d'amici: cap settimanali pe' squadra, livelli de tutti, quest, dungeon, duelli e BG.
+## Author: Er Patto
+## Version: @project-version@
+## SavedVariables: ErPattoDB
+## IconTexture: Interface\Icons\INV_Misc_PocketWatch_01
+## AddonCompartmentFunc: ErPatto_OnCompartmentClick
+
+Util.lua
+Model.lua
+Patto.lua
+Comms.lua
+Tracker.lua
+Main.lua
+Journal.lua
+UI.lua
+Character.lua
+Titles.lua
+Progress.lua
+Diag.lua

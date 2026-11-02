@@ -1,0 +1,50 @@
+SECRET = setmetatable({}, { __tostring = function() error("secret printed") end, __concat = function() error("secret concatenated") end })
+issecretvalue = function(v) return v == SECRET end
+NOWV = 0
+GetServerTime = function() return math.floor(NOWV) end
+GetTime = function() return NOWV end
+date = os.date; time = os.time
+TIMERS, ERRORS, OUTBOX, SENDLOG = {}, {}, {}, {}
+C_Timer = {
+  After = function(d, fn) table.insert(TIMERS, { at = NOWV + d, fn = fn }) end,
+  NewTicker = function(d, fn) local t = { at = NOWV + d, fn = fn, every = d }; table.insert(TIMERS, t); return { Cancel = function() t.cancel = true end } end,
+}
+function RUN_TIMERS()
+  local due = {}
+  for i = #TIMERS, 1, -1 do
+    local t = TIMERS[i]
+    if t.cancel then table.remove(TIMERS, i)
+    elseif NOWV >= t.at then
+      table.insert(due, t)
+      if t.every then t.at = math.max(t.at + t.every, NOWV + t.every * 0.5) else table.remove(TIMERS, i) end
+    end
+  end
+  for _, t in ipairs(due) do local ok, err = pcall(t.fn); if not ok then table.insert(ERRORS, tostring(err)) end end
+end
+Enum = { SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, NotInGroup = 5, ChannelThrottle = 8, GeneralError = 11 } }
+C_ChatInfo = { RegisterAddonMessagePrefix = function() return true end,
+  SendAddonMessage = function(prefix, text, kind, target)
+    if #text > 255 then error("message too long " .. #text) end
+    if INSTANCE then return 11 end
+    table.insert(OUTBOX, { prefix = prefix, text = text, kind = kind, target = target })
+    table.insert(SENDLOG, NOWV)
+    return 0
+  end }
+JOINED, CHANNEL_OK, INSTANCE = false, true, false
+JoinChannelByName = function(name, pw) if CHANNEL_OK then JOINED = name end end
+GetChannelName = function(name) if JOINED and JOINED == name then return 7, name end return 0 end
+LeaveChannelByName = function() JOINED = false end
+IsInInstance = function() return INSTANCE, INSTANCE and "party" or "none" end
+DEFAULT_CHAT_FRAME = { AddMessage = function() end }
+ERR_CHAT_PLAYER_NOT_FOUND_S = "No player named '%s' is currently playing."
+ChatFrame_AddMessageEventFilter = function() end
+function TAKE_OUTBOX() local o = OUTBOX; OUTBOX = {}; return o end
+function MAX_PER_SECOND()
+  local best = 0
+  for i = 1, #SENDLOG do
+    local n = 0
+    for j = i, #SENDLOG do if SENDLOG[j] - SENDLOG[i] < 1.0 then n = n + 1 end end
+    if n > best then best = n end
+  end
+  return best
+end

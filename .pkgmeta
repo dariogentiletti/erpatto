@@ -1,0 +1,7 @@
+package-as: ErPatto
+
+ignore:
+  - tests
+  - tools
+  - README.md
+  - CONTRIBUTING.md
