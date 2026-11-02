@@ -6,7 +6,7 @@ SetFontObject SetJustifyH SetJustifyV SetTexture SetTexCoord SetColorTexture Set
 SetToplevel SetClampedToScreen EnableMouse SetMovable RegisterForDrag StartMoving StopMovingOrSizing RegisterEvent UnregisterEvent
 SetAutoFocus SetMaxLetters ClearFocus HasFocus HighlightText SetEnabled Enable Disable IsEnabled SetChecked GetChecked SetMinMaxValues
 SetValue GetValue SetStatusBarTexture SetStatusBarColor SetScrollChild SetVerticalScroll GetVerticalScrollRange SetMultiLine
-SetNonSpaceWrap SetWordWrap SetHitRectInsets HookScript SetVertexColor RegisterForClicks Click GetParent SetParent SetNormalFontObject LockHighlight UnlockHighlight SetAlpha GetName]], "%S+") do KNOWN[m] = true end
+SetGradientAlpha SetFont SetNonSpaceWrap SetWordWrap SetHitRectInsets HookScript SetVertexColor RegisterForClicks Click GetParent SetParent SetNormalFontObject LockHighlight UnlockHighlight SetAlpha GetName]], "%S+") do KNOWN[m] = true end
 UNKNOWN = {}
 WIDGETS = {}
 local W = {}

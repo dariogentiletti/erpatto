@@ -11,7 +11,7 @@ local W, H = 780, 449
 local TAB_H = 30 -- how far the bottom tabs hang under the window
 local f, content
 local views, tabs = {}, {}
-local current = "pg"
+local current = "casa"
 local refreshing = false
 
 ----------------------------------------------------------------------
@@ -341,8 +341,13 @@ function UI.Members()
         zq = { ["Elwynn Forest"] = 10 + i, ["Westfall"] = i * 2 }, dgl = { ["The Deadmines"] = i % 3 + 1, ["Wailing Caverns"] = i % 2 },
         lq = { { t = "The Killing Fields", z = "Westfall", at = U.Now() - i * 3000 } },
         wk = wk, zqw = { ["Westfall"] = i % 4 + 1 }, dgw = i % 2 == 0 and { ["The Deadmines"] = 1 } or {},
-        stats = { t = { q = i * 9 % 50, dg = i % 6, dw = i % 4, dl = (i * 3) % 4, bw = i % 3, bl = (i + 1) % 3, ding = lv - 1, g = i * 123457 % 900000, dt = i % 5, pt = i * 9000, rk = i % 3, hk = i * 4 % 30, hn = i * 377 % 3000 },
-          w = { [wk] = { q = i * 3 % 20, dg = i % 3, dw = i % 2, dl = (i + 1) % 2, bw = i % 2, bl = 0, ding = i % 4, g = i * 23456 % 200000, dt = i % 2, pt = i * 2400, rk = i % 2, hk = i % 7, hn = i * 61 % 500 } } },
+        stats = { t = { q = i * 9 % 50, dg = i % 6, dw = i % 4, dl = (i * 3) % 4, bw = i % 3, bl = (i + 1) % 3, ding = lv - 1, g = i * 123457 % 900000, dt = i % 5, pt = i * 9000, rk = i % 3, hk = i * 4 % 30, hn = i * 377 % 3000,
+            fi = i * 13 % 70, he = i * 7 % 40, mi = i * 5 % 30, sk = i * 3 % 20, lb = i % 5, le = (i % 4 == 0) and 1 or 0, em = i % 3, nk = i % 6, tr = i * 9137 % 90000, fl = i % 7, hs = i % 5 },
+          w = { [wk] = { q = i * 3 % 20, dg = i % 3, dw = i % 2, dl = (i + 1) % 2, bw = i % 2, bl = 0, ding = i % 4, g = i * 23456 % 200000, dt = i % 2, pt = i * 2400, rk = i % 2, hk = i % 7, hn = i * 61 % 500,
+            fi = i * 3 % 15, he = i * 2 % 12, mi = i % 9, sk = i % 4, lb = i % 2, le = 0, em = i % 2, nk = i % 3, tr = i * 2311 % 25000, fl = i % 4, hs = i % 3 } } },
+        ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
+        nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
+        pts = { t = i * 7 % 40, w = i % 9, wk = wk },
       }
     end
   end
@@ -1156,6 +1161,19 @@ local function BuildImp()
   v.code:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
   v.code:SetScript("OnTextChanged", function(self, user) if user and ns.state then self:SetText(ns.state.code) self:HighlightText() end end)
   Label(b1, "Codice pe' fa' entrà l'amichi (clicca, poi Ctrl+C)", v.code)
+  -- one-click invite: they get a window with "Entra"
+  v.invite = Input(b1, 150, 40, function(self)
+    local name = self:GetText() or ""
+    if name ~= "" then ns.InviteFriend(name) self:SetText("") end
+    self:ClearFocus()
+  end)
+  v.invite:SetPoint("TOPLEFT", 250, -52)
+  Label(b1, "Invita 'n amico (nome der personaggio)", v.invite)
+  v.inviteBtn = Btn(b1, "Invita", 70, function()
+    local name = v.invite:GetText() or ""
+    if name ~= "" then ns.InviteFriend(name) v.invite:SetText("") end
+  end, 20)
+  v.inviteBtn:SetPoint("LEFT", v.invite, "RIGHT", 6, 0)
   v.roles = Text(b1, "GameFontHighlightSmall", "", 480)
   v.roles:SetPoint("TOPLEFT", 12, -82)
   v.roles:SetJustifyV("TOP")
@@ -1166,7 +1184,7 @@ local function BuildImp()
   v.diag = Btn(b1, "Diagnosi", 130, function() if ns.Diag then ns.Diag.Toggle() end end)
   v.diag:SetPoint("TOPRIGHT", -12, -66)
 
-  local b3 = Box(v, 744, 112)
+  local b3 = Box(v, 744, 152)
   b3:SetPoint("TOPLEFT", 0, -118)
   local ot = Text(b3, "GameFontNormal", "Opzioni")
   ot:SetPoint("TOPLEFT", 12, -10)
@@ -1176,11 +1194,13 @@ local function BuildImp()
     Check(b3, "Barretta cor cap sullo schermo (se trascina)", function() return o().hud end, function(x) o().hud = x end),
     Check(b3, "Avvisame si 'na quest me fa fa' ding oltre er cap", function() return o().questWarn end, function(x) o().questWarn = x end),
     Check(b3, "Titoli dell'amichi in chat davanti a quello che scriveno", function() return o().chatTitles ~= false end, function(x) o().chatTitles = x end),
+    Check(b3, "Annunci a schermo (ding, epici, morti ridicole, tombole)", function() return o().toasts end, function(x) o().toasts = x end),
+    Check(b3, "Sonoro co' l'annunci", function() return o().toastSound end, function(x) o().toastSound = x end),
   }
   for i, c in ipairs(v.checks) do c:SetPoint("TOPLEFT", 12, -26 - (i - 1) * 20) end
 
   local b4 = Box(v, 744, 69)
-  b4:SetPoint("TOPLEFT", 0, -236)
+  b4:SetPoint("TOPLEFT", 0, -278)
   v.altText = Text(b4, "GameFontHighlightSmall", "", 470)
   v.altText:SetPoint("TOPLEFT", 12, -12)
   v.altText:SetJustifyV("TOP")

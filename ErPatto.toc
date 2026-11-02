@@ -15,8 +15,12 @@ Comms.lua
 Tracker.lua
 Main.lua
 Journal.lua
+Fun.lua
 UI.lua
+Home.lua
 Character.lua
 Titles.lua
+Tombola.lua
 Progress.lua
+News.lua
 Diag.lua

@@ -50,6 +50,19 @@ Ti.LIST = {
   { id = "cascamorto", name = "A Cascamorto", kind = "top", value = function(m) return Stat(m, "dt") end, desc = "Chi è morto più vorte. Casca e more." },
   { id = "griffato", name = "A Griffato", kind = "top", value = function(m, c) return c.il(m) end, desc = "Er livello oggetti più arto der patto: tutto firmato." },
   { id = "mastro", name = "A Mastro de Bottega", kind = "top", value = BestProfession, desc = "La professione più arta der patto, quarunque sia." },
+  { id = "fortunello", name = "A Fortunello", kind = "top", desc = "Er più fortunato: più blu e epici pe' ora de gioco (armeno 2 ore).",
+    value = function(m) return Stat(m, "pt") >= 7200 and ns.Fun and ns.Fun.LuckOf(m, "t") or 0 end },
+  { id = "iettato", name = "A Iettato", kind = "top", desc = "Er più sfigato: manco 'n blu (armeno 5 ore de gioco). Toccate quarcosa.",
+    value = function(m) return Stat(m, "pt") >= 18000 and (1000 - math.min(999, ns.Fun and ns.Fun.LuckOf(m, "t") or 0)) or 0 end },
+  { id = "pescivendolo", name = "A Pescivendolo", kind = "top", desc = "Chi ha pescato più pesci.", value = function(m) return Stat(m, "fi") end },
+  { id = "fruttarolo", name = "A Fruttarolo", kind = "top", desc = "Chi ha raccorto più erbe, minerali e pelli.",
+    value = function(m) return Stat(m, "he") + Stat(m, "mi") + Stat(m, "sk") end },
+  { id = "pellegrino", name = "A Pellegrino", kind = "top", desc = "Chi ha camminato de più: le scarpe so' finite.", value = function(m) return Stat(m, "tr") end },
+  { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più mostri famosi, rari e boss.", value = function(m) return Stat(m, "nk") end },
+  { id = "imbranato", name = "A Imbranato", kind = "top", desc = "Chi è morto più vorte in modo ridicolo: cascato, affogato o da 'n pischello.",
+    value = function(m) return Stat(m, "em") end },
+  { id = "tombolaro", name = "A Tombolaro", kind = "top", desc = "Chi ha fatto più punti a la tombola e ar totopatto.",
+    value = function(m) return m.pts and m.pts.t or 0 end },
   { id = "imperatore", name = "A Imperatore", kind = "check", desc = "Er primo der patto a arrivà ar 60.",
     check = function(m, c) return c.first60 and c.first60 == m.guid end },
   { id = "centurione", name = "A Centurione", kind = "check", desc = "Cento quest consegnate.", check = function(m) return Stat(m, "q") >= 100 end },
@@ -82,13 +95,16 @@ local PROFESSIONS = {
 }
 for _, p in ipairs(PROFESSIONS) do
   local prof = p[1]
-  Ti.LIST[#Ti.LIST + 1] = { id = p[2], name = p[3], kind = "top", desc = p[4], value = function(m)
+  Ti.LIST[#Ti.LIST + 1] = { id = p[2], name = p[3], kind = "top", group = "mestieri", desc = p[4], value = function(m)
     for _, x in ipairs(m.pr or {}) do if x.n == prof then return x.l or 0 end end
     return 0
   end }
 end
 Ti.BY_ID = {}
-for _, t in ipairs(Ti.LIST) do Ti.BY_ID[t.id] = t end
+for _, t in ipairs(Ti.LIST) do
+  Ti.BY_ID[t.id] = t
+  t.group = t.group or (t.kind == "check" and "traguardi" or "primi")
+end
 
 local function Context(list)
   local state = ns.state
@@ -155,6 +171,19 @@ function Ti.Of(rec)
   local t = rec.ti and Ti.BY_ID[rec.ti]
   if t and cache.earned[rec.guid] and cache.earned[rec.guid][t.id] then return t.name end
   return nil
+end
+
+-- { [titleId] = { [guid] = true } }: who holds each title right now
+function Ti.Holders()
+  Refresh()
+  local out = {}
+  for guid, set in pairs(cache.earned) do
+    for id in pairs(set) do
+      out[id] = out[id] or {}
+      out[id][guid] = true
+    end
+  end
+  return out
 end
 
 -- every title a member holds right now (for the diary)

@@ -2,7 +2,8 @@ from lupa.lua51 import LuaRuntime
 import os, random, re
 random.seed(3)
 ADDON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FILES = ['Util.lua', 'Model.lua', 'Patto.lua', 'Comms.lua', 'Tracker.lua', 'Main.lua', 'Journal.lua', 'UI.lua', 'Character.lua', 'Titles.lua', 'Progress.lua', 'Diag.lua']
+# every file in the TOC, in the TOC's order
+FILES = [l.strip() for l in open(os.path.join(ADDON, 'ErPatto.toc')) if l.strip().endswith('.lua')]
 START = 1793833200
 WEEK = 604800
 fails = []
@@ -190,7 +191,8 @@ mh = L.eval('function(v) for _, b in ipairs(v.slots) do if b.slotName == "MainHa
 check(head == '8,-52' and mh.endswith(',-325'), 'slot columns and weapon row inside the box (%s / %s)' % (head, mh))
 check(A.has('Livello:') and A.has('Cap:') and A.has('Quest:') and A.has('Sordi:') and A.has('Duelli:'), 'adventure stats in the vanilla stat boxes')
 check(A.has('Membri') and any('Pietro' in t for t in A.texts()), 'member picker lists Pietro')
-ErTabArt1 = lambda: bool(A.g.ErPattoFrameTab1.off.fill.shown)
+PgTab = lambda: [b for b in A.ns.UI._tabs.values() if str(b.key) == 'pg'][0]
+ErTabArt1 = lambda: bool(PgTab().off.fill.shown)
 tab1 = L.eval('function() local p = ErPattoFrameTab1.points[1] return p[1] .. "," .. p[3] .. "," .. p[4] .. "," .. p[5] .. "," .. ErPattoFrameTab1.w end')()
 check(tab1.startswith('TOPLEFT,TOPLEFT,20,-449'), 'first tab under the window, 20 px in: ' + tab1)
 check(A.g.ErPattoFrame.rail.tL.shown and A.g.ErPattoFrame.rail.tB.shown and not ErTabArt1(), 'border opens round the selected tab')
@@ -409,8 +411,12 @@ fakeRow.Click(fakeRow)
 check(A.has('Blacksmithing') or A.has('Alchemy') or A.has('Herbalism') or A.has('Mining'), 'diary of another member shows their professions (English names)')
 meRow = [b for b in pv.diary.list.rows.values() if b.shown and b.guid == A.g.P_GUID][0]
 meRow.Click(meRow)
-tit = [b for b in pv.diary.titles['items'].values() if b.shown and b.name]
-check(A.has('Titoli') and any(('A Sor Capo' in str(b.name) or 'A Sor Capo' in str(b.desc)) and b.desc for b in tit), 'diary lists the titles held, with descriptions on hover: ' + str([str(b.name) for b in tit]))
+tl = pv.diary.titles
+held = [str(x) for x in (tl.countBtn.list or L.table()).values()]
+check(A.has('Titoli') and 'A Sor Capo' in str(tl.main.text) and 'A Sor Capo' in held and tl.all.shown, 'diary: the title shown, how many (hover), a button to all titles: ' + str(held))
+tl.all.Click(tl.all)
+check(pv.titles.shown and A.has('Li primi der patto') and A.has('Come se vince') and A.has('A Pescivendolo') and A.has('Er capo der patto.'), 'titles page: every title, who holds it, how it is won')
+pv.tabDiary.Click(pv.tabDiary)
 fakeRow.Click(fakeRow)
 earned = A.ns.Titles.Earned(A.ns.UI.Members())
 profTitles = set(k for g in earned.values() for k in g.keys()) & {'fabbro', 'alchimista', 'erborista', 'minatore', 'cuoco'}
@@ -434,9 +440,8 @@ check(pv.diary.quest.scroll.ScrollBar.shown, 'long quest list: scroll bar visibl
 A.lua.eval("function(ns) ns.db.qlog[ns.recordGuid] = {} end")(A.ns)
 A.ns.UI.Refresh()
 check(not pv.diary.quest.scroll.ScrollBar.shown, 'empty quest list: no scroll bar')
-# many titles: at most two lines in the box
-lines = A.lua.eval("""function(f) local m = 0 for _, b in ipairs(f.titles.items) do if b.shown then local y = b.points[1][3] if y < m then m = y end end end return m end""")(pv.diary)
-check(lines >= -36, 'titles stay on two lines inside their box (lowest y %s)' % lines)
+# the titles box holds two short lines, whatever the number of titles
+check(pv.diary.titles.main.points[1][3] >= -30 and pv.diary.titles.count.points[1][3] >= -46, 'titles box: two lines inside the box')
 # a rare: target it alive, then dead
 A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-RARE", name = "Mor'Ladim", class = "rare" } end""")()
 A.g.FIRE('PLAYER_TARGET_CHANGED')

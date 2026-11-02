@@ -92,6 +92,7 @@ local function CountKill(guid)
   j.kills[id] = k
   Add(j.counters, "kills")
   if info.c == "elite" or info.c == "rareelite" or info.c == "worldboss" then Add(j.counters, "eliteKills") end
+  ns.Fire("J_Kill", id, k)
 end
 
 function J.CheckDeath(unit)
@@ -121,7 +122,15 @@ function J.OnLootOpened()
   local j = J.Get()
   if not j then return end
   local fishing = Safe(IsFishingLoot) == true
-  if fishing then Add(j.counters, "fishingLoots") end
+  if fishing then
+    Add(j.counters, "fishingLoots")
+    local caught = 0
+    for slot = 1, Plain(Safe(GetNumLootItems), "number") or 0 do
+      local _, _, qty = Safe(GetLootSlotInfo, slot)
+      caught = caught + (Plain(qty, "number") or 1)
+    end
+    ns.Fire("J_Fish", math.max(1, caught))
+  end
   local n = Plain(Safe(GetNumLootItems), "number") or 0
   for slot = 1, n do
     if GetLootSourceInfo then
@@ -160,7 +169,9 @@ function J.OnLootMessage(msg)
     for _, k in ipairs({ "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF_MULTIPLE", "LOOT_ITEM_PUSHED_SELF",
       "LOOT_ITEM_CREATED_SELF_MULTIPLE", "LOOT_ITEM_CREATED_SELF" }) do
       local fmt = _G[k]
-      if type(fmt) == "string" then lootPats[#lootPats + 1] = { pat = LootPattern(fmt), created = k:find("CREATED") and true } end
+      if type(fmt) == "string" then
+        lootPats[#lootPats + 1] = { pat = LootPattern(fmt), created = k:find("CREATED") and true, pushed = k:find("PUSHED") and true }
+      end
     end
   end
   for _, p in ipairs(lootPats) do
@@ -176,6 +187,7 @@ function J.OnLootMessage(msg)
         it.first = it.first or U.Now()
         if p.created then it.made = (it.made or 0) + count end
         j.items[id] = it
+        ns.Fire("J_Item", id, q, count, p.created and "created" or (p.pushed and "pushed" or "loot"), link)
       end
       return
     end
@@ -229,6 +241,7 @@ function J.OnMoney()
     if where == "taxi" and d < 0 then
       Push(j.flights, { at = U.Now(), from = Zone(), cost = -d }, CAP.flights)
       Add(j.counters, "flights")
+      ns.Fire("J_Flight")
     end
   end
   lastMoney = m

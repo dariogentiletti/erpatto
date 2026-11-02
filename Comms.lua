@@ -315,15 +315,64 @@ local function Handle(body, sender, channel)
       local rec = state.members[data.guid]
       if oldLv and rec.lv and rec.lv > oldLv then ns.Fire("MemberDing", rec, oldLv) end
       if old and rec.team ~= oldTeam then ns.Fire("MemberSwitched", rec, oldTeam) end
+      ns.Fire("MemberUpdated", rec, old or nil)
     end
   end
   if changed then ns.Fire("StateChanged", state, kind) end
 end
 
+----------------------------------------------------------------------
+-- invites: "?I" asks a player to join (whispered, works even if they're in no patto), "?R" says it arrived
+----------------------------------------------------------------------
+C.PREFIX = PREFIX
+function C.RegisterPrefix()
+  if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
+end
+
+local invitesOut = {}
+function C.Invite(name)
+  if not state or type(name) ~= "string" or name == "" then return false end
+  local body = "?I~" .. U.Serialize({ c = state.code, n = state.settings and state.settings.name, by = myName })
+  local ok = pcall(C_ChatInfo.SendAddonMessage, PREFIX, body, "WHISPER", name)
+  invitesOut[name:lower()] = Clock()
+  return ok
+end
+
+local function OnInviteMessage(text, sender)
+  local kind, payload = text:match("^%?(%u)~?(.*)$")
+  if kind == "I" then
+    local d = U.Deserialize(payload)
+    if type(d) ~= "table" or type(d.c) ~= "string" then return end
+    pcall(C_ChatInfo.SendAddonMessage, PREFIX, "?R~", "WHISPER", sender)
+    ns.Fire("Invited", d.c, type(d.n) == "string" and d.n or nil, type(d.by) == "string" and d.by or sender)
+  elseif kind == "R" then
+    local short = tostring(sender):match("^([^%-]+)") or sender
+    for who, at in pairs(invitesOut) do
+      if (who == tostring(sender):lower() or who == short:lower()) and Clock() - at < 30 then
+        invitesOut[who] = nil
+        ns.Fire("InviteArrived", short)
+      end
+    end
+  end
+end
+
+-- who never answered an invite (no addon, or offline)
+function C.PendingInvites(olderThan)
+  local out = {}
+  for who, at in pairs(invitesOut) do
+    if Clock() - at > olderThan then out[#out + 1] = who invitesOut[who] = nil end
+  end
+  return out
+end
+
 function C.OnAddonMessage(prefix, text, channel, sender, target, zoneChannelID, localID, channelName)
-  if not state then return end
   if U.IsSecret(prefix) or U.IsSecret(text) or U.IsSecret(sender) then return end
   if prefix ~= PREFIX or type(text) ~= "string" then return end
+  if text:sub(1, 1) == "?" then
+    if channel == "WHISPER" and type(sender) == "string" then OnInviteMessage(text, sender) end
+    return
+  end
+  if not state then return end
   if channel == "CHANNEL" then
     local id = CurrentChannelId()
     if not id or (type(localID) == "number" and localID ~= id) then return end

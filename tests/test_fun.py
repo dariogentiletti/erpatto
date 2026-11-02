@@ -1,0 +1,196 @@
+# Er Patto: dings told to everyone, invites, fun counters, Avventure, Tombola, Totopatto, Casa, Bollettino
+from lupa.lua51 import LuaRuntime
+import os, random, re
+random.seed(5)
+ADDON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FILES = [l.strip() for l in open(os.path.join(ADDON, 'ErPatto.toc')) if l.strip().endswith('.lua')]
+START = 1793833200
+WEEK = 604800
+fails = []
+def check(cond, label):
+    print(('OK  ' if cond else 'FAIL') + ' ' + label)
+    if not cond: fails.append(label)
+class Client:
+    def __init__(self, guid, name):
+        self.lua = LuaRuntime(unpack_returned_tuples=True)
+        for st in ['stub3.lua', 'stub4.lua', 'stub5.lua', 'stub6.lua']: self.lua.execute(open(st).read())
+        self.lua.execute('math.randomseed(%d)' % random.randint(1, 10**6))
+        self.ns = self.lua.table()
+        load = self.lua.eval('function(s, n) local f, e = loadstring(s, n); if not f then error(e) end; return f end')
+        for f in FILES: load(open(os.path.join(ADDON, f)).read(), f)("ErPatto", self.ns)
+        self.g = self.lua.globals()
+        self.g.P_GUID, self.g.P_NAME = guid, name
+        self.name = name
+    def login(self, t):
+        self.g.NOWV = t
+        self.g.FIRE('ADDON_LOADED', 'ErPatto'); self.g.FIRE('PLAYER_LOGIN'); self.g.FIRE('PLAYER_ENTERING_WORLD')
+    def texts(self): return [str(x) for x in self.g.VISIBLE_TEXTS().values()]
+    def has(self, sub): return any(sub in t for t in self.texts())
+    def rec(self): return self.ns.MyRecord()
+    def stat(self, k): return self.rec().stats.t[k] or 0
+    def news(self): return [str(n.t) for n in self.ns.News.List().values()]
+    def errors(self):
+        logs = [str(x) for x in self.g.ErPattoDB.log.values() if '[Errore]' in str(x)]
+        return logs + list(self.g.ERRORS.values())
+clients = []
+T = [START + 86400]
+def step(n=1, dt=0.25):
+    for _ in range(n):
+        T[0] += dt
+        for c in clients:
+            c.g.NOWV = T[0]; c.g.RUN_TIMERS()
+        for c in clients:
+            for m in c.g.TAKE_OUTBOX().values():
+                for d in clients:
+                    if d is c: continue
+                    if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
+                        d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
+                    elif m.kind == 'WHISPER' and m.target == d.name:
+                        d.ns.C.OnAddonMessage(m.prefix, m.text, 'WHISPER', c.name, d.name)
+def secs(s): step(int(s / 0.25))
+
+A = Client('Player-1-AAA', 'Dario'); clients.append(A)
+B = Client('Player-1-BBB', 'Pietro'); clients.append(B)
+A.login(T[0]); B.login(T[0])
+opts = A.lua.table_from({'name': 'Er Patto der Cap', 'start': START, 'teamIndex': 1,
+    'teams': A.lua.table_from({1: A.lua.table_from({'name': 'I Pazzi', 'hours': 30})})})
+A.ns.CreatePatto(opts)
+code = str(A.ns.state.code)
+B.ns.JoinPatto(code)
+B.ns.P.UpdateSelf(B.ns.state, B.ns.recordGuid, B.lua.table_from({'team': 't1', 'tat': T[0]}), 'team')
+secs(30)
+check(B.ns.P.HasSettings(B.ns.state) and 'Player-1-BBB' in [str(k) for k in A.ns.state.members.keys()], 'two members in the patto, started')
+
+# ---- a ding: everyone gets the banner and the news
+B.g.P_LEVEL = 5; B.g.FIRE('PLAYER_LEVEL_UP', 5)
+secs(10)
+ban = A.g.ErPattoBanner
+check(ban is not None and ban.shown and 'Pietro' in str(ban.title.text) and '5' in str(ban.title.text), 'ding banner on the other screen: ' + str(ban and ban.title.text))
+check(any('Pietro' in n and 'livello' in n for n in A.news()), 'ding in the news list')
+check(len(list(A.g.SOUNDS.values())) > 0, 'banner plays a sound')
+A.ns.db.opts.toasts = False
+B.g.P_LEVEL = 6; B.g.FIRE('PLAYER_LEVEL_UP', 6); secs(12)
+check(any('livello' in n and '6' in n for n in A.news()), 'banners off: still in the news')
+A.ns.db.opts.toasts = True
+
+# ---- fishing, gathering, luck
+A.g.FISHING = True
+A.lua.eval("function() LOOT = { { qty = 3, link = '|cffffffff|Hitem:6303::::::::|h[Raw Slitherskin Mackerel]|h|r' } } end")()
+A.g.FIRE('LOOT_OPENED'); A.g.FISHING = False
+A.lua.eval("function() LOOT = {} end")()
+check(A.stat('fi') == 3, 'fish caught counted: %s' % A.stat('fi'))
+A.lua.eval("function() ITEMINFO[765] = { 7, 9 } ITEMINFO[2770] = { 7, 7 } end")()
+A.g.FIRE('CHAT_MSG_LOOT', 'You receive loot: |cffffffff|Hitem:765::::::::|h[Silverleaf]|h|rx4.')
+A.g.FIRE('CHAT_MSG_LOOT', 'You receive loot: |cffffffff|Hitem:2770::::::::|h[Copper Ore]|h|rx2.')
+check(A.stat('he') == 4 and A.stat('mi') == 2, 'herbs and ore gathered: %s %s' % (A.stat('he'), A.stat('mi')))
+A.g.FIRE('CHAT_MSG_LOOT', 'You receive loot: |cff0070dd|Hitem:2000::::::::|h[Spada Blu]|h|r.')
+A.g.FIRE('CHAT_MSG_LOOT', 'You receive loot: |cffa335ee|Hitem:2001::::::::|h[Spada Viola]|h|r.')
+secs(5)
+check(A.stat('lb') == 1 and A.stat('le') == 1 and A.rec().fe and str(A.rec().fe.n) == 'Spada Viola', 'blue and epic counted, first epic remembered')
+secs(10)
+check(any('Dario' in n and 'epico' in n for n in B.news()), 'the epic is news for the others')
+check(A.ns.Fun.LuckOf(A.rec(), 't') > 0, 'luck has a value')
+
+# ---- silly deaths and the nemesis
+A.g.FALLING = True; A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
+secs(1)
+check(A.stat('em') == 1 and str(A.rec().ed.k) == 'cascato', 'death by falling is a silly death')
+A.g.P_LEVEL = 12
+A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-60", name = "Kobold Vermin", level = 2 } end""")()
+A.g.FIRE('PLAYER_DEAD'); secs(1)
+A.g.FIRE('PLAYER_DEAD'); secs(1)
+A.lua.eval("function() UNITS.target = nil end")()
+check(A.stat('em') == 3 and str(A.rec().ed.k) == 'pischello', 'killed by a mob ten levels lower is silly too')
+secs(6)
+check(A.rec().ne and str(A.rec().ne.n) == 'Kobold Vermin' and A.rec().ne.c == 2, 'nemesis: what killed me most')
+secs(10)
+check(any('Dario' in n and 'Kobold Vermin' in n for n in B.news()), "silly death in the others' news: " + str(B.news()[:3]))
+
+# ---- famous kills, travel, hearthstone
+A.g.FIRE('ENCOUNTER_END', 1, 'Edwin VanCleef', 1, 5, 1)
+secs(5)
+check(A.stat('nk') == 1 and any(str(x.n) == 'Edwin VanCleef' for x in A.rec().nkl.values()), 'boss kill counted as a famous kill')
+for x in range(7):
+    A.lua.eval("function() MAPPOS = { x = %d, y = 0 } end" % (x * 40))()
+    A.ns.Fun.SampleTravel()
+check(A.stat('tr') >= 200, 'travel counted in yards: %s' % A.stat('tr'))
+A.g.FIRE('UNIT_SPELLCAST_SUCCEEDED', 'player', 'cast', 8690)
+check(A.stat('hs') == 1, 'hearthstone counted')
+secs(70)
+
+# ---- Avventure page
+A.ns.UI.Toggle()
+A.ns.UI.ShowProgress('adv')
+check(A.has('Fortuna') and A.has('Pesci pescati') and A.has('Morti ridicole') and A.has('Re der duello') and A.has('Nemesi der patto'), 'Avventure: the fun cards')
+check(A.has('Kobold Vermin') and A.has('Strada fatta'), 'nemesis card and road card filled')
+holders = A.ns.Titles.Holders()
+mine = [str(k) for k, v in holders.items() if v['Player-1-AAA']]
+check('pescivendolo' in mine and 'imbranato' in mine and 'fruttarolo' in mine, 'new titles go to whoever leads: ' + str(sorted(mine)))
+A.ns.UI.ShowProgress('titles')
+check(A.has('A Pescivendolo') and A.has('Dario'), 'titles page shows the new titles and their holders')
+
+# ---- Tombola
+card = A.ns.Tombola.Card()
+ids = [str(sq.id) for sq in card.values()]
+cardB = [str(sq.id) for sq in B.ns.Tombola.Card().values()]
+check(len(set(ids)) == 9 and ids == cardB, 'one 3x3 card, the same for everybody: ' + ','.join(ids))
+sc = A.ns.Tombola.Score(A.rec())
+A.ns.Tombola.Update()
+check(A.rec().pts and A.rec().pts.t == sc.points, 'my points shared: %s' % sc.points)
+A.ns.UI.ShowProgress('tombola')
+check(A.has('Tombola de la settimana 1') and A.has('Totopatto') and A.has('Classifica de li punti'), 'tombola page: card, guesses, season')
+
+# ---- Totopatto: Dario bets that Pietro levels most this week
+ok = A.ns.Tombola.Vote('a', 'Player-1-BBB')
+check(ok and str(A.rec().vt.a) == 'Player-1-BBB', 'vote stored in my record')
+secs(10)
+check(str(B.ns.state.members['Player-1-AAA'].vt.a) == 'Player-1-BBB', 'the others see the vote')
+A.ns.UI.ShowProgress('tombola')
+check(A.has('Voti: Pietro 1'), 'votes counted on the page')
+before = A.rec().pts.t
+T[0] = START + WEEK + 3600; secs(130)
+book = A.g.ErPattoDB.points[code]
+check(book.weeks[1] is not None and book.right == 1, 'week 1 closed with one right guess: %s' % (book.weeks[1],))
+check(any('Totopatto' in str(x) for x in A.g.CHAT.values()), 'told in chat')
+
+# ---- Casa and Er Bollettino
+A.ns.UI.Show('casa')
+check(A.has('Er cap tuo') and A.has("Mo' online") and A.has('Notizie') and A.has("'Sta settimana"), 'Casa: cap, online, news, week')
+check(A.has('Prossimo cap') or A.has('Cap '), 'Casa shows the cap')
+A.ns.Home.ShowBulletin(True)
+bull = A.g.ErPattoBulletin
+check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Er più veloce') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
+
+# ---- invite: a player with no patto gets a window and joins in one click
+C = Client('Player-1-CCC', 'Gina'); clients.append(C)
+C.login(T[0])
+A.ns.InviteFriend('Gina')
+secs(2)
+inv = C.g.ErPattoInvite
+check(inv is not None and inv.shown and 'Dario' in str(inv.text.text), "invite window on the friend's screen")
+check(any('ha ricevuto' in str(x) for x in A.g.CHAT.values()), 'the inviter knows it arrived')
+inv.yes.Click(inv.yes)
+check(C.ns.state is not None and str(C.ns.state.code) == code, 'one click and she is in the patto')
+secs(20)
+check(C.ns.P.HasSettings(C.ns.state), 'she got the settings from the others')
+A.ns.InviteFriend('Nessuno'); secs(10)
+check(any('nun risponne' in str(x) for x in A.g.CHAT.values()), 'nobody answers: told to give the code')
+
+nils = []
+for page in ['adv', 'tombola', 'titles', 'rank', 'diary']:
+    A.ns.UI.ShowProgress(page)
+    nils += [t for t in A.texts() if re.search(r'\bnil\b', t)]
+for tab in ['casa', 'pg', 'cap', 'gruppi', 'imp', 'capo']:
+    A.ns.UI.Show(tab)
+    nils += [t for t in A.texts() if re.search(r'\bnil\b', t)]
+check(not nils, 'no "nil" on any page: ' + str(nils[:3]))
+A.ns.db.opts.testMode = True
+for page in ['adv', 'tombola', 'titles']:
+    A.ns.UI.ShowProgress(page)
+A.ns.UI.Show('casa')
+check(A.has('Aldo'), 'test mode members fill the new pages too')
+bad = [e for c in clients for e in c.errors()]
+check(not bad, 'no errors: ' + str(bad[:4]))
+unk = dict(A.g.UNKNOWN)
+print('methods not in stub list:', {str(k): v for k, v in unk.items()})
+print('\n%d failures' % len(fails))

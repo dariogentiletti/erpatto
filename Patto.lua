@@ -131,9 +131,13 @@ local function CleanBans(b)
 end
 
 -- q quests, dg dungeons, dw/dl duels won/lost, bw/bl battlegrounds won/lost, ding levels gained, g copper earned,
--- dt deaths, pt seconds played, rk rares killed, hk honorable kills, hn honor gained
-local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn" }
-local STAT_MAX = { g = 1e11, pt = 1e8, hn = 1e8 }
+-- dt deaths, pt seconds played, rk rares killed, hk honorable kills, hn honor gained,
+-- fi fish caught, he herbs, mi ore and stone, sk leather, lb blue items looted, le epic items looted,
+-- em silly deaths (falling, drowning, a much lower mob), nk famous mobs and bosses killed, tr yards travelled,
+-- fl flights taken, hs hearthstones used
+local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn",
+  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs" }
+local STAT_MAX = { g = 1e11, pt = 1e8, hn = 1e8, tr = 1e9 }
 
 -- { [string] = count }, at most `max` entries
 local function CleanCounts(t, max)
@@ -169,8 +173,27 @@ function P.CleanMember(r)
     stats = { t = CleanStats(r.stats and r.stats.t), w = {} }, h2h = {}, alts = {},
     ti = Str(r.ti, 24),
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
+    nkl = {},
   }
   if not (c.guid and c.name and c.up) then return nil end
+  -- the fun boards: nemesis, famous mobs killed, first epic, last silly death, points, predictions
+  if type(r.ne) == "table" and Str(r.ne.n, 40) then c.ne = { n = Str(r.ne.n, 40), c = math.floor(Num(r.ne.c, 0, 1e5) or 0) } end
+  if type(r.nkl) == "table" then
+    for i = 1, 5 do
+      local x = r.nkl[i]
+      if type(x) == "table" and Str(x.n, 40) then c.nkl[#c.nkl + 1] = { n = Str(x.n, 40), c = math.floor(Num(x.c, 0, 1e5) or 0) } end
+    end
+  end
+  if type(r.fe) == "table" and Num(r.fe.at, 0, 4e9) then c.fe = { at = Num(r.fe.at, 0, 4e9), n = Str(r.fe.n, 50) } end
+  if type(r.ed) == "table" and Str(r.ed.k, 12) then
+    c.ed = { k = Str(r.ed.k, 12), at = Num(r.ed.at, 0, 4e9), z = Str(r.ed.z, 40), by = Str(r.ed.by, 40) }
+  end
+  if type(r.pts) == "table" then
+    c.pts = { t = math.floor(Num(r.pts.t, 0, 1e6) or 0), w = math.floor(Num(r.pts.w, 0, 1e4) or 0), wk = Num(r.pts.wk, 0, 260) }
+  end
+  if type(r.vt) == "table" and Num(r.vt.wk, 0, 260) then
+    c.vt = { wk = Num(r.vt.wk, 0, 260), a = Str(r.vt.a, 60), b = Str(r.vt.b, 60), c = Str(r.vt.c, 60) }
+  end
   if type(r.lq) == "table" then
     for i = 1, 3 do
       local q = r.lq[i]

@@ -17,6 +17,7 @@ local function Ready()
 end
 
 function T.IsAlt() return altMode end
+function T.Ready() return Ready() end
 
 local function Week()
   if not P.HasSettings(state) then return 0 end

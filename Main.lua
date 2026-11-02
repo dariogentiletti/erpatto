@@ -2,7 +2,7 @@
 local ADDON, ns = ...
 local U, M, P, C, T = ns.U, ns.M, ns.P, ns.C, ns.T
 
-local DEFAULT_OPTS = { hud = true, notify = true, sound = true, testMode = false, questWarn = true }
+local DEFAULT_OPTS = { hud = true, notify = true, sound = true, testMode = false, questWarn = true, toasts = true, toastSound = true }
 
 ns.me, ns.myName, ns.state, ns.recordGuid, ns.alt = nil, nil, nil, nil, false
 
@@ -143,7 +143,8 @@ end
 ns.On("SelfChanged", function(state, reason)
   if state ~= ns.state then return end
   -- frequent small changes wait a minute, important ones go out in a few seconds
-  local slow = reason == "xp" or reason == "zone" or reason == "g" or reason == "equip" or reason == "pt" or reason == "prof" or reason == "hn"
+  local SLOW = { xp = 1, zone = 1, g = 1, equip = 1, pt = 1, prof = 1, hn = 1, tr = 1, fi = 1, he = 1, mi = 1, sk = 1, fun = 1, hs = 1, fl = 1, pts = 1 }
+  local slow = SLOW[reason] ~= nil
   C.MarkSelfDirty(slow and 60 or 4)
   ns.Fire("Refresh")
 end)
@@ -231,6 +232,8 @@ local function Help()
   U.Say("  /patto stato - er cap tuo in chat")
   U.Say("  /patto sync - chiede subito l'aggiornamenti all'altri")
   U.Say("  /patto annuncio - rivedi l'annuncio der capo")
+  U.Say("  /patto invita Nome - invita 'n amico ner patto")
+  U.Say("  /patto bollettino - er riassunto de la settimana scorsa")
   U.Say("  /patto prova - modalità de prova, solo pe' er capo (membri finti, li vedi solo te)")
   U.Say("  /patto diag - diagnosi (pe' segnalà problemi)")
 end
@@ -254,9 +257,17 @@ end
 
 SLASH_ERPATTO1 = "/patto"
 SLASH_ERPATTO2 = "/erpatto"
-SlashCmdList.ERPATTO = function(msg)
-  msg = string.lower(tostring(msg or "")):gsub("^%s+", ""):gsub("%s+$", "")
-  if msg == "" then
+SlashCmdList.ERPATTO = function(raw)
+  raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local msg = string.lower(raw)
+  local invite = raw:match("^[Ii][Nn][Vv][Ii][Tt][Aa]%s+(%S+)")
+  if invite then
+    ns.InviteFriend(invite)
+  elseif msg == "invita" then
+    U.Say("scrivi /patto invita Nome (o tasto destro sur ritratto, \"Invita ner patto\").")
+  elseif msg == "bollettino" then
+    if ns.Home then ns.Home.ShowBulletin(true) end
+  elseif msg == "" then
     if ns.UI then ns.UI.Toggle() end
   elseif msg == "diag" or msg == "diagnosi" then
     if ns.Diag then ns.Diag.Toggle() end
@@ -279,6 +290,23 @@ SlashCmdList.ERPATTO = function(msg)
   end
 end
 
+-- invite a player by name: they get a window to join in one click
+function ns.InviteFriend(name)
+  if not ns.state or ns.alt then U.Say("prima entra (o crea) 'n patto.") return end
+  name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if name == "" then return end
+  if not C.Invite(name) then U.Say("nun so' riuscito a manda l'invito a " .. name .. ".") return end
+  U.Say("invito mannato a |cffffffff" .. name .. "|r.")
+  if C_Timer then
+    C_Timer.After(8, function()
+      for _, who in ipairs(C.PendingInvites(7)) do
+        U.Say(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice |cffffffff" .. ns.state.code .. "|r.")
+      end
+    end)
+  end
+end
+ns.On("InviteArrived", function(who) U.Say("|cffffffff" .. who .. "|r ha ricevuto l'invito.") end)
+
 function ErPatto_OnCompartmentClick()
   if ns.UI then ns.UI.Toggle() end
 end
@@ -293,6 +321,7 @@ local handlers = {}
 handlers.ADDON_LOADED = function(name)
   if name ~= ADDON then return end
   ns.InitDB()
+  C.RegisterPrefix() -- invites reach you even before you're in a patto
   U.Log("Avvio", "versione", ns.VERSION)
 end
 
