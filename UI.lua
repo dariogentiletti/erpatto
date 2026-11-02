@@ -348,6 +348,7 @@ function UI.Members()
         ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
         nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
         pts = { t = i * 7 % 40, w = i % 9, wk = wk },
+        vt = { wk = wk, a = "FAKE-" .. ((i * 3) % #FAKE + 1), b = "FAKE-" .. ((i * 5) % #FAKE + 1), c = "FAKE-" .. ((i * 7) % #FAKE + 1) },
       }
     end
   end

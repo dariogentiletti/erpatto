@@ -540,6 +540,17 @@ local function BuildTombola(v)
     if r.votes.SetWordWrap then r.votes:SetWordWrap(false) end
     f.q[i] = r
   end
+  -- test mode: close the week now to see what it would give
+  f.testBtn = H.Btn(card, "Prova: chiudi", 110, function()
+    local total, sc, right, lines = TB.SimulateClose()
+    if not total then return end
+    U.Say("prova, settimana chiusa: tombola " .. sc.points .. " punti (" .. sc.cells .. " caselle, " .. sc.lines .. " terni), Totopatto " .. right .. "/3 = " .. total .. " punti.")
+    for _, l in ipairs(lines) do U.Say("  " .. l) end
+    if ns.News then ns.News.Banner("Settimana chiusa (prova)", total .. " punti: tombola " .. sc.points .. ", Totopatto " .. right .. "/3", nil, "evento") end
+  end, 20)
+  f.testBtn:SetPoint("TOPRIGHT", -8, -6)
+  f.testBtn:SetScript("OnEnter", function(self) H.Tip(self, { "Prova", "Chiude la settimana adesso pe' vede quanti punti faresti (tombola + Totopatto). Nun se salva gnente." }) end)
+  f.testBtn:SetScript("OnLeave", H.HideTip)
   -- season
   local pts = H.Box(f, 356, 178)
   pts:SetPoint("TOPLEFT", 388, -169)
@@ -587,11 +598,17 @@ local function RefreshTombola(v, list)
       c:Show()
     end
   end
+  f.testBtn:SetShown(TB.Testing())
+  if TB.Testing() then
+    f.cardTitle:SetText("Tombola " .. "|cffff8000(prova: conta quello che fai mo')|r")
+  end
   -- Totopatto
   local can = TB.CanVote()
   local byGuid = {}
   for _, m in ipairs(list) do byGuid[m.guid] = m end
-  if wk and wk >= 1 then
+  if TB.Testing() then
+    f.tpSub:SetText("|cffff8000Prova: voti solo su 'sto computer.|r")
+  elseif wk and wk >= 1 then
     local closes = TB.WeekStart(wk) + TB.VOTE_WINDOW
     f.tpSub:SetText(can and ("Se vota fino a " .. U.When(closes) .. ". 3 punti a risposta giusta.")
       or (GREY .. "Votazioni chiuse: li punti a fine settimana. Se rivota a la prossima.|r"))
@@ -600,13 +617,15 @@ local function RefreshTombola(v, list)
   end
   for i, q in ipairs(TB.QUESTIONS) do
     local r = f.q[i]
-    local mine = me and me.vt and me.vt.wk == wk and me.vt[q.key]
+    local myVotes = TB.VotesOf(me, wk)
+    local mine = myVotes and myVotes[q.key]
     local m = mine and byGuid[mine]
     r.btn:SetText(m and (tostring(m.name):match("^(%S+)")) or (can and "Scegli" or "-"))
     r.btn:SetEnabled(can and true or false)
     local counts = {}
     for _, x in ipairs(list) do
-      local g = x.vt and x.vt.wk == wk and x.vt[q.key]
+      local xv = TB.VotesOf(x, wk)
+      local g = xv and xv[q.key]
       if g and byGuid[g] then
         local n = (tostring(byGuid[g].name):match("^(%S+)"))
         counts[n] = (counts[n] or 0) + 1

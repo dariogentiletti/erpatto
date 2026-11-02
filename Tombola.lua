@@ -45,16 +45,34 @@ TB.POOL = {
 local LINES = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 }, { 1, 4, 7 }, { 2, 5, 8 }, { 3, 6, 9 }, { 1, 5, 9 }, { 3, 5, 7 } }
 TB.LINES = LINES
 
-local function Week()
+local function RealWeek()
   if not (ns.state and P.HasSettings(ns.state)) then return nil end
   return M.WeekIndex(ns.state.settings, U.Now())
+end
+
+-- test mode (capo only, before the start): the card and the guesses already work, on what you do now (the
+-- pre-start week), with the test members; guesses stay on this computer and no points are written
+function TB.Testing()
+  local wk = RealWeek()
+  return wk ~= nil and wk < 1 and ns.db and ns.db.opts.testMode and ns.IsCapo and ns.IsCapo() and true or false
+end
+
+local function Week()
+  local wk = RealWeek()
+  if wk and wk < 1 and TB.Testing() then return 1 end
+  return wk
 end
 TB.Week = Week
 
 local function Weekly(rec, wk)
   local w = rec and rec.stats and rec.stats.w and rec.stats.w[wk]
+  if type(w) ~= "table" and TB.Testing() then
+    local real = RealWeek()
+    w = rec and rec.stats and rec.stats.w and rec.stats.w[real]
+  end
   return type(w) == "table" and w or {}
 end
+TB.Weekly = Weekly
 
 -- a small deterministic shuffle from a string seed
 local function Seeded(seed)
@@ -69,7 +87,7 @@ end
 local cards = {}
 function TB.Card(wk)
   wk = wk or Week()
-  if not wk or not ns.state then return nil end
+  if not wk or wk < 1 or not ns.state then return nil end
   local key = ns.state.code .. ":" .. wk
   if cards[key] then return cards[key] end
   local rnd = Seeded(key)
@@ -142,8 +160,18 @@ end
 
 function TB.CanVote()
   local wk = Week()
+  if TB.Testing() then return true, wk end
   if not wk or wk < 1 or ns.alt then return false end
   return U.Now() - TB.WeekStart(wk) < TB.VOTE_WINDOW, wk
+end
+
+-- my guesses of a member's record (or, in test mode, the ones kept on this computer)
+function TB.VotesOf(m, wk)
+  wk = wk or Week()
+  local vt = m and m.vt
+  if m and m.guid == ns.recordGuid and TB.Testing() then vt = ns.db.testVotes end
+  if vt and vt.wk == wk then return vt end
+  return nil
 end
 
 function TB.Vote(qkey, guid)
@@ -151,6 +179,13 @@ function TB.Vote(qkey, guid)
   if not ok then return false end
   local rec = ns.MyRecord()
   if not rec then return false end
+  if TB.Testing() then
+    local t = (ns.db.testVotes and ns.db.testVotes.wk == wk) and ns.db.testVotes or { wk = wk }
+    t[qkey] = guid
+    ns.db.testVotes = t
+    ns.Fire("Refresh")
+    return true
+  end
   local vt = (rec.vt and rec.vt.wk == wk) and { wk = wk, a = rec.vt.a, b = rec.vt.b, c = rec.vt.c } or { wk = wk }
   vt[qkey] = guid
   P.UpdateSelf(ns.state, ns.recordGuid, { vt = vt }, "vote")
@@ -185,7 +220,7 @@ end
 
 -- called often: closes the weeks that ended (tombola + guesses) and shares the total
 function TB.Update()
-  if not ns.state or ns.alt or not P.HasSettings(ns.state) then return end
+  if not ns.state or ns.alt or not P.HasSettings(ns.state) or TB.Testing() then return end
   local rec = ns.MyRecord()
   local wk = Week()
   if not (rec and wk and wk >= 1) then return end
@@ -218,6 +253,29 @@ function TB.Update()
   if cur.t ~= total or cur.wk ~= wk or cur.w ~= (now and now.points or 0) then
     P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = total, w = now and now.points or 0, wk = wk } }, "pts")
   end
+end
+
+-- test mode: close this week now, to see what it would give (nothing is kept)
+function TB.SimulateClose()
+  local wk = Week()
+  local rec = ns.MyRecord()
+  if not (wk and rec) then return nil end
+  local sc = TB.Score(rec, wk) or { points = 0, cells = 0, lines = 0 }
+  local list = UI.Members()
+  local win = TB.Winners(wk, list)
+  local mine = TB.VotesOf(rec, wk) or {}
+  local right, lines = 0, {}
+  local byGuid = {}
+  for _, m in ipairs(list) do byGuid[m.guid] = m end
+  for _, q in ipairs(TB.QUESTIONS) do
+    local names = {}
+    for g in pairs(win[q.key]) do names[#names + 1] = byGuid[g] and (tostring(byGuid[g].name):match("^(%S+)")) or "?" end
+    table.sort(names)
+    local ok = mine[q.key] and win[q.key][mine[q.key]] and true or false
+    if ok then right = right + 1 end
+    lines[#lines + 1] = q.text .. " " .. (#names > 0 and table.concat(names, ", ") or "nessuno") .. (ok and " |cff20ff20(indovinato)|r" or "")
+  end
+  return sc.points + 3 * right, sc, right, lines
 end
 
 -- points of anybody: their shared total, mine computed live
