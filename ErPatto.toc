@@ -3,6 +3,7 @@
 ## Notes: Er patto de livellamento pe' 'n gruppo d'amici: cap settimanali pe' squadra, livelli de tutti, quest, dungeon, duelli e BG.
 ## Author: Er Patto
 ## Version: @project-version@
+## X-Curse-Project-ID: 1779580
 ## SavedVariables: ErPattoDB
 ## IconTexture: Interface\Icons\INV_Misc_PocketWatch_01
 ## AddonCompartmentFunc: ErPatto_OnCompartmentClick

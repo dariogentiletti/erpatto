@@ -20,4 +20,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # retail versions for now, so the addon can be tried on the live client before Forever opens;
+      # switch to 1.60.1 (WoW Forever) when testing moves there
       - uses: BigWigsMods/packager@v2
+        with:
+          args: -g "12.1.5,12.1.0"
