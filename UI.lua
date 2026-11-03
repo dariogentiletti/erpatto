@@ -159,11 +159,33 @@ end
 -- the dark marble of the character frame's inside (UI-Character-General-TopLeft, 24..250 x 80..250, for small pieces)
 -- and, for areas, the seamless tile made from it, repeated at its own size
 local MX0, MY0, MX1, MY1 = 24, 80, 250, 250
-local function MarbleTiles(frame, x, y, w, h, layer, sub, dark)
-  local st = Stone(frame, x, y, dark)
-  st.tex:SetDrawLayer(layer or "BACKGROUND", sub or -7)
-  st:Fit(w, h)
-  return { st.tex }
+-- The game's marble is made to repeat, but the client does not repeat a texture past its edge for us (the "REPEAT"
+-- wrap gives black there), so it is laid as plain copies side by side, each inside the file's 0..1, starting at a
+-- random spot so two panels differ. If the file is missing, the frame's own marble, in mirrored copies.
+local MARBLE = "Interface\\FrameGeneral\\UI-Background-Marble"
+local function MarbleTiles(frame, x, y, w, h, layer, sub)
+  local out = {}
+  local ox, oy = math.random(0, 200), math.random(0, 200)
+  local yy, sy = 0, oy
+  while yy < h - 0.5 do
+    local ph = math.min(256 - sy, h - yy)
+    local xx, sx = 0, ox
+    while xx < w - 0.5 do
+      local pw = math.min(256 - sx, w - xx)
+      local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
+      if t:SetTexture(MARBLE) == false then
+        t:Hide()
+        for _, x2 in ipairs(out) do x2:Hide() end
+        return Tile(frame, GENERAL, 256, 256, MX0, MY0, MX1, MY1, x, y, w, h, layer or "BACKGROUND", sub or -7)
+      end
+      t:SetTexCoord(sx / 256, (sx + pw) / 256, sy / 256, (sy + ph) / 256)
+      Put(t, frame, x + xx, y + yy, pw, ph)
+      out[#out + 1] = t
+      xx, sx = xx + pw, 0
+    end
+    yy, sy = yy + ph, 0
+  end
+  return out
 end
 -- one piece of marble at its own size, for a small frame (w x h at most 226 x 170)
 local function Marble(frame, layer, sub, w, h)
@@ -247,12 +269,12 @@ local function Box(parent, w, h)
   local b = CreateFrame("Frame", nil, parent)
   if w then b:SetSize(w, h) end
   local solid = b:CreateTexture(nil, "BACKGROUND", nil, -8)
-  solid:SetColorTexture(0.04, 0.04, 0.04, 1)
+  solid:SetColorTexture(0.05, 0.05, 0.05, 1)
   solid:SetPoint("TOPLEFT", 4, -4)
   solid:SetPoint("BOTTOMRIGHT", -4, 4)
   if w and h then
     -- a little darker than the window, as the inside of the vanilla slots and stat box
-    MarbleTiles(b, 5, 5, w - 10, h - 10, nil, nil, true)
+    MarbleTiles(b, 5, 5, w - 10, h - 10)
   else
     local m = Marble(b)
     m:SetPoint("TOPLEFT", 5, -5)

@@ -8,7 +8,8 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - the window: UI-Character-General art (UI.lua Build); the round portrait shows the vanilla Social window icon
   (FriendsFrameScrollIcon), as the user chose
 - never stretch a textured area: rails are a one pixel cut drawn along their length (smooth, as 9-slices in the
-  game), areas of stone use the game's FrameGeneral\UI-Background-Marble (seamless) repeated at its own size;
+  game), areas of stone use the game's FrameGeneral\UI-Background-Marble (seamless) laid as plain copies at its
+  own size (`MarbleTiles`; never the "REPEAT" wrap, the client draws black past the texture's edge);
   no mirrored copies of noisy art (they show as repeating notches or symmetric blotches)
 - panels: `H.Box` (the slot frame with rivets round dark marble), titles in GameFontNormal, data in the Small fonts
 - popups: `H.Chrome` (UI-DialogBox border and background) with `H.DialogHeader` for the title plate
