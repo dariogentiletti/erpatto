@@ -183,7 +183,7 @@ check(A.ns.MyRecord().il == 12.3, 'item level shared in my record (%s)' % A.ns.M
 A.ns.UI.Show('pg')
 pgv = A.ns.UI._views.pg
 L = A.lua
-check(A.g.ErPattoFrame.selTab.fill.shown and A.g.ErPattoFrame.title.shown, 'Personaggio stays inside the window (same border, same tabs)')
+check(A.g.ErPattoFrame.selTab[5].shown and A.g.ErPattoFrame.title.shown, 'Personaggio stays inside the window (same border, same tabs)')
 pt = L.eval('function(v) local p = v.model.points[1] return p[1] .. "," .. tostring(p[2]) .. "," .. tostring(p[3]) .. "," .. v.model.w .. "x" .. v.model.h end')(pgv)
 check(pt == 'TOPLEFT,51,-52,278x180', 'model between the slot columns: ' + pt)
 head = L.eval('function(v) for _, b in ipairs(v.slots) do if b.slotName == "HeadSlot" then local p = b.points[1] return p[2] .. "," .. p[3] end end end')(pgv)
@@ -195,11 +195,11 @@ PgTab = lambda: [b for b in A.ns.UI._tabs.values() if str(b.key) == 'pg'][0]
 ErTabArt1 = lambda: bool(PgTab().off.fill.shown)
 tab1 = L.eval('function() local p = ErPattoFrameTab1.points[1] return p[1] .. "," .. p[3] .. "," .. p[4] .. "," .. p[5] .. "," .. ErPattoFrameTab1.w end')()
 check(tab1.startswith('TOPLEFT,TOPLEFT,20,-457'), 'first tab under the window, 20 px in: ' + tab1)
-check(A.g.ErPattoFrame.selTab.fill.shown and A.g.ErPattoFrame.selTab[5].shown and not ErTabArt1(), 'the selected tab stands over the border')
+check(A.g.ErPattoFrame.selTab[5].shown and A.g.ErPattoFrame.selTab[5].shown and not ErTabArt1(), 'the selected tab stands over the border')
 myEq = str(A.ns.MyRecord().eq)
 check(myEq.startswith('2/') and '1.12345.3.24' in myEq and '5.6789.2.21.0.567' in myEq, 'my gear shared with item levels: ' + myEq)
 A.ns.UI.Show('cap')
-check(A.g.ErPattoFrame.selTab.fill.shown and ErTabArt1(), 'Personaggio unselected: its black tab art shows, the border opens elsewhere')
+check(A.g.ErPattoFrame.selTab[5].shown and ErTabArt1(), 'Personaggio unselected: its black tab art shows, the border opens elsewhere')
 # Pietro's pane, seen by Dario: from his record (he is far away)
 secs(70)
 B.g.FIRE('PLAYER_EQUIPMENT_CHANGED'); secs(70)

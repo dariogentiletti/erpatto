@@ -192,25 +192,30 @@ local function Patch(frame, out, cx0, cy0, cx1, cy1, x, y, flipX, flipY, layer, 
   end
 end
 
-local function MarbleTiles(frame, x, y, w, h, layer, sub)
-  local out = {}
+-- the marble as an endless plane of copies (every other one mirrored) whose grid starts at gx, gy; draw the part
+-- that falls in x, y, w, h. Two areas drawn with the same grid join with no break (the window and its selected tab)
+local function MarblePlane(frame, gx, gy, x, y, w, h, layer, sub, out)
+  out = out or {}
   local TW, TH = PX1 - PX0, PY1 - PY0
-  local j, yy = 0, 0
-  while yy < h - 0.5 do
-    local ph = math.min(TH, h - yy)
-    local flipY = j % 2 == 1
-    local cy0 = flipY and (PY1 - ph) or PY0
-    local i, xx = 0, 0
-    while xx < w - 0.5 do
-      local pw = math.min(TW, w - xx)
-      local flipX = i % 2 == 1
-      local cx0 = flipX and (PX1 - pw) or PX0
-      Patch(frame, out, cx0, cy0, cx0 + pw, cy0 + ph, x + xx, y + yy, flipX, flipY, layer, sub)
-      xx, i = xx + pw, i + 1
+  for j = math.floor((y - gy) / TH), math.floor((y + h - 1 - gy) / TH) do
+    for i = math.floor((x - gx) / TW), math.floor((x + w - 1 - gx) / TW) do
+      local tx, ty = gx + i * TW, gy + j * TH
+      local ix0, ix1 = math.max(x, tx), math.min(x + w, tx + TW)
+      local iy0, iy1 = math.max(y, ty), math.min(y + h, ty + TH)
+      if ix1 - ix0 >= 1 and iy1 - iy0 >= 1 then
+        local flipX, flipY = i % 2 ~= 0, j % 2 ~= 0
+        local u0, u1, v0, v1 = ix0 - tx, ix1 - tx, iy0 - ty, iy1 - ty
+        local cx0 = flipX and (PX1 - u1) or (PX0 + u0)
+        local cy0 = flipY and (PY1 - v1) or (PY0 + v0)
+        Patch(frame, out, cx0, cy0, cx0 + (u1 - u0), cy0 + (v1 - v0), ix0, iy0, flipX, flipY, layer, sub)
+      end
     end
-    yy, j = yy + ph, j + 1
   end
   return out
+end
+
+local function MarbleTiles(frame, x, y, w, h, layer, sub)
+  return MarblePlane(frame, x, y, x, y, w, h, layer, sub)
 end
 
 -- one piece of marble at its own size, for a small frame (w x h at most 226 x 170)
@@ -653,9 +658,12 @@ end
 -- marble as the window, so the window opens into it, as in the vanilla frame
 local function LayoutChrome(a, b)
   local t, s = f.selTab, RS
+  for _, list in pairs(f.selFills) do for _, x in ipairs(list) do x:Hide() end end
   if a and b then
     local top, bottom = H - 9, H + TAB_H
-    Put(t.fill, f, a + 3, top, b - a - 6, bottom - top - 3)
+    local key = a .. ":" .. b
+    if not f.selFills[key] then f.selFills[key] = MarblePlane(f, 10, 67, a + 3, top, b - a - 6, bottom - top - 3, "ARTWORK", 0) end
+    for _, x in ipairs(f.selFills[key]) do x:Show() end
     Put(t[P_L], f, a, top, s, bottom - top - s)
     Put(t[P_R], f, b - s, top, s, bottom - top - s)
     Put(t[P_BL], f, a, bottom - s, s, s)
@@ -1757,12 +1765,14 @@ local function Build()
   Art(300, 352, 0, 80, W - 48, -13, 52, 80)
   -- the side and bottom rails: a one pixel cut drawn along the whole length (smooth, as in the game); the marble
   -- inside repeated at its own size
-  Art(0, 24, 150, 151, -10, 67, 24, H - 77)
-  MarbleTiles(f, 14, 67, W - 28, H - 77, "BACKGROUND", 0)
-  Art(334, 352, 150, 151, W - 14, 67, 18, H - 77)
-  Art(0, 24, 426, 440, -10, H - 10, 24, 14)
-  Art(150, 151, 426, 440, 14, H - 10, W - 28, 14)
-  Art(334, 352, 426, 440, W - 14, H - 10, 18, 14)
+  -- (measured: the left border is x 10..19 of the picture, the right one 340..348, the bottom one y 430..436;
+  -- inside them only marble)
+  Art(0, 20, 150, 151, -10, 67, 20, H - 73)
+  MarblePlane(f, 10, 67, 10, 67, W - 18, H - 73, "BACKGROUND", 0)
+  Art(340, 352, 150, 151, W - 8, 67, 12, H - 73)
+  Art(0, 20, 430, 440, -10, H - 6, 20, 10)
+  Art(150, 151, 430, 440, 10, H - 6, W - 18, 10)
+  Art(340, 352, 430, 440, W - 8, H - 6, 12, 10)
   -- the round portrait: the icon of the vanilla Social window (the patto is a group of friends)
   local portrait = f:CreateTexture(nil, "BACKGROUND", nil, -1)
   Put(portrait, f, -5, -11, 63, 63)
@@ -1771,8 +1781,8 @@ local function Build()
   local function Face() end
   f.Face = Face
   -- the selected tab, over the bottom border
-  f.selTab = { fill = Art(30, 230, 300, 410, 0, 0, 1, 1) }
-  f.selTab.fill:SetDrawLayer("ARTWORK", 0)
+  f.selTab = {}
+  f.selFills = {} -- the inside of the selected tab, per place: the window's own marble plane, so it runs on
   for _, k in ipairs({ P_L, P_R, P_BL, P_BR, P_B }) do f.selTab[k] = RailTex(f, nil, k, "ARTWORK", 1) end
   if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoFrame") end
   f:Hide()
