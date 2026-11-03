@@ -541,6 +541,27 @@ function T.OnDeath()
   Bump("dt")
 end
 
+-- in a party or raid with someone of the patto (each hour of it is worth a piotta, Tombola.lua)
+local function GroupedWithPatto()
+  if not (IsInGroup and UnitName) then return false end
+  local ok, grouped = pcall(IsInGroup)
+  if not ok or U.IsSecret(grouped) or not grouped then return false end
+  local names = {}
+  for g, r in pairs(state.members) do
+    if g ~= me and type(r.name) == "string" then
+      names[r.name] = true
+      names[r.name:match("^([^%s%-]+)") or r.name] = true
+    end
+  end
+  local raid = IsInRaid and IsInRaid()
+  for i = 1, raid and 40 or 4 do
+    local okn, n = pcall(UnitName, (raid and "raid" or "party") .. i)
+    if okn and n and not U.IsSecret(n) and names[n] then return true end
+  end
+  return false
+end
+T.GroupedWithPatto = GroupedWithPatto
+
 -- time played while the patto runs: one minute at a time, not while away
 local playTicker
 local function PlayedMinute()
@@ -552,6 +573,11 @@ local function PlayedMinute()
   T.CheckPvP()
   if P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) < 1 then return end
   Bump("pt", 60)
+  if GroupedWithPatto() then
+    Bump("gp", 60)
+    local gp = state.members[me].stats.t.gp or 0
+    if gp % 3600 == 0 and ns.News then ns.News.Add("+1 piotta: 'n'antra ora in gruppo co' er patto.") end
+  end
 end
 
 -- level milestones (10, 20 ... 60) with the date they were reached

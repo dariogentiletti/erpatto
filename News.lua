@@ -1,6 +1,6 @@
 -- Er Patto: what happens in the patto, told to everyone.
 --   * a banner in the middle-top of the screen with a sound when someone dings (and for epics, silly deaths, tombole)
---   * a news list (Er Muretto tab) built from the changes in everybody's records, kept between sessions
+--   * a news list (Baretto tab) built from the changes in everybody's records, kept between sessions
 --   * the invite window: someone asks you to join, one click and you're in
 -- Changes are found by comparing each record with the last copy seen (also across sessions), so a ding that arrives
 -- while you were offline still makes the news, without a banner storm at login.
@@ -263,7 +263,7 @@ local function CatchUp()
   quietUntil = (GetTime and GetTime() or 0) + 1
   for _, rec in pairs(ns.state.members) do N.Check(rec, true) end
   local n = #s.list - before
-  if n > 0 then N.Banner("Mentre eri via", n .. (n == 1 and " novità" or " novità") .. ": le trovi ar Muretto (/patto).", nil, "evento") end
+  if n > 0 then N.Banner("Mentre eri via", n .. (n == 1 and " novità" or " novità") .. ": le trovi ar Baretto (/patto).", nil, "evento") end
 end
 ns.On("Login", function() if C_Timer then C_Timer.After(25, CatchUp) end end)
 ns.On("PattoChanged", function() if C_Timer then C_Timer.After(3, function() quietUntil = (GetTime and GetTime() or 0) + 10 end) end end)

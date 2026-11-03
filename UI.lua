@@ -540,9 +540,10 @@ end
 local function Colored(rec, plain)
   local base = "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
   if plain or not ns.Sfide then return base end
-  local g = ns.Sfide.GognaOf(rec)
+  -- a la gogna: the face of er pegno in front (the mask's animal, or the pegno's icon), the nickname after
+  local g = ns.Sfide.AtGogna(rec.guid)
   local n = ns.Sfide.NickOf(rec)
-  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. base .. (n and (" |cffff8040\"" .. n.t .. "\"|r") or "")
+  return (g and ("|T" .. ns.Sfide.PegnoIcon(g.s) .. ":0|t ") or "") .. base .. (n and (" |cffff8040\"" .. n.t .. "\"|r") or "")
 end
 
 local function StateText(lv, cap)
@@ -1922,7 +1923,7 @@ local function Build()
   BuildCapo()
   local order = {}
   for _, x in ipairs(UI.extra) do if x.first then order[#order + 1] = { x.key, x.label } end end
-  for _, t in ipairs({ { "cap", "Cap" }, { "gruppi", "Squadre" }, { "progresso", "Progresso" }, { "botteghino", "Botteghino" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
+  for _, t in ipairs({ { "botteghino", "Botteghino" }, { "progresso", "Progresso" }, { "cap", "Cap" }, { "gruppi", "Squadre" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
     order[#order + 1] = t
   end
   for i, t in ipairs(order) do MakeTab(i, t[1], t[2]) end

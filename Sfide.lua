@@ -6,12 +6,13 @@
 -- fought, la bella played) the loser goes a la gogna: a day, or a week if he lost a rivincita (or a bella) he asked
 -- for himself. The winner then chooses er pegno (a quarter of an hour; if he doesn't, the picture). Whoever is a la
 -- gogna can't do duelli a la gogna, and everyone does at most one a day.
--- Er pegno:
---   L'immagine      a picture on the loser's screen and its name ("A Pecora") in front of theirs in chat
+-- Er pegno (while a la gogna; the loser sees it as a debuff by the buffs, the patto next to the name and in chat):
+--   La maschera     an animal's mask: its name ("A Pecora") in front of theirs in chat, its face next to the name
 --   Er soprannome   the nickname the winner chose, next to their name (never instead: Pietro "Pippa")
 --   Er verso        a word the winner chose at the end of everything they write in chat
---   La figuraccia   at once: the loser's character kneels, clucks, cries or surrenders in front of everyone
+--   La figuraccia   every time they come back to life, their character clucks (or the emote chosen) in front of all
 --   Lo strillone    every time they die, the whole patto is told on screen
+--   Er servo        "servo de Dario" in front of their name in chat, and they bow every time they target Dario
 -- Er Campione: whoever wins a gogna against the champion (or the first one) holds the crown, a title.
 --
 -- Le sfide (Er Botteghino, piotte only): who does more of something (quest, sordi, pesci...) or reaches the next
@@ -42,13 +43,21 @@ S.GUFA = 300              -- five minutes
 S.BET_WINDOW = 600        -- a bet on a duel waits ten minutes for the result
 local SLACK = 60
 
+-- the order is the number in the records: new ones go at the end
 S.PENE = {
-  { key = "img", name = "L'immagine", tip = "'Na figura sur su' schermo e er nome suo davanti ar nome in chat." },
-  { key = "nick", name = "Er soprannome", ask = "Soprannome", tip = "Accanto ar nome suo, ner patto e davanti a quello che scrive in chat." },
-  { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat." },
-  { key = "emote", name = "La figuraccia", tip = "Er personaggio suo la fa subito, davanti a tutti." },
-  { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more lo sa tutto er patto, scritto grosso sur su' schermo." },
+  { key = "img", name = "La maschera", tip = "Porta la maschera de 'na bestia: in chat se chiama \"A Pecora\" (o Tartaruga, Porchetta...) e la faccia sta accanto ar nome." },
+  { key = "nick", name = "Er soprannome", ask = "Soprannome", tip = "Er soprannome che je dai tu, accanto ar nome suo: ner patto e in chat.",
+    icon = "Interface\\Icons\\INV_Misc_Note_01" },
+  { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
+    icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
+  { key = "emote", name = "La figuraccia", tip = "Ogni vorta che resuscita, er personaggio suo fa la gallina (o quello che sceji) davanti a tutti.",
+    icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken" },
+  { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
+    icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
+  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto, e ogni vorta che lo punta s'inchina.",
+    icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
 }
+S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 S.FIGURE = {
   { name = "A Pecora", icon = "Interface\\Icons\\Spell_Nature_Polymorph", say = "Ha perso e mo' fa bee." },
   { name = "A Tartaruga", icon = "Interface\\Icons\\Ability_Hunter_Pet_Turtle", say = "Lento come la fame." },
@@ -58,10 +67,12 @@ S.FIGURE = {
   { name = "A Granchio", icon = "Interface\\Icons\\Ability_Hunter_Pet_Crab", say = "Cammina de traverso." },
 }
 S.EMOTES = {
-  { tok = "KNEEL", name = "S'inginocchia" },
   { tok = "CHICKEN", name = "Fa la gallina" },
+  { tok = "KNEEL", name = "S'inginocchia" },
   { tok = "CRY", name = "Piagne" },
   { tok = "SURRENDER", name = "Se arrende" },
+  { tok = "FLEX", name = "Fa er bullo" },
+  { tok = "SILLY", name = "Fa lo scemo" },
 }
 S.STATS = {
   { key = "q", name = "Quest" }, { key = "g", name = "Sordi" }, { key = "fi", name = "Pesci" },
@@ -441,7 +452,7 @@ S.BlockText = BlockText
 ----------------------------------------------------------------------
 -- who is a la gogna, with which pegno (and how many times each one went)
 ----------------------------------------------------------------------
-local gogne, nicks, verses, shame, criers, atGogna = {}, {}, {}, {}, {}, {}
+local gogne, nicks, verses, shame, criers, servants, atGogna = {}, {}, {}, {}, {}, {}, {}
 local series = {}
 local champion
 local test = {}
@@ -450,47 +461,63 @@ function S.GognaOf(rec) local g = rec and gogne[rec.guid] if g and Now() < g.til
 function S.NickOf(rec) local g = rec and nicks[rec.guid] if g and Now() < g.til then return g end end
 function S.VerseOf(rec) local g = rec and verses[rec.guid] if g and Now() < g.til then return g end end
 function S.CrierOf(rec) local g = rec and criers[rec.guid] if g and Now() < g.til then return g end end
+function S.ServoOf(rec) local g = rec and servants[rec.guid] if g and Now() < g.til then return g end end
 function S.ShameOf(guid) return shame[guid] or 0 end
 -- a la gogna now: { til, by, long, s (the series) }
 function S.AtGogna(guid) local g = guid and atGogna[guid] if g and Now() < g.til then return g end end
 function S.Last() return series end
 
--- "Er soprannome "Pippa"", "L'immagine: A Pecora"
-function S.PegnoText(s)
+-- "Er soprannome "Pippa"", "La maschera: A Pecora", "Er servo de Dario"
+function S.PegnoText(s, all)
   local pena = S.PENE[s.pena or 0]
   if not pena then return nil end
   if pena.key == "img" then return pena.name .. ": " .. Figure(s.id).name end
   if pena.key == "nick" or pena.key == "bee" then return pena.name .. " \"" .. tostring(s.t or "?") .. "\"" end
   if pena.key == "emote" then return pena.name .. ": " .. (S.EMOTES[s.e or 1] or S.EMOTES[1]).name:lower() end
+  if pena.key == "servo" then return pena.name .. " de " .. Short((all or Members())[s.w]) end
   return pena.name
+end
+-- the face of a pegno: the animal of the mask, the icon of the others, a question mark while it's being chosen
+function S.PegnoIcon(s)
+  local pena = S.PENE[s.pena or 0]
+  if not pena then return S.WAITING_ICON end
+  if pena.key == "img" then return Figure(s.id).icon end
+  return pena.icon
+end
+
+local function keep(map, guid, x)
+  if Now() >= x.til then return end
+  if not map[guid] or x.til > map[guid].til then map[guid] = x end
+end
+-- what a gogna does to its loser, while it lasts
+local function Apply(s, all)
+  keep(atGogna, s.l, { til = s.til, by = s.w, long = s.long, s = s })
+  local why = "ha perso a la gogna co' " .. Short(all[s.w])
+  local pena = S.PENE[s.pena or 0]
+  if pena and pena.key == "img" then
+    local f = Figure(s.id)
+    keep(gogne, s.l, { name = f.name, icon = f.icon, say = f.say, til = s.til, why = why, by = s.w })
+  elseif pena and pena.key == "nick" and s.t then
+    keep(nicks, s.l, { t = s.t, til = s.til, why = why, by = s.w })
+  elseif pena and pena.key == "bee" and s.t then
+    keep(verses, s.l, { t = s.t, til = s.til, why = why, by = s.w })
+  elseif pena and pena.key == "crier" then
+    keep(criers, s.l, { from = s.te, til = s.til, by = s.w })
+  elseif pena and pena.key == "servo" then
+    keep(servants, s.l, { til = s.til, by = s.w, name = Short(all[s.w]) })
+  end
 end
 
 local function Rebuild()
-  gogne, nicks, verses, shame, criers, atGogna = {}, {}, {}, {}, {}, {}
+  gogne, nicks, verses, shame, criers, servants, atGogna = {}, {}, {}, {}, {}, {}, {}
   local all = Members()
   series = S.Series(all)
-  local function keep(map, guid, x)
-    if Now() >= x.til then return end
-    if not map[guid] or x.til > map[guid].til then map[guid] = x end
-  end
   local crowns = {}
   for _, s in ipairs(series) do
     if s.state == "chiusa" then
       shame[s.l] = (shame[s.l] or 0) + 1
       crowns[#crowns + 1] = { w = s.w, l = s.l, at = s.te }
-      keep(atGogna, s.l, { til = s.til, by = s.w, long = s.long, s = s })
-      local why = "ha perso a la gogna co' " .. Short(all[s.w])
-      local pena = S.PENE[s.pena or 0]
-      if pena and pena.key == "img" then
-        local f = Figure(s.id)
-        keep(gogne, s.l, { name = f.name, icon = f.icon, say = f.say, til = s.til, why = why, by = s.w })
-      elseif pena and pena.key == "nick" and s.t then
-        keep(nicks, s.l, { t = s.t, til = s.til, why = why, by = s.w })
-      elseif pena and pena.key == "bee" and s.t then
-        keep(verses, s.l, { t = s.t, til = s.til, why = why, by = s.w })
-      elseif pena and pena.key == "crier" then
-        keep(criers, s.l, { from = s.te, til = s.til, by = s.w })
-      end
+      Apply(s, all)
     end
   end
   -- the crown: through the gogne in order, it goes to whoever beats the one holding it
@@ -499,11 +526,11 @@ local function Rebuild()
   for _, d in ipairs(crowns) do
     if not champion or champion == d.l or champion == d.w then champion = d.w end
   end
-  local me = ns.recordGuid
-  if me then
-    if test.g and Now() < test.g.til then gogne[me] = test.g end
-    if test.n and Now() < test.n.til then nicks[me] = test.n end
-    if test.v and Now() < test.v.til then verses[me] = test.v end
+  -- test mode: a gogna of two minutes on me
+  if test.s and ns.recordGuid and Now() < test.s.til then
+    test.s.l = ns.recordGuid
+    for _, map in ipairs({ gogne, nicks, verses, criers, servants, atGogna }) do map[ns.recordGuid] = nil end
+    Apply(test.s, all)
   end
 end
 S.Rebuild = Rebuild
@@ -866,7 +893,7 @@ function S.Update()
           local pena = S.PENE[s.pena]
           if s.l == me and pena.key == "emote" and Now() - s.te < S.PICK + 300 then Figuraccia(s, all) end
           if quiet or not News then return end
-          local what = S.PegnoText(s)
+          local what = S.PegnoText(s, all)
           News.Add("Er pegno de " .. GOLD .. Name(all, s.l) .. "|r: " .. what .. (s.pick and "" or " (" .. Name(all, s.w) .. " nun ha scelto)") .. ".")
           News.Banner("Er pegno de " .. Name(all, s.l), what .. ". L'ha scelto " .. Name(all, s.w) .. ".", { 1, 0.5, 0.2 }, "evento")
         end)
@@ -1181,7 +1208,7 @@ local pegno
 function S.ShowPegno(s, wait)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 380, 236, "Hai vinto!")
+    pegno = Dialog("ErPattoPegno", 380, 254, "Hai vinto!")
     pegno.form = { p = 1, e = 1 }
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 340, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
@@ -1326,18 +1353,25 @@ function S.OpenGufa(guid)
 end
 
 ----------------------------------------------------------------------
--- my own pegno, on my screen: the picture in a vanilla slot, its name under it
+-- my own gogna, on my screen: a debuff as the old ones (icon, red border, time left under it), by the buffs
 ----------------------------------------------------------------------
+local function Left(t)
+  local d = math.max(0, t - Now())
+  if d >= DAY then return math.floor(d / DAY + 0.5) .. " g" end
+  if d >= 3600 then return math.floor(d / 3600 + 0.5) .. " h" end
+  if d >= 60 then return math.floor(d / 60 + 0.5) .. " m" end
+  return math.floor(d) .. " s"
+end
+S.Left = Left
 local pic
 function S.ShowMyGogna()
-  local rec = ns.MyRecord and ns.MyRecord()
-  local g = S.GognaOf(rec)
+  local g = S.AtGogna(ns.recordGuid)
   if not g then if pic then pic:Hide() end return end
   if not pic then
     pic = CreateFrame("Button", "ErPattoGogna", UIParent)
-    pic:SetSize(64, 64)
+    pic:SetSize(30, 30)
     local pos = ns.db.ui and ns.db.ui.gogna
-    if type(pos) == "table" and pos[1] then pic:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else pic:SetPoint("TOP", 0, -120) end
+    if type(pos) == "table" and pos[1] and pos[5] then pic:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else pic:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -205, -110) end
     pic:SetFrameStrata("MEDIUM")
     pic:SetMovable(true)
     pic:SetClampedToScreen(true)
@@ -1347,27 +1381,64 @@ function S.ShowMyGogna()
       self:StopMovingOrSizing()
       local p, _, rp, x, y = self:GetPoint()
       ns.db.ui = ns.db.ui or {}
-      ns.db.ui.gogna = { p, rp, x, y }
+      ns.db.ui.gogna = { p, rp, x, y, 1 }
     end)
     pic.icon = pic:CreateTexture(nil, "ARTWORK")
-    pic.icon:SetSize(40, 40)
-    pic.icon:SetPoint("CENTER")
+    pic.icon:SetAllPoints()
     local border = pic:CreateTexture(nil, "OVERLAY")
-    border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-    border:SetSize(64, 64)
+    border:SetTexture("Interface\\Buttons\\UI-Debuff-Border")
+    border:SetSize(33, 32)
     border:SetPoint("CENTER")
-    pic.name = pic:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pic.name:SetPoint("TOP", pic, "BOTTOM", 0, 6)
+    border:SetVertexColor(0.8, 0, 0)
+    pic.time = pic:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    pic.time:SetPoint("TOP", pic, "BOTTOM", 0, -2)
     pic:SetScript("OnEnter", function(self)
-      local x = S.GognaOf(ns.MyRecord())
-      if x then H.Tip(self, { "La gogna: " .. x.name, x.say, x.why .. ".", "Fino a " .. U.When(x.til) }) end
+      local x = S.AtGogna(ns.recordGuid)
+      if not x then return end
+      local what = S.PegnoText(x.s) or "Er pegno lo sta a sceje " .. Short(Members()[x.by])
+      local pena = S.PENE[x.s.pena or 0]
+      H.Tip(self, { "A la gogna", what, pena and pena.tip or nil, "T'ha mannato " .. Short(Members()[x.by]) .. ".", "Ancora " .. Left(x.til) .. "." })
     end)
     pic:SetScript("OnLeave", H.HideTip)
+    if C_Timer then C_Timer.NewTicker(20, function() if pic:IsShown() then S.ShowMyGogna() end end) end
   end
-  pic.icon:SetTexture(g.icon)
-  pic.name:SetText(g.name)
+  pic.icon:SetTexture(S.PegnoIcon(g.s))
+  pic.time:SetText(Left(g.til))
   pic:Show()
 end
+
+-- the pegni that act by themselves: la figuraccia when coming back to life, er servo bowing to his master
+local lastEmote = 0
+local function Emote(tok, target)
+  local now = GetTime and GetTime() or 0
+  if now - lastEmote < 8 or not DoEmote then return end
+  lastEmote = now
+  pcall(DoEmote, tok, target)
+end
+local function OnRevive()
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if pena and pena.key == "emote" then
+    local e = S.EMOTES[g.s.e or 1] or S.EMOTES[1]
+    if C_Timer then C_Timer.After(2, function() Emote(e.tok) end) else Emote(e.tok) end
+  end
+end
+local bowed = {}
+local function OnTarget()
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if not (pena and pena.key == "servo" and UnitName) then return end
+  local ok, n = pcall(UnitName, "target")
+  if not ok or not n or U.IsSecret(n) then return end
+  local master = Members()[g.by]
+  if master and (n == master.name or n == Short(master)) then
+    local now = GetTime and GetTime() or 0
+    if bowed[n] and now - bowed[n] < 300 then return end
+    bowed[n] = now
+    Emote("BOW")
+  end
+end
+S.OnRevive, S.OnTarget = OnRevive, OnTarget
 
 -- test mode: my pegni for two minutes, the dialogs, a duel to bet on, to see how they look
 local function Fakes()
@@ -1375,18 +1446,21 @@ local function Fakes()
   for _, m in ipairs(UI.Members()) do if m.fake then out[#out + 1] = m.guid end end
   return out
 end
+local testPena = 0
 function S.TestGogna()
   local f = Fakes()
-  local fig = S.FIGURE[math.random(#S.FIGURE)]
-  local til = Now() + 120
-  test.g = { name = fig.name, icon = fig.icon, say = fig.say, til = til, why = "ha perso a la gogna (prova)", by = f[1] }
-  test.n = { t = "Pippa", til = til, by = f[1] }
-  test.v = { t = "bee", til = til, by = f[1] }
+  testPena = testPena % #S.PENE + 1
+  local pena = S.PENE[testPena]
+  test.s = { id = "prova:" .. testPena, w = f[1] or ns.recordGuid, pena = testPena, t = pena.key == "nick" and "Pippa" or (pena.key == "bee" and "bee" or nil),
+    e = 1, te = Now(), til = Now() + 120 }
   Rebuild()
   S.ShowMyGogna()
-  if ns.News then ns.News.Banner(Short(ns.MyRecord()) .. " ha perso!", fig.name .. ", er soprannome \"Pippa\" e er verso \"bee\" (prova).", { 1, 0.5, 0.2 }, "evento") end
+  local all = Members()
+  if ns.News then ns.News.Banner(Short(ns.MyRecord()) .. " va a la gogna!", S.PegnoText(test.s, all) .. ", pe' du' minuti (prova).", { 1, 0.5, 0.2 }, "evento") end
+  if pena.key == "emote" then Emote((S.EMOTES[1]).tok) end
   if UI.Refresh then UI.Refresh() end
   if C_Timer then C_Timer.After(121, function() Rebuild() S.ShowMyGogna() UI.Refresh() end) end
+  return pena.name
 end
 function S.TestAsk()
   local f = Fakes()
@@ -1479,8 +1553,13 @@ local function OnDuelRequested(name)
 end
 
 local frame = CreateFrame("Frame")
-frame:SetScript("OnEvent", function(_, event, ...) if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...) end end)
-pcall(frame.RegisterEvent, frame, "DUEL_REQUESTED")
+frame:SetScript("OnEvent", function(_, event, ...)
+  if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
+  elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
+    if not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then pcall(OnRevive) end
+  elseif event == "PLAYER_TARGET_CHANGED" then pcall(OnTarget) end
+end)
+for _, e in ipairs({ "DUEL_REQUESTED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
 
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end

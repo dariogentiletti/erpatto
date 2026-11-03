@@ -140,7 +140,7 @@ sc = A.ns.Tombola.Score(A.rec())
 A.ns.Tombola.Update()
 check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my piotte shared: 20 + %s' % sc.points)
 A.ns.UI.Show('botteghino')
-check(A.has('Settimana 1') and A.has('Quanto paga') and A.has('A che stanno') and A.has('piotte'), 'Botteghino, Tombola page: card, payouts, everybody on the card, purse')
+check(A.has('Settimana 1') and A.has('terno +2') and A.has('A che stanno') and A.has('piotte'), 'Botteghino, Tombola page: card, payouts, everybody on the card, purse')
 check(not A.has('se gioca a piotte'), 'no explanation under the header')
 A.ns.Botteghino.Show('ricchi')
 check(A.has('Li ricchi') and A.has('Sfotti') and A.has('Piotte'), 'Li ricchi page')
@@ -394,10 +394,12 @@ C.g.ErPattoRivincita.no.Click(C.g.ErPattoRivincita.no); secs(5)
 peg = B.g.ErPattoPegno
 row = [r for r in peg.pena.radios.values() if r.v == 4][0]
 row.Click(row)
-peg.pena.emote.Click(peg.pena.emote)
 peg.yes.Click(peg.yes)
 secs(10)
 check(any('CHICKEN' in str(e) for e in C.g.EMOTES.values()), 'Gina does the chicken in front of everyone: ' + str(list(C.g.EMOTES.values())))
+n0 = len(list(C.g.EMOTES.values()))
+T[0] += 30; C.g.FIRE('PLAYER_UNGHOST'); secs(5)
+check(len(list(C.g.EMOTES.values())) == n0 + 1, 'and again every time she comes back to life')
 # la rivincita refused: Gina beats Pietro, who asks for it; Gina says no: Pietro a la gogna a day
 T[0] += 86400 + 60; secs(5)
 SC.Gogna('Player-1-BBB'); secs(2)
@@ -458,6 +460,28 @@ e = A.ns.Sfide.EndOf(T[0])
 T[0] = e + 60; secs(70)
 r4 = A.ns.Sfide.Store().res[c4.id]
 check(r4 is not None and str(r4.w) == 'Player-1-BBB' and r4.da == 7 and r4.db == 3, 'the fishing week: Pietro 7 to 3: %s %s' % (r4 and (r4.w, r4.da, r4.db), [str(x) for x in A.ns.Sfide.State(A.ns.Sfide.All()[1])]))
+# ---- schedina questions change every week, the capo swaps a square, an hour in a group is a piotta
+q1 = [str(q.text) for q in A.ns.Tombola.Questions(1).values()]
+q2 = [str(q.text) for q in A.ns.Tombola.Questions(2).values()]
+check(len(q1) == 3 and len(set(q1)) == 3 and q1 != q2 and q1 == [str(q.text) for q in B.ns.Tombola.Questions(1).values()], 'three questions a week, new each week, the same for everyone: %s / %s' % (q1, q2))
+wk = A.ns.Tombola.Week()
+before = [str(x.id) for x in A.ns.Tombola.Card(wk).values()]
+r = A.ns.Tombola.Swap(3)
+check(first(r), 'the capo swaps square 3: ' + str(r))
+secs(15)
+afterA = [str(x.id) for x in A.ns.Tombola.Card(wk).values()]
+afterB = [str(x.id) for x in B.ns.Tombola.Card(wk).values()]
+check(afterA[2] != before[2] and afterA[:2] == before[:2] and afterA == afterB, 'only that square changed, and Pietro has the same card: %s -> %s' % (before[2], afterA[2]))
+check(any('cambiato' in n and 'tombola' in n for n in B.news()), 'Pietro is told')
+rb = B.ns.Tombola.Swap(1)
+check(first(rb) is False, 'only the capo swaps')
+groups = set()
+check(len(set(afterA)) == 9, 'still nine different squares')
+bal = B.ns.Tombola.Balance()
+B.lua.execute('IsInGroup = function() return true end; IsInRaid = function() return false end; UnitName = function(u) if u == "party1" then return "Dario" end if u == "player" then return P_NAME end return nil end')
+secs(3600 + 70)
+check(B.ns.Tombola.Balance() == bal + 1, 'an hour in a group with Dario: one piotta more: %s -> %s' % (bal, B.ns.Tombola.Balance()))
+B.lua.execute('IsInGroup = function() return false end')
 # the gufata: Dario jinxes Pietro, who survives; then Gina jinxes Dario, who dies
 balA, balB = A.ns.Tombola.Balance(), B.ns.Tombola.Balance()
 ok = S.Gufa('Player-1-BBB', 10)
@@ -477,7 +501,7 @@ rip = A.rec().rip
 check(rip and 'boss' in str(rip[1].w), 'the gravestone keeps the last words')
 check(any('R.I.P.' in n and 'boss' in n for n in B.news()), 'and the friends read them in the news')
 B.ns.UI.ShowProgress('rip')
-check(B.has('Er Cimitero') and B.has('R.I.P.') and B.has('Li più morti') and B.has('A la gogna'), 'Cimitero page')
+check(B.has('Cimitero') and B.has('R.I.P.') and B.has('Li più morti') and B.has('A la gogna'), 'Cimitero page')
 holders = A.ns.Titles.Holders()
 check(holders['pecore'] and (holders['pecore']['Player-1-BBB'] or holders['pecore']['Player-1-CCC']), 'A Re de le Pecore: who went most a la gogna')
 bad = [e for c in clients for e in c.errors()]

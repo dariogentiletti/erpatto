@@ -170,25 +170,34 @@ local function BuildTombola(v)
     c.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     c.check:SetSize(24, 24)
     c.check:SetPoint("TOPRIGHT", -1, -1)
+    -- the capo can swap a square that can't be done (two clicks: the second confirms)
+    c.swap = H.Btn(c, "Cambia", 56, function(self)
+      local now = GetTime and GetTime() or 0
+      if not (self.armed and now - self.armed < 4) then
+        self.armed = now
+        self:SetText("Sicuro?")
+        if C_Timer then C_Timer.After(4, function() self.armed = nil self:SetText("Cambia") end) end
+        return
+      end
+      self.armed = nil
+      self:SetText("Cambia")
+      local ok, old, new = TB.Swap(i)
+      if ok then Say(true, nil, "Casella cambiata: " .. new.t .. ".") else Say(false, old) end
+    end, 16)
+    c.swap:SetPoint("BOTTOM", 0, 8)
     v.cells[i] = c
   end
-  -- right: how it pays, and how everybody is doing on this card
+  -- under the card: how it pays, in one line
+  v.pays = H.Text(p, "GameFontHighlightSmall", "Casella " .. TB.Piotte(1) .. ", terno +2, tombola +10", 470, "CENTER")
+  v.pays:SetPoint("TOPLEFT", 10, -326)
+  -- right: how everybody is doing on this card
   local side = H.Box(p, 238, 323)
   side:SetPoint("TOPRIGHT", -8, -14)
-  v.paysTitle = H.Text(side, "GameFontNormal", "Quanto paga", 200)
-  v.paysTitle:SetPoint("TOPLEFT", 12, -10)
-  v.pays = {}
-  for i, t in ipairs({ { "Casella", 1 }, { "Terno", 2 }, { "Tombola", 10 } }) do
-    local l = H.Text(side, "GameFontHighlightSmall", t[1], 120)
-    l:SetPoint("TOPLEFT", 14, -12 - i * 16)
-    local r = H.Text(side, "GameFontHighlightSmall", "+" .. t[2] .. " " .. TB.Coin(12), 80, "RIGHT")
-    r:SetPoint("TOPRIGHT", -14, -12 - i * 16)
-  end
   v.raceTitle = H.Text(side, "GameFontNormal", "A che stanno", 200)
-  v.raceTitle:SetPoint("TOPLEFT", 12, -90)
+  v.raceTitle:SetPoint("TOPLEFT", 12, -10)
   v.race = {}
-  for i = 1, 12 do
-    local y = -108 - (i - 1) * 17
+  for i = 1, 16 do
+    local y = -30 - (i - 1) * 17
     local r = {}
     r.name = H.Text(side, "GameFontHighlightSmall", "", 150)
     r.name:SetPoint("TOPLEFT", 14, y)
@@ -213,8 +222,8 @@ local function BuildSchedina(v)
   for i, q in ipairs(TB.QUESTIONS) do
     local box = H.Box(v.sch, 244, 347)
     box:SetPoint("TOPLEFT", (i - 1) * 250, -28)
-    local r = { key = q.key, box = box }
-    r.title = H.Text(box, "GameFontNormal", q.text, 224, "CENTER")
+    local r = { key = q.key, box = box, i = i }
+    r.title = H.Text(box, "GameFontNormal", "", 224, "CENTER")
     r.title:SetPoint("TOP", 0, -10)
     r.status = H.Text(box, "GameFontDisableSmall", "", 224, "CENTER")
     r.status:SetPoint("TOP", 0, -26)
@@ -365,6 +374,10 @@ local function RefreshTombola(v, wk, me, list, testing)
       c.text:SetText(sq.t)
       c.prog:SetText(done and "|cff20ff20Fatto|r" or TB.ProgressText(sq, cur, target))
       c.check:SetShown(done)
+      local swap = TB.CanSwap() and true or false
+      c.swap:SetShown(swap)
+      c.prog:ClearAllPoints()
+      c.prog:SetPoint("BOTTOM", 0, swap and 28 or 16)
       c:Show()
     end
   end
@@ -388,7 +401,9 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
   local can = TB.CanVote()
   local mine = TB.VotesOf(me, wk) or {}
   local closes = wk and wk >= 1 and not testing and TB.Closes(wk)
+  local qs = TB.Questions(wk)
   for _, r in ipairs(v.q) do
+    r.title:SetText(qs[r.i] and qs[r.i].text or "")
     local status
     if testing then status = "|cffff8000prova|r"
     elseif not (wk and wk >= 1) then status = "se apre co' er patto"

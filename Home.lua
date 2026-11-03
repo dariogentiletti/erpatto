@@ -244,7 +244,7 @@ local function Refresh(v)
   v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
 
-UI.AddView("casa", "Er Muretto", Build, Refresh, true)
+UI.AddView("casa", "Baretto", Build, Refresh, true)
 
 ----------------------------------------------------------------------
 -- Er Bollettino: last week, told
@@ -320,7 +320,7 @@ function Home.ShowBulletin(force)
     bull.ok:SetPoint("BOTTOM", 0, 16)
     if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoBulletin") end
   end
-  bull.title:SetText("Er Bollettino, settimana " .. wk .. (testing and " |cffff8000(prova)|r" or ""))
+  bull.title:SetText("Bollettino, settimana " .. wk .. (testing and " |cffff8000(prova)|r" or ""))
   local lines = Home.Bulletin(wk)
   for i, l in ipairs(bull.lines) do l:SetText(lines[i] or "") end
   local st = ns.MyStatus()

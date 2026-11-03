@@ -7,14 +7,16 @@
 -- that week (the shared weekly stats).
 --   1 piotta a square, +2 a full line ("terno"), +10 the whole card ("tombola").
 --
--- La Schedina: three questions each week (who levels most, who quests most, who dies most). In the first two days you
+-- La Schedina: three questions each week, new every week (drawn like the card, from TB.QPOOL: who levels most,
+-- who fishes most, who dies most...). In the first two days you
 -- pick a member and stake as many piotte as you like, at the odds ("quota") shown at that moment, which stay yours:
 -- if your pick wins you get stake x quota. The odds come from how the patto is betting (the more piotte on someone,
 -- the less they pay) mixed with the form (what each did this week so far and last week), with a small house edge.
 -- Ties all win. If nobody did anything (all zero), stakes go back.
 -- The closed week is shown in its own window (Botteghino.lua), not in the chat.
 --
--- Everybody starts with 20 piotte. Piotte buy "sfottò" (a banner on a friend's screen) and make the ranking of
+-- Everybody starts with 20 piotte, and gets one more for every hour played in a group with someone of the patto.
+-- Piotte buy "sfottò" (a banner on a friend's screen) and make the ranking of
 -- the richest. Each player keeps their own book (per week: tombola, winnings, stakes) and shares the balance.
 -- The bets travel in the record: this week's (vt) and last week's (vp), so the pots can be counted by everyone.
 local ADDON, ns = ...
@@ -34,25 +36,28 @@ function TB.Coin(size) return "|T" .. TB.ICON .. ":" .. (size or 0) .. "|t" end
 function TB.Money(n, noIcon) return (noIcon and "" or (TB.Coin() .. " ")) .. TB.HEX .. TB.Piotte(n) .. "|r" end
 local YD_KM = 0.0009144 -- yards to km
 
--- the squares; k is a weekly stat (or a list summed), n the target. Meant to take a real week of play.
+-- the squares; k is a weekly stat (or a list summed), n the target. Meant to take a real week of play; wk: not
+-- before that week (gold, bosses, flights need some levels first). The capo can swap a square of this week
+-- (TB.Swap): the swaps travel in the settings, so every card stays the same for everybody.
 TB.POOL = {
   { id = "q40", t = "Fai 40 quest", k = "q", n = 40 },
-  { id = "q80", t = "Fai 80 quest", k = "q", n = 80 },
+  { id = "q80", t = "Fai 80 quest", k = "q", n = 80, wk = 2 },
   { id = "dg3", t = "Fai 3 dungeon", k = "dg", n = 3 },
-  { id = "dg6", t = "Fai 6 dungeon", k = "dg", n = 6 },
+  { id = "dg6", t = "Fai 6 dungeon", k = "dg", n = 6, wk = 2 },
   { id = "ding5", t = "Sali 5 livelli", k = "ding", n = 5 },
   { id = "dw5", t = "Vinci 5 duelli", k = "dw", n = 5 },
   { id = "rk2", t = "Ammazza 2 rari", k = "rk", n = 2 },
-  { id = "nk8", t = "Ammazza 8 boss", k = "nk", n = 8 },
+  { id = "nk8", t = "Ammazza 8 boss", k = "nk", n = 8, wk = 2 },
   { id = "fi50", t = "Pesca 50 pesci", k = "fi", n = 50 },
   { id = "ga80", t = "Raccoji 80 erbe, minerali o pelli", k = { "he", "mi", "sk" }, n = 80 },
-  { id = "lb3", t = "Trova 3 blu o viola", k = { "lb", "le" }, n = 3 },
+  { id = "lb3", t = "Trova 3 blu o viola", k = { "lb", "le" }, n = 3, wk = 2 },
   { id = "pt12", t = "Gioca 12 ore", k = "pt", n = 43200 },
   { id = "pt20", t = "Gioca 20 ore", k = "pt", n = 72000 },
-  { id = "g25", t = "Fai 25 monete d'oro", k = "g", n = 250000 },
+  { id = "g25", t = "Fai 25 monete d'oro", k = "g", n = 250000, wk = 4 },
+  { id = "g5", t = "Fai 5 monete d'oro", k = "g", n = 50000 },
   { id = "tr50", t = "Cammina 50 km", k = "tr", n = 54681 },
-  { id = "tr100", t = "Cammina 100 km", k = "tr", n = 109362 },
-  { id = "fl10", t = "Prendi 10 voli", k = "fl", n = 10 },
+  { id = "tr100", t = "Cammina 100 km", k = "tr", n = 109362, wk = 2 },
+  { id = "fl10", t = "Prendi 10 voli", k = "fl", n = 10, wk = 2 },
   { id = "em2", t = "More 2 vorte da scemo", k = "em", n = 2 },
   { id = "dt0", t = "Nun more mai (armeno 10 ore)", zero = "dt", min = { "pt", 36000 } },
 }
@@ -64,10 +69,25 @@ end
 local LINES = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 }, { 1, 4, 7 }, { 2, 5, 8 }, { 3, 6, 9 }, { 1, 5, 9 }, { 3, 5, 7 } }
 TB.LINES = LINES
 
-TB.QUESTIONS = {
-  { key = "a", stat = "ding", text = "Chi sale più livelli?" },
-  { key = "b", stat = "q", text = "Chi fa più quest?" },
-  { key = "c", stat = "dt", text = "Chi more de più?" },
+-- the three slots of the schedina; what each one asks changes every week (TB.Questions)
+TB.QUESTIONS = { { key = "a" }, { key = "b" }, { key = "c" } }
+-- the questions, drawn three a week; rare: often nobody does it, at most one of those a week
+TB.QPOOL = {
+  { id = "ding", stat = "ding", text = "Chi sale più livelli?" },
+  { id = "q", stat = "q", text = "Chi fa più quest?" },
+  { id = "dt", stat = "dt", text = "Chi more de più?" },
+  { id = "dg", stat = "dg", text = "Chi fa più dungeon?" },
+  { id = "fi", stat = "fi", text = "Chi pesca de più?" },
+  { id = "g", stat = "g", text = "Chi fa più sordi?" },
+  { id = "tr", stat = "tr", text = "Chi cammina de più?" },
+  { id = "pt", stat = "pt", text = "Chi gioca de più?" },
+  { id = "ga", stat = { "he", "mi", "sk" }, text = "Chi raccoje de più?" },
+  { id = "nk", stat = "nk", text = "Chi ammazza più boss?", wk = 2 },
+  { id = "lb", stat = { "lb", "le" }, text = "Chi trova più blu o viola?", wk = 2 },
+  { id = "dw", stat = "dw", text = "Chi vince più duelli?", rare = true },
+  { id = "em", stat = "em", text = "Chi more più da scemo?", rare = true },
+  { id = "rk", stat = "rk", text = "Chi ammazza più rari?", rare = true },
+  { id = "fl", stat = "fl", text = "Chi prende più voli?", rare = true, wk = 2 },
 }
 TB.VOTE_WINDOW = 2 * 86400
 
@@ -119,15 +139,26 @@ local function Seeded(seed)
   end
 end
 
+local function PoolById(id) for _, sq in ipairs(TB.POOL) do if sq.id == id then return sq end end end
+
+-- the capo's swaps of a week, in order: { { i = square 1..9, id = new square } }
+local function Swaps(wk)
+  local out = {}
+  local list = ns.state and ns.state.settings and ns.state.settings.tc
+  for _, x in ipairs(type(list) == "table" and list or {}) do
+    if x.wk == wk then out[#out + 1] = x end
+  end
+  return out
+end
+TB.Swaps = Swaps
+
 local cards = {}
-function TB.Card(wk)
-  wk = wk or Week()
-  if not wk or wk < 1 or not ns.state then return nil end
+-- the card as drawn from the sacchetto, before any swap
+local function Drawn(wk)
   local key = ns.state.code .. ":" .. wk
-  if cards[key] then return cards[key] end
   local rnd = Seeded(key)
   local pool = {}
-  for i, c in ipairs(TB.POOL) do pool[i] = c end
+  for _, c in ipairs(TB.POOL) do if (c.wk or 1) <= wk then pool[#pool + 1] = c end end
   local card, used = {}, {}
   while #card < 9 and #pool > 0 do
     local sq = table.remove(pool, rnd(#pool))
@@ -136,8 +167,64 @@ function TB.Card(wk)
       card[#card + 1] = sq
     end
   end
+  return card
+end
+function TB.Card(wk)
+  wk = wk or Week()
+  if not wk or wk < 1 or not ns.state then return nil end
+  local swaps = Swaps(wk)
+  local sig = ""
+  for _, x in ipairs(swaps) do sig = sig .. x.i .. x.id .. ";" end
+  local key = ns.state.code .. ":" .. wk .. ":" .. sig
+  if cards[key] then return cards[key] end
+  local card = Drawn(wk)
+  -- a swap counts only if its square exists and doesn't repeat what another square is about
+  for _, x in ipairs(swaps) do
+    local sq = PoolById(x.id)
+    if sq and card[x.i] then
+      local clash = false
+      for j, other in ipairs(card) do if j ~= x.i and Group(other) == Group(sq) then clash = true end end
+      if not clash then card[x.i] = sq end
+    end
+  end
   cards[key] = card
   return card
+end
+
+-- the capo swaps square i of this week for another one (not about what the other eight are about)
+TB.MAX_SWAPS = 3
+function TB.CanSwap()
+  if not (ns.state and P.HasSettings(ns.state) and ns.CanAdmin and ns.CanAdmin()) or ns.alt then return false end
+  local wk = math.max(1, RealWeek() or 1)
+  return #Swaps(wk) < TB.MAX_SWAPS, wk
+end
+function TB.Swap(i)
+  local ok, wk = TB.CanSwap()
+  if not wk then return false, "Solo er capo pò cambià le caselle." end
+  if not ok then return false, "'Sta settimana hai già cambiato " .. TB.MAX_SWAPS .. " caselle." end
+  local card = TB.Card(wk)
+  local cur = card and card[i]
+  if not cur then return false end
+  local choices = {}
+  for _, sq in ipairs(TB.POOL) do
+    if sq.id ~= cur.id and (sq.wk or 1) <= wk then
+      local clash = false
+      for j, other in ipairs(card) do if j ~= i and Group(other) == Group(sq) then clash = true end end
+      if not clash then choices[#choices + 1] = sq end
+    end
+  end
+  if #choices == 0 then return false, "Nun c'è 'n'antra casella da mette." end
+  local new = choices[math.random(#choices)]
+  local ok2, e = P.EditSettings(ns.state, ns.recordGuid, function(st)
+    local kept = {}
+    for _, x in ipairs(type(st.tc) == "table" and st.tc or {}) do
+      if x.wk >= wk - 1 and not (x.wk == wk and x.i == i) then kept[#kept + 1] = x end
+    end
+    kept[#kept + 1] = { wk = wk, i = i, id = new.id }
+    st.tc = kept
+  end)
+  if not ok2 then return false, e end
+  return true, cur, new
 end
 
 local function Value(w, k)
@@ -147,6 +234,31 @@ local function Value(w, k)
     return s
   end
   return w[k] or 0
+end
+TB.Value = Value
+
+-- the three questions of a week: { { key = "a", stat, text }, ... }, the same on every computer
+local questions = {}
+function TB.Questions(wk)
+  wk = math.max(1, wk or Week() or 1)
+  local key = (ns.state and ns.state.code or "") .. ":q:" .. wk
+  if questions[key] then return questions[key] end
+  local rnd = Seeded(key)
+  local pool = {}
+  for _, q in ipairs(TB.QPOOL) do if (q.wk or 1) <= wk then pool[#pool + 1] = q end end
+  local out, rare = {}, false
+  while #out < #TB.QUESTIONS and #pool > 0 do
+    local q = table.remove(pool, rnd(#pool))
+    if not (q.rare and rare) then
+      rare = rare or q.rare
+      out[#out + 1] = { key = TB.QUESTIONS[#out + 1].key, id = q.id, stat = q.stat, text = q.text }
+    end
+  end
+  questions[key] = out
+  return out
+end
+local function QuestionOf(wk, qkey)
+  for _, q in ipairs(TB.Questions(wk)) do if q.key == qkey then return q end end
 end
 
 function TB.Progress(sq, w)
@@ -231,13 +343,20 @@ end
 
 local function StakeOf(v, key) return v and v[key] and (v["s" .. key] or 0) or 0 end
 
--- my balance: start + every week's tombola and winnings - every stake - what I spent
+-- a piotta for every hour played in a group with someone of the patto
+TB.GROUP_HOUR = 3600
+function TB.GroupPiotte(rec)
+  local gp = rec and rec.stats and rec.stats.t and rec.stats.t.gp or 0
+  return math.floor(gp / TB.GROUP_HOUR)
+end
+
+-- my balance: start + an hour in a group, a piotta + every week's tombola and winnings - every stake - what I spent
 function TB.Balance()
   local b = Book()
   local rec = ns.MyRecord and ns.MyRecord()
   if not (b and rec) then return TB.START end
   local wk = Week() or 0
-  local total = TB.START - b.spent
+  local total = TB.START - b.spent + TB.GroupPiotte(rec)
   for w, e in pairs(b.weeks) do if w < wk then total = total + (e.t or 0) + (e.w or 0) end end
   local now = TB.Score(rec, wk)
   total = total + (now and now.points or 0)
@@ -316,12 +435,12 @@ TB.Vote = function(qkey, guid) return TB.Bet(qkey, guid) end
 -- who won each question in a week (ties all win; nobody if the best is zero)
 function TB.Winners(wk, list)
   local out = {}
-  for _, q in ipairs(TB.QUESTIONS) do
+  for _, q in ipairs(TB.Questions(wk)) do
     local best = 0
-    for _, m in ipairs(list) do best = math.max(best, Weekly(m, wk)[q.stat] or 0) end
+    for _, m in ipairs(list) do best = math.max(best, Value(Weekly(m, wk), q.stat)) end
     out[q.key] = {}
     if best > 0 then
-      for _, m in ipairs(list) do if (Weekly(m, wk)[q.stat] or 0) == best then out[q.key][m.guid] = true end end
+      for _, m in ipairs(list) do if Value(Weekly(m, wk), q.stat) == best then out[q.key][m.guid] = true end end
     end
   end
   return out
@@ -331,11 +450,10 @@ end
 -- on them and how many played them. The patto's bets weigh as much as the form once there are HOUSE piotte down.
 local HOUSE, EDGE, MINQ, MAXQ = 30, 0.85, 11, 150
 function TB.Odds(wk, list, qkey, without)
-  local q
-  for _, x in ipairs(TB.QUESTIONS) do if x.key == qkey then q = x end end
+  local q = QuestionOf(wk, qkey)
   local form, sumForm, staked, count, total = {}, 0, {}, {}, 0
   for _, m in ipairs(list) do
-    local f = 1 + (Weekly(m, wk)[q.stat] or 0) + (wk and wk > 1 and (Weekly(m, wk - 1)[q.stat] or 0) or 0)
+    local f = 1 + Value(Weekly(m, wk), q.stat) + (wk and wk > 1 and Value(Weekly(m, wk - 1), q.stat) or 0)
     form[m.guid] = f
     sumForm = sumForm + f
     local v = m.guid ~= without and TB.VotesOf(m, wk)
@@ -364,7 +482,7 @@ function TB.Payout(wk, list, myVotes)
   local win = TB.Winners(wk, list)
   local total, right, lines = 0, 0, {}
   myVotes = myVotes or {}
-  for _, q in ipairs(TB.QUESTIONS) do
+  for _, q in ipairs(TB.Questions(wk)) do
     local mine = StakeOf(myVotes, q.key)
     local pick = myVotes[q.key]
     local nobody = next(win[q.key]) == nil
@@ -511,6 +629,25 @@ ns.On("Sfotto", function(from, data)
     ns.News.Add("|cffffd100" .. name .. "|r t'ha sfottuto: " .. text)
   end
 end)
+
+-- a square swapped by the capo: everybody is told once
+local function SwapsSeen(state)
+  if state ~= ns.state or not (ns.db and P.HasSettings(state)) then return end
+  local wk = math.max(1, RealWeek() or 1)
+  ns.db.tcSeen = type(ns.db.tcSeen) == "table" and ns.db.tcSeen or {}
+  local seen = ns.db.tcSeen[state.code] or {}
+  ns.db.tcSeen[state.code] = seen
+  for _, x in ipairs(Swaps(wk)) do
+    local key = x.wk .. ":" .. x.i .. ":" .. x.id
+    if not seen[key] then
+      seen[key] = true
+      local sq = PoolById(x.id)
+      if sq and ns.News then ns.News.Add("Er capo ha cambiato 'na casella de la tombola: mo' c'è \"" .. sq.t .. "\".") end
+    end
+  end
+end
+ns.On("SettingsChanged", function(state) SwapsSeen(state) if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end end)
+ns.On("StateChanged", function(state, kind) if kind ~= "M" then SwapsSeen(state) end end)
 
 ns.On("MemberUpdated", function(rec) Remember(rec) end)
 ns.On("SelfChanged", function(state, reason)

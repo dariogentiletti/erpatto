@@ -166,8 +166,10 @@ local function Refresh(force)
     -- a penitenza wins over the title while it lasts: the nickname, or the picture's name
     local g = ns.Sfide and ns.Sfide.GognaOf(m)
     local n = ns.Sfide and ns.Sfide.NickOf(m)
+    local sv = ns.Sfide and ns.Sfide.ServoOf(m)
     if g then t = { id = "gogna", name = g.name, icon = g.icon, desc = g.say } end
     if n then t = { id = "gogna", name = "detto " .. n.t, icon = g and g.icon } end
+    if sv then t = { id = "gogna", name = "servo de " .. sv.name, icon = ns.Sfide.PENE[6].icon } end
     local v = ns.Sfide and ns.Sfide.VerseOf(m)
     if v and type(m.name) == "string" then
       cache.verse[m.name] = v.t
@@ -187,6 +189,8 @@ function Ti.Of(rec)
   -- a penitenza wins over any title while it lasts
   local n = ns.Sfide and ns.Sfide.NickOf(rec)
   if n then return "detto \"" .. n.t .. "\"" end
+  local sv = ns.Sfide and ns.Sfide.ServoOf(rec)
+  if sv then return "servo de " .. sv.name end
   local g = ns.Sfide and ns.Sfide.GognaOf(rec)
   if g then return g.name end
   Refresh()
@@ -289,8 +293,8 @@ function Ti.ShowLink(id)
   if id == "gogna" and tip then
     if tip.SetOwner then tip:SetOwner(UIParent, "ANCHOR_PRESERVE") end
     tip:ClearLines()
-    tip:AddLine("La penitenza", 1, 0.5, 0.25)
-    tip:AddLine("Ha perso 'na sfida der patto, e mo' se la porta.", 1, 1, 1, true)
+    tip:AddLine("A la gogna", 1, 0.5, 0.25)
+    tip:AddLine("Ha perso 'n duello a la gogna, e mo' se porta er pegno.", 1, 1, 1, true)
     tip:AddLine("Er Patto", 0.6, 0.6, 0.6)
     tip:Show()
     return

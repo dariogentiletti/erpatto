@@ -391,7 +391,7 @@ A.ns.db.opts.testMode = True
 A.ns.UI.Show('progresso')
 check(A.has('Aldo (prova)') or any('Aldo (prova)' in t for t in A.texts()), 'test mode adds fake members')
 pv = A.ns.UI._views.progresso
-check(A.has('La Corsa') and A.has('Ore giocate') and A.has('Rari ammazzati') and A.has('Duelli vinti') and not A.has('perse'), 'leaderboard cards, wins only')
+check(A.has('Corsa') and A.has('Ore giocate') and A.has('Rari ammazzati') and A.has('Duelli vinti') and not A.has('perse'), 'leaderboard cards, wins only')
 top5 = [str(r.pos.text) for r in pv.rank.cards[1].rows.values() if r.shown]
 check(top5 == ['1º', '2º', '3º', '4º', '5º'], 'each card shows the top five: ' + str(top5))
 wk2 = pv.weekBtn; wk2.Click(wk2)

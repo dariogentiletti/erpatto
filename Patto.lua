@@ -91,6 +91,17 @@ function P.CleanSettings(s)
     teams = {},
   }
   if not (c.v and c.at and c.by and c.start) then return nil end
+  -- the capo's swaps of tombola squares: week, square 1..9, the new square's id
+  if type(s.tc) == "table" then
+    local tc = {}
+    for i = 1, 12 do
+      local x = s.tc[i]
+      if type(x) == "table" and Num(x.wk, 1, 260) and Num(x.i, 1, 9) and Str(x.id, 8) then
+        tc[#tc + 1] = { wk = math.floor(x.wk), i = math.floor(x.i), id = Str(x.id, 8) }
+      end
+    end
+    c.tc = #tc > 0 and tc or nil
+  end
   if type(s.teams) == "table" then
     for i = 1, P.MAX_TEAMS do
       local t = s.teams[i]
@@ -134,10 +145,10 @@ end
 -- dt deaths, pt seconds played, rk rares killed, hk honorable kills, hn honor gained,
 -- fi fish caught, he herbs, mi ore and stone, sk leather, lb blue items looted, le epic items looted,
 -- em silly deaths (falling, drowning, a much lower mob), nk famous mobs and bosses killed, tr yards travelled,
--- fl flights taken, hs hearthstones used
+-- fl flights taken, hs hearthstones used, gp seconds played in a group with someone of the patto
 local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn",
-  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs" }
-local STAT_MAX = { g = 1e11, pt = 1e8, hn = 1e8, tr = 1e9 }
+  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp" }
+local STAT_MAX = { g = 1e11, pt = 1e8, hn = 1e8, tr = 1e9, gp = 1e8 }
 
 -- { [string] = count }, at most `max` entries
 local function CleanCounts(t, max)

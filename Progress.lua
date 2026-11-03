@@ -841,7 +841,7 @@ local function BuildCimitero(v)
   v.cimitero = f
   local box = H.Box(f, 494, 347)
   box:SetPoint("TOPLEFT")
-  local t = H.Text(box, "GameFontNormal", "Er Cimitero", 200) t:SetPoint("TOPLEFT", 12, -10)
+  local t = H.Text(box, "GameFontNormal", "Cimitero", 200) t:SetPoint("TOPLEFT", 12, -10)
   f.graves = {}
   for i = 1, 10 do
     local y = -30 - (i - 1) * 31
@@ -910,9 +910,9 @@ end
 ----------------------------------------------------------------------
 local function Build()
   local v = H.NewView("progresso")
-  v.tabRank = H.TopTab(v, "La Corsa", function() page = "rank" end)
+  v.tabRank = H.TopTab(v, "Corsa", function() page = "rank" end)
   v.tabRank:SetPoint("TOPLEFT", 0, 0)
-  v.tabAdv = H.TopTab(v, "Le Chicche", function() page = "adv" end)
+  v.tabAdv = H.TopTab(v, "Chicche", function() page = "adv" end)
   v.tabAdv:SetPoint("LEFT", v.tabRank, "RIGHT", 2, 0)
   v.tabTitles = H.TopTab(v, "Titoli", function() page = "titles" end)
   v.tabTitles:SetPoint("LEFT", v.tabAdv, "RIGHT", 2, 0)
