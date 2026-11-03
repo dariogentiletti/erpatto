@@ -117,7 +117,10 @@ end)
 ----------------------------------------------------------------------
 -- deaths: what kind, and who did it
 ----------------------------------------------------------------------
-local breathUntil, lastFall = 0, 0
+-- what last hurt me from the world (the combat log: "Falling", "Drowning", "Lava"...), the breath bar running out,
+-- and the last moment I was falling
+local env, envAt = nil, 0
+local breathEnd, lastFall = nil, 0
 local function Now() return GetTime and GetTime() or 0 end
 
 function F.DeathKind()
@@ -130,8 +133,11 @@ function F.DeathKind()
     kType = Plain(Safe(UnitCreatureType, "target"), "string")
   end
   local kind = "mostro"
-  if Now() < breathUntil then kind = "affogato"
+  local recent = Now() - envAt < 3 and env
+  if recent == "Falling" then kind = "cascato"
+  elseif recent == "Drowning" then kind = "affogato"
   elseif Safe(IsFalling) == true or Now() - lastFall < 2.5 then kind = "cascato"
+  elseif breathEnd and Now() >= breathEnd - 2 then kind = "affogato"
   elseif kPlayer then kind = "pvp"
   elseif killer and (kType == "Critter" or (kLv and kLv > 0 and kLv <= myLv - 5)) then kind = "pischello"
   end
@@ -270,8 +276,19 @@ end
 local frame = CreateFrame("Frame")
 local handlers = {
   PLAYER_DEAD = function() F.OnDeath() end,
-  MIRROR_TIMER_START = function(timer) if timer == "BREATH" then breathUntil = Now() + 600 end end,
-  MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then breathUntil = Now() + 1 end end,
+  -- the breath bar: value in ms, going down (scale -1); drowning only when it's about to end
+  MIRROR_TIMER_START = function(timer, value, _, scale)
+    if timer ~= "BREATH" then return end
+    value, scale = Plain(value, "number"), Plain(scale, "number")
+    breathEnd = (value and (scale or -1) < 0) and (Now() + value / 1000) or nil
+  end,
+  MIRROR_TIMER_STOP = function(timer) if timer == "BREATH" then breathEnd = nil end end,
+  COMBAT_LOG_EVENT_UNFILTERED = function()
+    if not (CombatLogGetCurrentEventInfo and UnitGUID) then return end
+    local _, sub, _, _, _, _, _, dest, _, _, _, kind = CombatLogGetCurrentEventInfo()
+    if sub ~= "ENVIRONMENTAL_DAMAGE" or U.IsSecret(dest) or dest ~= UnitGUID("player") then return end
+    env, envAt = Plain(kind, "string"), Now()
+  end,
   ENCOUNTER_END = function(_, name, _, _, success)
     if success == 1 or success == true then Named(Plain(name, "string")) end
   end,

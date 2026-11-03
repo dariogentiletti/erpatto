@@ -1381,6 +1381,49 @@ function S.ShowPena(s, all)
   pena:Show()
 end
 
+-- the sfottò: three lines about him (Tombola.SfottiFor), pick one, 3 piotte, it lands big on his screen
+local sfo
+function S.OpenSfotti(guid)
+  local all = Members()
+  local TB = ns.Tombola
+  if not (TB and all[guid]) or guid == ns.recordGuid then return end
+  if not sfo then
+    sfo = Dialog("ErPattoSfotti", 460, 190, "Sfotti")
+    sfo.text = H.Text(sfo, "GameFontHighlight", "", 420, "CENTER")
+    sfo.text:SetPoint("TOP", 0, -32)
+    sfo.radios = {}
+    for i = 1, 3 do
+      local r = H.Radio(sfo, "", function() sfo.pick = i for k, x in ipairs(sfo.radios) do x:SetSelected(k == i) end end)
+      r:SetPoint("TOPLEFT", 28, -58 - (i - 1) * 22)
+      sfo.radios[i] = r
+    end
+    sfo.yes = H.Btn(sfo, "Sfotti!", 120, function()
+      local ok, msg = TB.Sfotti(sfo.guid, sfo.lines[sfo.pick or 1])
+      if Report(sfo, ok, msg) then
+        if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
+        Done(sfo, "Sfottuto! A " .. Name(Members(), sfo.guid) .. " je compare: \"" .. msg .. "\"", 4)
+      end
+    end)
+    sfo.no = H.Btn(sfo, "Lassa stà", 120, function() sfo:Hide() end)
+    TwoButtons(sfo, "Sfotti!", "Lassa stà")
+    sfo.msg = H.Text(sfo, "GameFontNormal", "", 420, "CENTER")
+    sfo.msg:SetPoint("CENTER", 0, -4)
+    sfo.controls = { sfo.yes, sfo.no, sfo.text, sfo.radios[1], sfo.radios[2], sfo.radios[3] }
+  end
+  Reset(sfo)
+  sfo.guid, sfo.pick = guid, 1
+  sfo.lines = TB.SfottiFor(guid)
+  sfo.title:SetText("Sfotti " .. Short(all[guid]))
+  sfo.text:SetText("Je compare scritto grosso sur su' schermo. Costa " .. Piotte(TB.SFOTTO) .. ".")
+  for i, r in ipairs(sfo.radios) do
+    r.text:SetText(sfo.lines[i] or "")
+    r:SetSize(400, 16)
+    r:SetSelected(i == 1)
+    r:SetShown(sfo.lines[i] ~= nil)
+  end
+  sfo:Show()
+end
+
 local gufa
 function S.OpenGufa(guid)
   local all = Members()
@@ -1626,6 +1669,7 @@ local function AddMenu()
           if root.CreateDivider then root:CreateDivider() end
           root:CreateButton("Duello a la gogna", function() S.OpenDuel(guid, data.unit) end)
           root:CreateButton("Gufata", function() S.OpenGufa(guid) end)
+          root:CreateButton("Sfotti", function() S.OpenSfotti(guid) end)
           return
         end
       end
@@ -1659,13 +1703,22 @@ local function Choose(anchor, items, onPick)
     H.Chrome(chooser)
     chooser.rows = {}
     if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoChoose") end
-    chooser:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    chooser:SetScript("OnHide", function(self) pcall(self.UnregisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    chooser:SetScript("OnEvent", function(self)
-      local over = MouseIsOver and (MouseIsOver(self) or (self.anchor and MouseIsOver(self.anchor)))
-      if not over then self:Hide() end
+    -- a click anywhere else closes it: an invisible layer over the screen, under the list (as the old dropdowns)
+    local catcher = CreateFrame("Button", nil, UIParent)
+    catcher:SetAllPoints(UIParent)
+    catcher:SetFrameStrata("DIALOG")
+    catcher:EnableMouse(true)
+    catcher:RegisterForClicks("AnyUp")
+    catcher:SetScript("OnClick", function(self) self:Hide() chooser:Hide() end)
+    catcher:Hide()
+    chooser.catcher = catcher
+    chooser:SetScript("OnShow", function(self)
+      catcher:SetFrameLevel(math.max(1, self:GetFrameLevel() - 1))
+      catcher:Show()
     end)
+    chooser:SetScript("OnHide", function() catcher:Hide() end)
   end
+  chooser:SetFrameLevel(100)
   chooser.anchor = anchor
   for _, r in ipairs(chooser.rows) do r:Hide() end
   local shown = math.min(20, #items)
@@ -1674,10 +1727,12 @@ local function Choose(anchor, items, onPick)
     if not r then
       r = CreateFrame("Button", nil, chooser)
       r:SetSize(170, 16)
+      r:SetFrameLevel(chooser:GetFrameLevel() + 2)
+      r:RegisterForClicks("LeftButtonUp")
       r:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
       r.text = H.Text(r, "GameFontHighlightSmall", "", 166)
       r.text:SetPoint("LEFT", 4, 0)
-      r:SetScript("OnClick", function(self) chooser:Hide() if chooser.onPick then chooser.onPick(self.value) end UI.Refresh() end)
+      r:SetScript("OnClick", function(self) chooser:Hide() chooser.catcher:Hide() if chooser.onPick then chooser.onPick(self.value) end UI.Refresh() end)
       chooser.rows[i] = r
     end
     r.value = items[i][1]

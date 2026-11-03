@@ -143,7 +143,7 @@ A.ns.UI.Show('botteghino')
 check(A.has('Settimana 1') and A.has('terno +2') and A.has('A che stanno') and A.has('piotte'), 'Botteghino, Tombola page: card, payouts, everybody on the card, purse')
 check(not A.has('se gioca a piotte'), 'no explanation under the header')
 A.ns.Botteghino.Show('ricchi')
-check(A.has('Li ricchi') and A.has('Sfotti') and A.has('Piotte'), 'Li ricchi page')
+check(A.has('Li ricchi') and A.has('Piotte') and not A.has('Sfotti'), 'Li ricchi page, no sfottò button there')
 A.ns.Botteghino.Show('schedina')
 check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Puntate'), 'Schedina page: the three questions with odds')
 
@@ -202,9 +202,18 @@ ch.ok.Click(ch.ok)
 check(not ch.shown, 'Daje closes it')
 # a sfottò costs 3 and lands on the other screen
 before = TB.Balance()
-ok, msg = TB.Sfotti('Player-1-BBB')
+B.lua.execute('')
+B.ns.T.Bump('dt', 3)
+secs(10)
+A.ns.Sfide.OpenSfotti('Player-1-BBB')
+sf = A.g.ErPattoSfotti
+lines = [str(r.text.text) for r in sf.radios.values()]
+check(sf.shown and 'Pietro' in str(sf.title.text) and any('morti' in l for l in lines) and '3 piotte' in str(sf.text.text), 'the sfottò window: three lines, one from Pietro\'s deaths: ' + str(lines))
+pick = [r for r in sf.radios.values() if 'morti' in str(r.text.text)][0]
+pick.Click(pick)
+sf.yes.Click(sf.yes)
 secs(5)
-check(ok and TB.Balance() == before - 3 and any("t'ha sfottuto" in n for n in B.news()), "sfotto paid and delivered to the friend (banner queued, news)")
+check(TB.Balance() == before - 3 and any("t'ha sfottuto" in n and 'morti' in n for n in B.news()), "sfotto paid and delivered with the line chosen: " + str([n for n in B.news() if 'sfottuto' in n][:1]))
 
 # ---- Casa and Er Bollettino
 A.ns.UI.Show('casa')
@@ -433,6 +442,30 @@ check(B.g.ErPattoRivincita.shown, 'after a reload Pietro is offered la rivincita
 T[0] += 700; secs(40)
 check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.yes.shown, 'ten minutes passed: Gina chooses er pegno')
 C.g.ErPattoPegno.Hide(C.g.ErPattoPegno)
+# the dropdowns of the Sfide page: pick a member, pick what, the labels change
+A.ns.Botteghino.Show('sfide')
+pg = A.ns.UI._views.botteghino.sfide
+pg.who.GetScript(pg.who, 'OnClick')(pg.who)
+ch = A.g.ErPattoChoose
+row = [r for r in ch.rows.values() if 'Pietro' in str(r.text.text)][0]
+row.GetScript(row, 'OnClick')(row)
+pg.what.GetScript(pg.what, 'OnClick')(pg.what)
+row = [r for r in ch.rows.values() if 'pesci' in str(r.text.text)][0]
+row.GetScript(row, 'OnClick')(row)
+check(str(pg.who.label.text) == 'Pietro' and 'pesci' in str(pg.what.label.text) and not ch.shown and not ch.catcher.shown, 'the dropdowns pick and close: %s / %s' % (pg.who.label.text, pg.what.label.text))
+pg.who.GetScript(pg.who, 'OnClick')(pg.who)
+ch.catcher.GetScript(ch.catcher, 'OnClick')(ch.catcher)
+check(not ch.shown, 'a click outside closes the list')
+# Cimitero: hovering who's a la gogna tells er pegno
+B.ns.UI.ShowProgress('rip')
+cv = B.ns.UI._views.progresso.cimitero
+hov = [l for l in cv.shame.values() if l.gogna is not None]
+check(len(hov) > 0, 'someone a la gogna in the Cimitero list')
+# a fall is a fall: an old breath bar doesn't make it drowning
+A.g.FIRE('MIRROR_TIMER_START', 'BREATH', 180000, 180000, -1)
+secs(2)
+kind = A.ns.Fun.DeathKind()
+check(str(kind[0] if isinstance(kind, tuple) else kind) != 'affogato', 'a full breath bar is not drowning: ' + str(kind))
 # a sfida a piotte: who fishes more until the end of the week
 balA, balB = A.ns.Tombola.Balance(), B.ns.Tombola.Balance()
 ok, c4 = SB.Challenge(B.lua.table_from({'to': 'Player-1-AAA', 'k': 's', 'st': 'fi', 's': 2}))

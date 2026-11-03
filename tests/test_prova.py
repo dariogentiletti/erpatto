@@ -10,7 +10,7 @@ opts = A.lua.table_from({'name': 'Er Patto der Cap', 'start': START, 'teamIndex'
 A.ns.CreatePatto(opts)
 secs(5)
 TB = A.ns.Tombola
-check(TB.Testing() is False and TB.Card() is None, 'before the start, no card')
+check(TB.Testing() is False and TB.Card() is not None and TB.Week() == 1 and TB.CanVote(), 'before the start: week 1 card to look at, schedina open')
 A.ns.db.opts.testMode = True
 check(TB.Testing() is True and TB.Week() == 1 and TB.Card() is not None, 'test mode: week 1 card before the start')
 A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
@@ -42,7 +42,7 @@ check(any('chiusa (prova)' in str(n.t) for n in A.ns.News.List().values()), 'and
 TB.Update()
 check(A.rec().pts is None, 'no real piotte written in test mode')
 A.ns.db.opts.testMode = False
-check(TB.Testing() is False and TB.Card() is None, 'test mode off: back to no card')
+check(TB.Testing() is False and TB.Week() == 1, 'test mode off: back to week 1 before the start')
 bad = A.errors()
 check(not bad, 'no errors: ' + str(bad[:3]))
 print('\n%d failures' % len(fails))

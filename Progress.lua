@@ -860,6 +860,22 @@ local function BuildCimitero(v)
   f.dead = Lines(side, 8, 14, -30, 216, 15)
   local t2 = H.Text(side, "GameFontNormal", "A la gogna", 200) t2:SetPoint("TOPLEFT", 12, -164)
   f.shame = Lines(side, 8, 14, -184, 216, 15)
+  -- over each line, the pegno in the tooltip
+  for i, l in ipairs(f.shame) do
+    local b = CreateFrame("Button", nil, side)
+    b:SetSize(216, 15)
+    b:SetPoint("TOPLEFT", 14, -184 - (i - 1) * 15)
+    b:SetScript("OnEnter", function(self)
+      local x, S = l.gogna, ns.Sfide
+      if not (x and S) then return end
+      local all = S.Members()
+      local pena = S.PENE[x.s.pena or 0]
+      local by = all[x.by] and tostring(all[x.by].name):match("^(%S+)") or "?"
+      H.Tip(self, { pena and pena.name or "A la gogna", pena and pena.tip or ("Er pegno lo sta a sceje " .. by .. "."),
+        "Ce l'ha mannato " .. by .. ", fino a " .. U.When(x.til) .. "." })
+    end)
+    b:SetScript("OnLeave", H.HideTip)
+  end
 end
 
 local function RefreshCimitero(v, list)
@@ -900,9 +916,11 @@ local function RefreshCimitero(v, list)
     if x then
       l:SetText(H.Colored(x.m))
       l.right:SetText("fino a " .. U.Day(x.g.til))
+      l.gogna = x.g
     else
       l:SetText(i == 1 and (GREY .. "Nessuno, pe' mo'.|r") or "")
       l.right:SetText("")
+      l.gogna = nil
     end
   end
 end

@@ -8,7 +8,7 @@
 --   1 piotta a square, +2 a full line ("terno"), +10 the whole card ("tombola").
 --
 -- La Schedina: three questions each week, new every week (drawn like the card, from TB.QPOOL: who levels most,
--- who fishes most, who dies most...). In the first two days you
+-- who fishes most, who dies most...). Until the week closes you
 -- pick a member and stake as many piotte as you like, at the odds ("quota") shown at that moment, which stay yours:
 -- if your pick wins you get stake x quota. The odds come from how the patto is betting (the more piotte on someone,
 -- the less they pay) mixed with the form (what each did this week so far and last week), with a small house edge.
@@ -106,9 +106,10 @@ function TB.Testing()
   return ns.state ~= nil and ns.db and ns.db.opts.testMode and ns.IsCapo and ns.IsCapo() and P.HasSettings(ns.state) and true or false
 end
 
+-- the week the Botteghino plays on: before the start it's already week 1 (the card to look at, the bets to place)
 local function Week()
   local wk = RealWeek()
-  if wk and wk < 1 and TB.Testing() then return 1 end
+  if wk and wk < 1 then return 1 end
   return wk
 end
 TB.Week = Week
@@ -380,14 +381,16 @@ end
 ----------------------------------------------------------------------
 -- La Schedina
 ----------------------------------------------------------------------
+-- the schedina is open the whole week (and before the start, for week 1); the later you play, the more the odds
+-- already know who's ahead
 function TB.CanVote()
   local wk = Week()
   if TB.Testing() then return true, wk end
-  if not wk or wk < 1 or ns.alt then return false end
-  return U.Now() - TB.WeekStart(wk) < TB.VOTE_WINDOW, wk
+  if not wk or ns.alt then return false end
+  return U.Now() < TB.Closes(wk), wk
 end
 
-function TB.Closes(wk) return TB.WeekStart(wk) + TB.VOTE_WINDOW end
+function TB.Closes(wk) return TB.WeekStart(wk) + M.WEEK end
 
 -- pick (guid) and/or stake (any whole number of piotte) for a question; the stake is paid now, a change refunds the old one
 function TB.Bet(qkey, guid, stake)
@@ -585,43 +588,77 @@ function TB.SimulateClose()
 end
 
 ----------------------------------------------------------------------
--- sfottò: a banner on a friend's screen, for 3 piotte
+-- sfottò: for 3 piotte a line on a friend's screen, written big. The lines come from his own numbers (his
+-- deaths, his last words, his level against yours, his quests, his piotte...), so they hit where it hurts; a few
+-- plain ones fill in when there's nothing to say. Chosen in a window from the right click menu (Sfide.lua).
 ----------------------------------------------------------------------
 TB.SFOTTI = {
-  "Sei proprio 'n pischello!",
-  "Ao, svejate!",
-  "Ma che stai a fa'?",
-  "Te stai a fa' superà da tutti.",
-  "Va' a pescà, che è mejo.",
+  "Ao, svejate: er cap nun aspetta.",
+  "Pure 'n murloc c'ha più grinta de te.",
+  "Stai fermo così tanto che te scambiano pe' 'n NPC.",
+  "Gioca de più, che er patto te sta a aspettà.",
   "Er cap te guarda e ride.",
-  "Pure Hogger te batte.",
-  "Daje che manca poco... a diventà bravo.",
-  "Stai a fa' la muffa?",
-  "Me fai ride, guarda.",
+  "Te stai a fa' superà da tutti, pure da chi gioca cor gatto in braccio.",
 }
+local function ShortName(m) return m and (tostring(m.name):match("^(%S+)")) or "?" end
+-- three lines for guid, the ones about him first
+function TB.SfottiFor(guid)
+  local list = UI.Members()
+  local m, me
+  for _, x in ipairs(list) do if x.guid == guid then m = x end if x.guid == ns.recordGuid then me = x end end
+  if not m then return {} end
+  me = me or ns.MyRecord()
+  local wk = Week()
+  local w, mw = TB.Weekly(m, wk), TB.Weekly(me, wk)
+  local out = {}
+  local function add(t) if #out < 6 then out[#out + 1] = t end end
+  local g = m.rip and m.rip[1]
+  if g and g.k == "cascato" then add("Cascato da 'n dirupo. La gravità 1, " .. ShortName(m) .. " 0.")
+  elseif g and g.k == "affogato" then add("Affogato. Lo sai che se pò pure risalì a respirà?")
+  elseif g and g.by then add("T'ha ammazzato " .. g.by .. ". Ma te pare?") end
+  if g and g.w then add("Urtime parole: \"" .. g.w:sub(1, 50) .. "\". Ce credo che sei morto.") end
+  if (w.dt or 0) >= 2 then add((w.dt or 0) .. " morti 'sta settimana. Ar cimitero t'hanno riservato er posto.") end
+  if (w.em or 0) >= 1 then add((w.em or 0) .. " morti da scemo 'sta settimana. Sei 'n artista.") end
+  if me and (me.lv or 0) > (m.lv or 0) then add("Livello " .. (m.lv or 1) .. "? Io sto ar " .. me.lv .. ". Te aspetto, eh.") end
+  if (mw.q or 0) > (w.q or 0) + 5 then add((mw.q or 0) .. " quest io, " .. (w.q or 0) .. " tu. Ma che fai tutto er giorno?") end
+  local h = me and me.h2h and me.h2h[m.name]
+  if h and (h.w or 0) > (h.l or 0) then add("A duello te ho battuto " .. h.w .. " vorte. Nun te stanchi?") end
+  if ns.Sfide and ns.Sfide.AtGogna(guid) then add("Ancora a la gogna? Te sta proprio bene.") end
+  if TB.TotalOf(m) < 10 then add("C'hai " .. TB.Piotte(TB.TotalOf(m)) .. ". Manco pe' 'n supplì.") end
+  -- mix the ones about him, keep three, fill with the plain ones
+  for i = #out, 2, -1 do local j = math.random(i) out[i], out[j] = out[j], out[i] end
+  while #out > 3 do table.remove(out) end
+  local pool = {}
+  for _, t in ipairs(TB.SFOTTI) do pool[#pool + 1] = t end
+  while #out < 3 and #pool > 0 do out[#out + 1] = table.remove(pool, math.random(#pool)) end
+  return out
+end
+
 local lastSfotto = 0
-function TB.Sfotti(guid, idx)
+function TB.Sfotti(guid, text)
   if not (ns.state and guid) or ns.alt then return false end
   if guid == ns.recordGuid then return false, "Nun te poi sfotte da solo." end
+  if type(text) == "number" then text = TB.SFOTTI[text] end
+  text = type(text) == "string" and text:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
+  if not text or text == "" then return false, "Scegli che je dici." end
   local now = GetTime and GetTime() or 0
   if now - lastSfotto < 30 then return false, "Aspetta 'n attimo prima de sfotte de novo." end
   if TB.Balance() < TB.SFOTTO then return false, "Te servono " .. TB.Piotte(TB.SFOTTO) .. "." end
-  idx = idx or math.random(#TB.SFOTTI)
   lastSfotto = now
   if not TB.Testing() then
     local b = Book()
     b.spent = b.spent + TB.SFOTTO
-    ns.C.Send("F", { t = guid, p = idx })
+    ns.C.Send("F", { t = guid, x = text })
     TB.Update()
   end
-  return true, TB.SFOTTI[idx]
+  return true, text
 end
 
 ns.On("Sfotto", function(from, data)
   if type(data) ~= "table" or data.t ~= ns.recordGuid then return end
-  local p = tonumber(data.p)
-  local text = p and TB.SFOTTI[p]
-  if not text then return end
+  local text = type(data.x) == "string" and data.x:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
+  if not text then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
+  if not text or text == "" then return end
   local who = ns.state and ns.state.members[from]
   local name = who and (tostring(who.name):match("^(%S+)")) or "Quarcuno"
   if ns.News then

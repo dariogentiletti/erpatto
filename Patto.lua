@@ -177,7 +177,7 @@ function P.CleanMember(r)
   if type(r) ~= "table" then return nil end
   local c = {
     guid = Str(r.guid, 60), name = Str(r.name, 40), team = Str(r.team, 8), tat = Num(r.tat, 0, 4e9),
-    up = Num(r.up, 0, 4e9), lv = Num(r.lv, 0, 60), xp = Num(r.xp, 0, 1e7), xpm = Num(r.xpm, 0, 1e7),
+    up = Num(r.up, 0, 4e9), lv = Num(r.lv, 0, 100), xp = Num(r.xp, 0, 1e7), xpm = Num(r.xpm, 0, 1e7),
     rest = Num(r.rest, 0, 1e7), zone = Str(r.zone, 40), cls = Str(r.cls, 20), ver = Str(r.ver, 12), ld = Str(r.ld, 40),
     il = Num(r.il, 0, 2000), race = Str(r.race, 20), rid = Num(r.rid, 1, 200), sex = Num(r.sex, 1, 3),
     eq = type(r.eq) == "string" and #r.eq <= 600 and r.eq:match("^[%d%./%-]*$") and r.eq or nil,
@@ -268,7 +268,7 @@ function P.CleanMember(r)
   -- the graveyard: my last deaths with who, where, the level and my last words
   c.rip = List(r.rip, 10, function(x)
     if not Num(x.at, 0, 4e9) then return nil end
-    return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 60), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
+    return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
   end)
   c.dd = List(r.dd, 8, function(x)
     if not (Str(x.o, 60) and Num(x.at, 0, 4e9)) then return nil end
@@ -331,7 +331,7 @@ function P.CleanMember(r)
     for i = 1, 6 do
       local a = r.alts[i]
       if type(a) == "table" and Str(a.name, 40) then
-        c.alts[#c.alts + 1] = { name = Str(a.name, 40), lv = Num(a.lv, 1, 60) or 1, cls = Str(a.cls, 20) }
+        c.alts[#c.alts + 1] = { name = Str(a.name, 40), lv = Num(a.lv, 1, 100) or 1, cls = Str(a.cls, 20) }
       end
     end
   end

@@ -307,18 +307,8 @@ local function BuildRicchi(v)
     r.money = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.money:SetPoint("TOPLEFT", 250, y)
     r.tomb = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.tomb:SetPoint("TOPLEFT", 350, y)
     r.sch = H.Text(p, "GameFontHighlightSmall", "", 120, "RIGHT") r.sch:SetPoint("TOPLEFT", 450, y)
-    r.btn = H.Btn(p, "Sfotti", 70, function(self)
-      local ok, msg = TB.Sfotti(self.guid)
-      if ok then
-        Say(true, nil, "Hai sfottuto " .. tostring(self.who) .. ": \"" .. tostring(msg) .. "\"")
-        Sound("LOOT_WINDOW_COIN_SOUND", 120)
-      else Say(false, msg) end
-    end, 18)
-    r.btn:SetPoint("TOPRIGHT", -14, y + 3)
     r.dare = H.Btn(p, "Sfida", 60, function(self) ns.Sfide.Prefill(self.guid) end, 18)
-    r.dare:SetPoint("RIGHT", r.btn, "LEFT", -4, 0)
-    r.btn:SetScript("OnEnter", function(self) H.Tip(self, { "Sfotti", TB.Piotte(TB.SFOTTO) }) end)
-    r.btn:SetScript("OnLeave", H.HideTip)
+    r.dare:SetPoint("TOPRIGHT", -14, y + 3)
     v.rich[i] = r
   end
 end
@@ -406,8 +396,7 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
     r.title:SetText(qs[r.i] and qs[r.i].text or "")
     local status
     if testing then status = "|cffff8000prova|r"
-    elseif not (wk and wk >= 1) then status = "se apre co' er patto"
-    elseif can then status = "chiude " .. U.When(closes)
+    elseif can then status = "aperta fino a " .. U.When(closes)
     else status = "chiusa, se paga a fine settimana" end
     r.status:SetText(status)
     local odds = TB.Odds(wk or 0, list, r.key)
@@ -498,12 +487,10 @@ local function RefreshRicchi(v, wk, list)
       r.money:SetText(TB.TotalOf(m) .. " " .. TB.Coin(12))
       r.tomb:SetText(sc and (sc.cells .. "/9") or (GREY .. "-|r"))
       r.sch:SetText(n > 0 and (n .. "/3 giocate") or (GREY .. "-|r"))
-      r.btn.guid, r.btn.who = m.guid, Short(m)
-      r.btn:SetShown(m.guid ~= ns.recordGuid and not m.fake)
       r.dare.guid = m.guid
       r.dare:SetShown(m.guid ~= ns.recordGuid and not m.fake)
     else
-      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.btn:Hide() r.dare:Hide()
+      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.dare:Hide()
     end
   end
 end
