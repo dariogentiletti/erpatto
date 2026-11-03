@@ -660,12 +660,15 @@ local function LayoutChrome(a, b)
   local t, s = f.selTab, RS
   for _, list in pairs(f.selFills) do for _, x in ipairs(list) do x:Hide() end end
   if a and b then
-    local top, bottom = H - 9, H + TAB_H
+    -- the marble covers the window's bottom border across the tab (it is 6 px, H-6..H), so the window opens into
+    -- it; the tab's sides start on the border's last line, so nothing sticks out above it
+    local top, bottom = H - 7, H + TAB_H
+    local side = H - 2
     local key = a .. ":" .. b
     if not f.selFills[key] then f.selFills[key] = MarblePlane(f, 10, 67, a + 3, top, b - a - 6, bottom - top - 3, "ARTWORK", 0) end
     for _, x in ipairs(f.selFills[key]) do x:Show() end
-    Put(t[P_L], f, a, top, s, bottom - top - s)
-    Put(t[P_R], f, b - s, top, s, bottom - top - s)
+    Put(t[P_L], f, a, side, s, bottom - side - s)
+    Put(t[P_R], f, b - s, side, s, bottom - side - s)
     Put(t[P_BL], f, a, bottom - s, s, s)
     Put(t[P_BR], f, b - s, bottom - s, s, s)
     Put(t[P_B], f, a + s, bottom - s, b - a - 2 * s, s)
