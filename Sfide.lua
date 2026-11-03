@@ -88,7 +88,17 @@ local function Members()
 end
 S.Members = Members
 local function Piotte(n) return ns.Tombola and ns.Tombola.Piotte(n) or (n .. " piotte") end
-local function Say(ok, msg) if not ok and msg then U.Say("|cffff4040" .. msg .. "|r") end end
+-- nothing goes to the chat: errors and confirmations are written in the window they come from
+local function Report(d, ok, msg)
+  if d and d.err then d.err:SetText(ok and "" or (msg or "Nun se pò.")) end
+  return ok
+end
+-- the epic call: the battleground horn of the old game, when someone wants you at the gogna
+local function Epic()
+  if not PlaySound then return end
+  pcall(PlaySound, (SOUNDKIT and SOUNDKIT.PVP_THROUGH_QUEUE) or 8459, "Master")
+end
+S.Epic = Epic
 
 ----------------------------------------------------------------------
 -- my book: what I paid in and got back
@@ -797,9 +807,29 @@ local function Dialog(name, w, h, title)
   d:SetScript("OnDragStop", d.StopMovingOrSizing)
   H.Chrome(d)
   d.title = H.DialogHeader(d, title, 160)
+  d.err = H.Text(d, "GameFontRedSmall", "", w - 40, "CENTER")
+  d.err:SetPoint("BOTTOM", 0, 44)
+  d:HookScript("OnShow", function() d.err:SetText("") end)
   if UISpecialFrames then table.insert(UISpecialFrames, name) end
   d:Hide()
   return d
+end
+
+-- a dialog that has done its part: one line of what happened, the buttons go, it closes by itself
+local function Done(d, text, secs, keep)
+  for _, x in ipairs(d.controls or {}) do x:Hide() end
+  if d.msg then d.msg:SetText(text) d.msg:Show() end
+  d.err:SetText("")
+  if not keep and C_Timer then
+    local token = {}
+    d.token = token
+    C_Timer.After(secs or 4, function() if d.token == token then d:Hide() end end)
+  end
+end
+local function Reset(d)
+  d.token = nil
+  for _, x in ipairs(d.controls or {}) do x:Show() end
+  if d.msg then d.msg:Hide() end
 end
 
 local ask
@@ -810,13 +840,19 @@ function S.Ask(c, all)
     ask.text = H.Text(ask, "GameFontHighlight", "", 360, "CENTER")
     ask.text:SetPoint("TOP", 0, -34)
     ask.yes = H.Btn(ask, "Ce sto", 110, function()
-      if ask.c.id ~= "prova" then Say(S.Answer(ask.c.id, true, ask.c)) end
-      ask:Hide()
+      if ask.c.id == "prova" then ask:Hide() return end
+      if Report(ask, S.Answer(ask.c.id, true, ask.c)) then
+        Done(ask, ask.c.k == "d" and "Ce stai! Er duello parte: fatte valé." or "Ce stai! In bocca ar lupo.")
+      end
     end)
     ask.yes:SetPoint("BOTTOMRIGHT", ask, "BOTTOM", -6, 18)
     ask.no = H.Btn(ask, "Me tiro indietro", 130, function() if ask.c.id ~= "prova" then S.Answer(ask.c.id, false, ask.c) end ask:Hide() end)
     ask.no:SetPoint("BOTTOMLEFT", ask, "BOTTOM", 6, 18)
+    ask.msg = H.Text(ask, "GameFontNormal", "", 360, "CENTER")
+    ask.msg:SetPoint("BOTTOM", 0, 24)
+    ask.controls = { ask.yes, ask.no }
   end
+  Reset(ask)
   ask.c = c
   ask.title:SetText(c.rv and "Rivincita!" or (c.k == "d" and c.p > 0 and "Duello a la gogna!" or "Sfida!"))
   local pena = S.PENE[c.p]
@@ -827,7 +863,8 @@ function S.Ask(c, all)
       (pena and ("\n|cff9d9d9d" .. pena.tip .. "|r") or ""))
   end
   ask:Show()
-  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
+  if c.rv or (c.k == "d" and c.p > 0) then Epic()
+  elseif PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
 end
 
 -- right after losing a duello a la gogna: la rivincita?
@@ -840,13 +877,25 @@ function S.OfferRematch(c, r)
     offer.text:SetPoint("TOP", 0, -32)
     offer.yes = H.Btn(offer, "Rivincita!", 110, function()
       local x = offer.c
-      Say(S.Challenge({ to = offer.w, k = "d", s = x.s, p = x.p, t = x.t, e = x.e, m = 1, rv = x.id }))
-      offer:Hide()
+      local ok, msg = S.Challenge({ to = offer.w, k = "d", s = x.s, p = x.p, t = x.t, e = x.e, m = 1, rv = x.id })
+      if Report(offer, ok, msg) then
+        offer.sent = msg and msg.id
+        Done(offer, "Rivincita chiesta a " .. Name(Members(), offer.w) .. ".\nAspetto che risponne...", nil, true)
+        offer.no:SetText("Chiudi")
+        offer.no:ClearAllPoints() offer.no:SetPoint("BOTTOM", 0, 18)
+      end
     end)
     offer.yes:SetPoint("BOTTOMRIGHT", offer, "BOTTOM", -6, 18)
     offer.no = H.Btn(offer, "Me la tengo", 110, function() offer:Hide() end)
     offer.no:SetPoint("BOTTOMLEFT", offer, "BOTTOM", 6, 18)
+    offer.msg = H.Text(offer, "GameFontNormal", "", 340, "CENTER")
+    offer.msg:SetPoint("BOTTOM", 0, 24)
+    offer.controls = { offer.yes, offer.text }
   end
+  Reset(offer)
+  offer.no:SetText("Me la tengo")
+  offer.no:ClearAllPoints() offer.no:SetPoint("BOTTOMLEFT", offer, "BOTTOM", 6, 18)
+  offer.sent = nil
   offer.c, offer.w = c, r.w
   local pena = S.PENE[c.p]
   offer.text:SetText((pena and pena.name or "La penitenza") .. " pe' 24 ore.\nRivincita co' " .. Name(all, r.w) .. "? Si la vinci, passa a lui.\nSi la perdi, la tua dura 'na settimana.")
@@ -874,14 +923,19 @@ function S.ShowBet(a, b, info)
     local function pick(i)
       return function()
         local ok, msg = S.Bet(bet.a, bet.b, i == 1 and bet.a or bet.b, bet.stake:GetText())
-        Say(ok, msg)
-        if ok then U.Say("hai puntato " .. Piotte(tonumber(bet.stake:GetText()) or 0) .. " su " .. Name(Members(), i == 1 and bet.a or bet.b) .. ".") bet:Hide() end
+        if Report(bet, ok, msg) then
+          Done(bet, "Hai puntato " .. Piotte(tonumber(bet.stake:GetText()) or 0) .. " su " .. Name(Members(), i == 1 and bet.a or bet.b) .. ".", 3)
+        end
       end
     end
     bet.pa = H.Btn(bet, "", 100, pick(1), 22) bet.pa:SetPoint("BOTTOMLEFT", 18, 16)
     bet.pb = H.Btn(bet, "", 100, pick(2), 22) bet.pb:SetPoint("BOTTOMRIGHT", -18, 16)
     bet.no = H.Btn(bet, "Gnente", 60, function() bet:Hide() end, 22) bet.no:SetPoint("BOTTOM", 0, 16)
+    bet.msg = H.Text(bet, "GameFontNormal", "", 270, "CENTER")
+    bet.msg:SetPoint("BOTTOM", 0, 24)
+    bet.controls = { bet.pa, bet.pb, bet.no, bet.label, bet.stake, bet.note }
   end
+  Reset(bet)
   bet.a, bet.b = a, b
   bet.text:SetText(H.Colored(all[a]) .. " contro " .. H.Colored(all[b]) .. (info and ("\n|cff9d9d9d" .. info .. "|r") or ""))
   bet.pa:SetText(Short(all[a]))
@@ -956,14 +1010,26 @@ function S.OpenDuel(guid)
     duel.go = H.Btn(duel, "Sfida!", 110, function()
       local f = duel.form
       local ok, msg = S.Challenge({ to = duel.to, k = "d", s = duel.stake:GetText(), p = f.p, t = f.t, e = f.e, m = 1 })
-      Say(ok, msg)
-      if ok then U.Say("duello a la gogna mannato a " .. Name(Members(), duel.to) .. ": aspetta che risponne.") duel:Hide() end
+      if Report(duel, ok, msg) then
+        duel.sent = msg and msg.id
+        Done(duel, "Duello a la gogna mannato a " .. Name(Members(), duel.to) .. ".\nAspetto che risponne...", nil, true)
+        duel.no:SetText("Chiudi")
+        duel.no:ClearAllPoints() duel.no:SetPoint("BOTTOM", 0, 18)
+      end
     end)
     duel.go:SetPoint("BOTTOMRIGHT", duel, "BOTTOM", -6, 18)
     duel.no = H.Btn(duel, "Lascia stà", 110, function() duel:Hide() end)
     duel.no:SetPoint("BOTTOMLEFT", duel, "BOTTOM", 6, 18)
+    duel.msg = H.Text(duel, "GameFontNormal", "", 320, "CENTER")
+    duel.msg:SetPoint("CENTER", 0, -10)
+    duel.controls = { duel.go, l, ps, pn, duel.stake, duel.pena.text, duel.pena.emote }
+    for _, r in ipairs(duel.pena.radios) do duel.controls[#duel.controls + 1] = r end
     duel:HookScript("OnShow", function() duel.pena.Refresh() end)
   end
+  Reset(duel)
+  duel.no:SetText("Lascia stà")
+  duel.no:ClearAllPoints() duel.no:SetPoint("BOTTOMLEFT", duel, "BOTTOM", 6, 18)
+  duel.sent = nil
   duel.to = guid
   duel.who:SetText("Contro " .. H.Colored(all[guid]))
   duel.stake:SetText("")
@@ -987,13 +1053,16 @@ function S.OpenGufa(guid)
     local n = H.Text(gufa, "GameFontHighlightSmall", "piotte", 60) n:SetPoint("TOPLEFT", 156, -104)
     gufa.go = H.Btn(gufa, "Gufa!", 110, function()
       local ok, msg = S.Gufa(gufa.on, gufa.stake:GetText())
-      Say(ok, msg)
-      if ok then gufa:Hide() end
+      if Report(gufa, ok, msg) then Done(gufa, "Gufata partita: " .. Name(Members(), gufa.on) .. " c'ha 5 minuti.", 3) end
     end)
     gufa.go:SetPoint("BOTTOMRIGHT", gufa, "BOTTOM", -6, 18)
     gufa.no = H.Btn(gufa, "Lascia stà", 110, function() gufa:Hide() end)
     gufa.no:SetPoint("BOTTOMLEFT", gufa, "BOTTOM", 6, 18)
+    gufa.msg = H.Text(gufa, "GameFontNormal", "", 300, "CENTER")
+    gufa.msg:SetPoint("CENTER", 0, -20)
+    gufa.controls = { gufa.go, gufa.no, gufa.stake, l, n }
   end
+  Reset(gufa)
   gufa.on = guid
   gufa.text:SetText("Je gufi la morte a " .. H.Colored(all[guid]) .. " pe' 5 minuti.\nSi more, vinci mezza posta in più.\nSi campa, la posta è sua.")
   gufa.stake:SetText("10")
@@ -1087,6 +1156,18 @@ ns.On("Live", function(from, data)
       local x = { id = c.id, from = from, to = me, k = c.k, n = c.n, st = c.st, w = c.w, s = tonumber(c.s) or 0, p = tonumber(c.p) or 0,
         t = c.t and tostring(c.t):gsub("|", ""):sub(1, 20) or nil, e = tonumber(c.e) or 0, m = c.m, rv = type(c.rv) == "string" and c.rv:sub(1, 40) or nil, at = tonumber(c.at) or Now() }
       S.Ask(x, Members())
+    end
+  elseif data.t == "ans" then
+    local all = Members()
+    for _, d in ipairs({ duel, offer }) do
+      if d and d:IsShown() and d.sent and d.sent == data.id then
+        if tonumber(data.a) == 1 then
+          Done(d, Short(all[from]) .. " ha detto de sì!\nEr duello parte: fatte valé.")
+          Epic()
+        else
+          Done(d, Short(all[from]) .. " s'è tirato indietro.")
+        end
+      end
     end
   elseif data.t == "live" and data.a ~= me and data.b ~= me and not ns.alt then
     local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
@@ -1264,10 +1345,12 @@ function S.BuildPage(v)
   p.pena = PenaPicker(a, 84, -130, form)
   p.go = H.Btn(a, "Sfida!", 100, function()
     local ok, msg = S.Challenge({ to = form.to, k = form.k, st = form.st, w = form.w, s = p.stake:GetText(), p = form.p, t = form.t, e = form.e })
-    if ok then p.stake:SetText("") U.Say("sfida mannata a " .. Short(Members()[form.to]) .. ".") end
-    Say(ok, msg)
+    if ok then p.stake:SetText("") end
+    p.status:SetText(ok and ("|cff20ff20Mannata a " .. Short(Members()[form.to]) .. ".|r") or (msg or ""))
   end, 22)
   p.go:SetPoint("BOTTOMRIGHT", -12, 12)
+  p.status = H.Text(a, "GameFontRedSmall", "", 220)
+  p.status:SetPoint("BOTTOMLEFT", 14, 18)
   p.testGogna = H.Btn(a, "Prova: gogna", 92, function() S.TestGogna() end, 18)
   p.testGogna:SetPoint("TOPRIGHT", -10, -8)
 
@@ -1285,7 +1368,7 @@ function S.BuildPage(v)
   p.put = H.Btn(b, "Metti", 70, function()
     local ok, msg = S.Taja(form.on, p.taja:GetText())
     if ok then p.taja:SetText("") end
-    Say(ok, msg)
+    p.status:SetText(ok and "|cff20ff20Taja messa.|r" or (msg or ""))
   end, 20)
   p.put:SetPoint("TOPRIGHT", -12, -34)
 
@@ -1306,7 +1389,7 @@ function S.BuildPage(v)
     r.state = H.Text(c, "GameFontHighlightSmall", "", 120, "RIGHT") r.state:SetPoint("TOPRIGHT", -14, y)
     r.what = H.Text(c, "GameFontDisableSmall", "", 350) r.what:SetPoint("TOPLEFT", 14, y - 13)
     if r.what.SetWordWrap then r.what:SetWordWrap(false) end
-    r.yes = H.Btn(c, "Ce sto", 58, function(self) Say(S.Answer(self.id, true)) end, 16)
+    r.yes = H.Btn(c, "Ce sto", 58, function(self) local ok, msg = S.Answer(self.id, true) p.status:SetText(ok and "" or (msg or "")) end, 16)
     r.yes:SetPoint("TOPRIGHT", -74, y - 12)
     r.no = H.Btn(c, "No", 40, function(self) S.Answer(self.id, false) end, 16)
     r.no:SetPoint("TOPRIGHT", -30, y - 12)

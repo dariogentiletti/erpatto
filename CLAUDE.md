@@ -20,6 +20,9 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - scroll: only through `H.VanillaScroll` (old arrows, knob, rail); better no scroll at all when the content fits
 - announcements: plain big Friz Quadrata text with a shadow (like the zone text), nothing behind it
 - backgrounds: the dark marble (the user chose it over the lighter header stone)
+- feedback: never in the chat; errors and confirmations go in the window they come from (a red line in the
+  dialog, the status line of the page), a dialog that is done shows one line and closes by itself
+- sounds: a duello a la gogna or a rivincita asked of you plays the battleground horn (PVP_THROUGH_QUEUE)
 - explanations: only in the tooltip of the "i" (FriendsFrame\InformationIcon) at the top right of the window,
   one text per tab in Extras.INFO; no guide window
 

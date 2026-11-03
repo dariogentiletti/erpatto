@@ -14,7 +14,14 @@ local GOLD = "|cffffd100"
 local page = "tombola"
 local sel = {} -- the member clicked in each question, before Punta
 local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
-local function Say(ok, msg) if msg and not ok then U.Say("|cffff4040" .. msg .. "|r") end end
+-- errors and confirmations in the page, under the purse, never in the chat
+local view
+local function Say(ok, msg, good)
+  if not (view and view.status) then return end
+  if not ok and msg then view.status:SetText(msg)
+  elseif ok and good then view.status:SetText("|cff20ff20" .. good .. "|r")
+  else view.status:SetText("") end
+end
 local function Sound(kit, fallback)
   if not (PlaySound and ns.db and ns.db.opts.toastSound ~= false) then return end
   local id = (SOUNDKIT and SOUNDKIT[kit]) or fallback
@@ -298,7 +305,7 @@ local function BuildRicchi(v)
     r.btn = H.Btn(p, "Sfotti", 70, function(self)
       local ok, msg = TB.Sfotti(self.guid)
       if ok then
-        U.Say("hai sfottuto " .. tostring(self.who) .. ": \"" .. tostring(msg) .. "\" (-" .. TB.Piotte(TB.SFOTTO) .. ")")
+        Say(true, nil, "Hai sfottuto " .. tostring(self.who) .. ": \"" .. tostring(msg) .. "\"")
         Sound("LOOT_WINDOW_COIN_SOUND", 120)
       else Say(false, msg) end
     end, 18)
@@ -331,6 +338,9 @@ local function Build()
   v.coin:SetPoint("RIGHT", 0, 0)
   v.purse = H.Text(purse, "GameFontHighlight", "", 170, "RIGHT")
   v.purse:SetPoint("RIGHT", v.coin, "LEFT", -6, 0)
+  v.status = H.Text(v, "GameFontRedSmall", "", 300, "RIGHT")
+  v.status:SetPoint("RIGHT", purse, "LEFT", -10, 0)
+  view = v
   BuildTombola(v)
   BuildSchedina(v)
   BuildRicchi(v)

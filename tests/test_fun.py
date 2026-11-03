@@ -296,7 +296,8 @@ dd.pena.text.SetText(dd.pena.text, 'Pippa')
 dd.pena.text.GetScript(dd.pena.text, 'OnTextChanged')(dd.pena.text)
 dd.stake.SetText(dd.stake, '5')
 dd.go.Click(dd.go)
-check(not dd.shown and A.ns.Tombola.Balance() == balA - 5, 'duel a la gogna thrown, stake paid: %s -> %s' % (balA, A.ns.Tombola.Balance()))
+check(dd.shown and 'Aspetto' in str(dd.msg.text) and not dd.go.shown and A.ns.Tombola.Balance() == balA - 5, 'duel a la gogna thrown, the window waits for the answer, stake paid: %s -> %s' % (balA, A.ns.Tombola.Balance()))
+check(not any('gogna' in str(x) for x in A.g.CHAT.values()), 'nothing in the chat')
 secs(5)
 ask = B.g.ErPattoSfida
 check(ask is not None and ask.shown and 'Dario' in str(ask.text.text) and 'Pippa' in str(ask.text.text) and 'gogna' in str(ask.title.text), 'Pietro gets the dialog at once: ' + str(ask and ask.text.text))
@@ -305,6 +306,7 @@ check((dupe[0] if isinstance(dupe, tuple) else dupe) is False, 'one open sfida a
 ask.yes.Click(ask.yes)
 secs(5)
 check(B.ns.Tombola.Balance() == balB - 5, 'Pietro paid when accepting')
+check('detto de sì' in str(dd.msg.text), 'Dario\'s window says Pietro accepted: ' + str(dd.msg.text))
 bet = C.g.ErPattoScommessa
 check(bet is not None and bet.shown and 'gogna' in str(bet.text.text), 'Gina, in the same zone, can bet on the duel')
 bet.stake.SetText(bet.stake, '3')
