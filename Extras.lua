@@ -219,7 +219,8 @@ X.INFO = {
     "Sfide: sfidi 'n amico a chi fa de più (quest, sordi, pesci...) o a chi arriva prima ar livello, fino a la fine de la settimana. Chi vince se pija tutta la posta.",
     "La taja: piotte su la testa de quarcuno. Se le pija chi lo batte a duello.",
     "Gufata (tasto destro su 'n amico): scommetti che more entro 5 minuti. Si more vinci mezza posta, si campa se la pija lui.",
-    "Quanno due der patto fanno 'n duello, chi sta ne la stessa zona pò puntà su uno dei due: chi indovina raddoppia." },
+    "Quanno due der patto fanno 'n duello, chi sta ne la stessa zona pò puntà su uno dei due: chi indovina raddoppia.",
+    "Scontrini: ogni piotta che hai messo e preso, riga pe' riga; scegli 'n amico pe' vede li sua." },
   imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni." },
   capo = { "Capo", "Solo pe' er capo: squadre, ore, partenza, annunci e vice." },
 }

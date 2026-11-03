@@ -247,9 +247,15 @@ function P.CleanMember(r)
     if not (Str(x.id, 40) and Str(x.to, 60) and Num(x.at, 0, 4e9)) then return nil end
     return { id = Str(x.id, 40), to = Str(x.to, 60), rv = Str(x.rv, 40), x = (Num(x.x, 1, 2) and math.floor(Num(x.x, 1, 2))) or nil, at = Num(x.at, 0, 4e9) }
   end)
+  -- li scontrini: the last lines of my piotte (what, with whom, put in, taken)
+  c.lg = List(r.lg, 20, function(x)
+    if not (Num(x.at, 0, 4e9) and Str(x.k, 4)) then return nil end
+    return { at = Num(x.at, 0, 4e9), k = Str(x.k, 4), o = Str(x.o, 60), w = Num(x.w, 0, 260), s = Num(x.s, 0, 1e6), g = Num(x.g, 0, 1e6),
+      open = (Num(x.open, 1, 1) and 1) or nil }
+  end)
   c.gp = List(r.gp, 4, function(x)
     if not (Str(x.id, 40) and Num(x.p, 1, 8) and Num(x.at, 0, 4e9)) then return nil end
-    return { id = Str(x.id, 40), p = math.floor(Num(x.p, 1, 8)), t = Plain(x.t, 20), e = Num(x.e, 1, 8) and math.floor(Num(x.e, 1, 8)) or nil, at = Num(x.at, 0, 4e9) }
+    return { id = Str(x.id, 40), p = math.floor(Num(x.p, 1, 8)), t = Plain(x.t, 20), e = Num(x.e, 1, 16) and math.floor(Num(x.e, 1, 16)) or nil, at = Num(x.at, 0, 4e9) }
   end)
   c.sk = List(r.sk, 10, function(x)
     if not Str(x.id, 40) then return nil end

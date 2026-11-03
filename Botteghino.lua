@@ -313,6 +313,68 @@ local function BuildRicchi(v)
   end
 end
 
+-- Li scontrini: every piotta in and out of a member (me by default), newest first
+local CONTI_ROWS = 15
+local contiOf -- the guid shown (nil: me)
+local function BuildConti(v)
+  local p = H.Box(v, 744, 347)
+  p:SetPoint("TOPLEFT", 0, -28)
+  v.conti = p
+  local l = H.Text(p, "GameFontNormalSmall", "De chi", 50) l:SetPoint("TOPLEFT", 14, -16)
+  v.contiWho = H.Dropdown(p, 170, function(self)
+    local items = { { ns.recordGuid, "Tu" } }
+    local list = {}
+    for _, m in ipairs(UI.Members()) do if m.guid ~= ns.recordGuid then list[#list + 1] = m end end
+    table.sort(list, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    for _, m in ipairs(list) do items[#items + 1] = { m.guid, H.Colored(m, true) } end
+    ns.Sfide.Choose(self, items, function(g) contiOf = (g ~= ns.recordGuid) and g or nil end)
+  end)
+  v.contiWho:SetPoint("TOPLEFT", 64, -10)
+  v.contiSum = H.Text(p, "GameFontHighlight", "", 420, "RIGHT")
+  v.contiSum:SetPoint("TOPRIGHT", -16, -16)
+  local cols = { { "Quanno", 14, 90, "LEFT" }, { "Che", 110, 360, "LEFT" }, { "Messe", 480, 70, "RIGHT" }, { "Prese", 560, 80, "RIGHT" }, { "Netto", 650, 80, "RIGHT" } }
+  for _, c in ipairs(cols) do
+    local t = H.Text(p, "GameFontDisableSmall", c[1], c[3], c[4]) t:SetPoint("TOPLEFT", c[2], -46)
+  end
+  v.contiRows = {}
+  for i = 1, CONTI_ROWS do
+    local y = -62 - (i - 1) * 17
+    local r = {}
+    for k, c in ipairs(cols) do
+      local t = H.Text(p, "GameFontHighlightSmall", "", c[3], c[4]) t:SetPoint("TOPLEFT", c[2], y)
+      if t.SetWordWrap then t:SetWordWrap(false) end
+      r[k] = t
+    end
+    v.contiRows[i] = r
+  end
+  v.contiMore = H.Text(p, "GameFontDisableSmall", "", 500) v.contiMore:SetPoint("BOTTOMLEFT", 14, 12)
+end
+
+local function RefreshConti(v, list, byGuid)
+  local m = contiOf and byGuid[contiOf]
+  if contiOf and not m then contiOf = nil end
+  v.contiWho:SetText(m and tostring(m.name):match("^(%S+)") or "Tu")
+  local lines = TB.LedgerOf(m or ns.MyRecord())
+  local put, took = 0, 0
+  for _, x in ipairs(lines) do put = put + (x.s or 0) took = took + (x.g or 0) end
+  v.contiSum:SetText("Messe " .. put .. "   Prese " .. took .. "   " .. (m and "C'ha " or "Mo' c'hai ") .. TB.Money(m and TB.TotalOf(m) or TB.Balance()))
+  for i, r in ipairs(v.contiRows) do
+    local x = lines[i]
+    if x then
+      r[1]:SetText(x.k == "gp" and "" or U.Day(x.at or 0))
+      r[2]:SetText(TB.LedgerText(x))
+      r[3]:SetText((x.s and x.s > 0) and tostring(x.s) or (GREY .. "-|r"))
+      r[4]:SetText(x.g == nil and (GREY .. "in ballo|r") or tostring(x.g))
+      local net = (x.g or 0) - (x.s or 0)
+      r[5]:SetText(x.g == nil and (GREY .. "-|r") or (net > 0 and (GREEN .. "+" .. net .. "|r") or (net < 0 and (RED .. net .. "|r") or (GREY .. "0|r"))))
+    else
+      for _, t in ipairs(r) do t:SetText("") end
+    end
+  end
+  v.contiMore:SetText(#lines > CONTI_ROWS and (GREY .. "E antre " .. (#lines - CONTI_ROWS) .. " righe più vecchie.|r") or
+    (m and #lines == 0 and (GREY .. "Ancora gnente: le righe arriveno co' l'urtima versione de l'addon.|r") or ""))
+end
+
 local function Build()
   local v = H.NewView("botteghino")
   v.tabTomb = H.TopTab(v, "Tombola", function() page = "tombola" end)
@@ -323,6 +385,8 @@ local function Build()
   v.tabRich:SetPoint("LEFT", v.tabSch, "RIGHT", 2, 0)
   v.tabSfide = H.TopTab(v, "Sfide", function() page = "sfide" end)
   v.tabSfide:SetPoint("LEFT", v.tabRich, "RIGHT", 2, 0)
+  v.tabConti = H.TopTab(v, "Scontrini", function() page = "conti" end)
+  v.tabConti:SetPoint("LEFT", v.tabSfide, "RIGHT", 2, 0)
   -- my piotte, top right
   local purse = CreateFrame("Frame", nil, v)
   purse:SetSize(200, 24)
@@ -340,6 +404,7 @@ local function Build()
   BuildSchedina(v)
   BuildRicchi(v)
   ns.Sfide.BuildPage(v)
+  BuildConti(v)
 end
 
 ----------------------------------------------------------------------
@@ -507,6 +572,8 @@ local function Refresh(v)
   v.tabSch:SetSelected(page == "schedina")
   v.tabRich:SetSelected(page == "ricchi")
   v.tabSfide:SetSelected(page == "sfide")
+  v.tabConti:SetSelected(page == "conti")
+  v.conti:SetShown(page == "conti")
   v.tomb:SetShown(page == "tombola")
   v.sch:SetShown(page == "schedina")
   v.ricchi:SetShown(page == "ricchi")
@@ -514,6 +581,7 @@ local function Refresh(v)
   if page == "tombola" then RefreshTombola(v, wk, me, list, testing)
   elseif page == "schedina" then RefreshSchedina(v, wk, me, list, testing, byGuid)
   elseif page == "sfide" then ns.Sfide.RefreshPage(v)
+  elseif page == "conti" then RefreshConti(v, list, byGuid)
   else RefreshRicchi(v, wk, list) end
 end
 

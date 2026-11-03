@@ -345,22 +345,28 @@ check(not shown(A, 'ErPattoRivincita'), 'after la bella nobody can ask for more'
 peg = B.g.ErPattoPegno
 check(peg.shown and 'Dario' in str(peg.text.text) and 'settimana' in str(peg.text.text) and one_at_a_time(B), 'Pietro won la bella Dario asked for: he chooses er pegno, a week')
 check(shown(A, 'ErPattoAvviso') and 'sceje' in str(A.g.ErPattoAvviso.text.text), 'Dario is told he is a la gogna, er pegno to come')
-nickRow = [r for r in peg.pena.radios.values() if r.v == 2][0]
-nickRow.Click(nickRow)
+verRow = [r for r in peg.pena.radios.values() if r.v == 3][0]
+verRow.Click(verRow)
 peg.yes.Click(peg.yes)
-check('Scrivi' in str(peg.err.text), 'a nickname is needed')
-peg.pena.text.SetText(peg.pena.text, 'Pippa')
+check('Scrivi' in str(peg.err.text), 'er verso needs its word')
+sanRow = [r for r in peg.pena.radios.values() if r.v == 1][0]
+sanRow.Click(sanRow)
+peg.pena.emote.Click(peg.pena.emote)
+check('Porcello' in str(peg.pena.emote.text), 'the face of er santino is chosen: ' + str(peg.pena.emote.text))
+peg.pena.text.SetText(peg.pena.text, 'Ha perso tre vorte')
 peg.pena.text.GetScript(peg.pena.text, 'OnTextChanged')(peg.pena.text)
 peg.yes.Click(peg.yes)
 secs(5)
 pw = A.g.ErPattoPena
-check(pw is not None and pw.shown and 'soprannome' in str(pw.name.text) and 'Te chiamano "Pippa"' in str(pw.text.text) and 'Pietro' in str(pw.til.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
-nA = SC.NickOf(C.ns.state.members['Player-1-AAA'])
-check(nA is not None and str(nA.t) == 'Pippa' and nA.til - T[0] > 6 * 86400, 'Dario is "Pippa" for a week, Gina sees it')
+check(pw is not None and pw.shown and 'santino' in str(pw.name.text) and 'Er Porcello' in str(pw.text.text) and 'Ha perso tre vorte' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
+card = A.g.ErPattoSantino
+check(card is not None and card.shown and str(card.who.text) == 'Er Porcello' and 'tre vorte' in str(card.caption.text), 'er santino on Dario\'s screen')
+gA = SC.GognaOf(C.ns.state.members['Player-1-AAA'])
+check(gA is not None and str(gA.name) == 'Er Porcello' and gA.til - T[0] > 6 * 86400, 'for a week, Gina sees it')
 res = B.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Dario-Realm')
-check(res[0] is False and 'Pippa' in str(res[1]), 'and in chat')
+check(res[0] is False and 'Er Porcello' in str(res[1]), 'and in chat: ' + str(res[1]))
 check(str(SC.Champion()) == 'Player-1-BBB', 'Pietro sent Dario a la gogna: er Campione')
-check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'Pippa' in n for n in C.news()), 'news: the bella lost and er pegno')
+check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'Porcello' in n for n in C.news()), 'news: the bella lost and er pegno')
 r1 = S.Gogna('Player-1-CCC')
 check(first(r1) is False and 'Stai a la gogna' in str(second(r1)), 'Dario a la gogna: no duelli a la gogna')
 check(SB.BlockText('Player-1-BBB', SB.Series(), SB.Members()) is None, 'Pietro won: he can throw another one at once, no daily limit')
@@ -383,8 +389,8 @@ check(peg.shown and 'Gina' in str(peg.text.text) and "'n giorno" in str(peg.text
 peg.Hide(peg)
 T[0] += 1000; secs(40)
 g = A.ns.Sfide.GognaOf(A.ns.state.members['Player-1-CCC'])
-check(g is not None and 0 < g.til - T[0] < 86400, 'Pietro didn\'t choose: Gina gets the mask for a day')
-check(shown(C, 'ErPattoPena') and 'maschera' in str(C.g.ErPattoPena.text.text), 'Gina is told about the mask')
+check(g is not None and 0 < g.til - T[0] < 86400, 'Pietro didn\'t choose: Gina gets er santino for a day')
+check(shown(C, 'ErPattoPena') and 'santino' in str(C.g.ErPattoPena.text.text), 'Gina is told about er santino')
 C.g.ErPattoPena.Hide(C.g.ErPattoPena)
 # the figuraccia
 T[0] += 86400 + 60; secs(5)
@@ -440,7 +446,16 @@ B.ns.Sfide.Update()
 check(B.g.ErPattoRivincita.shown, 'after a reload Pietro is offered la rivincita again')
 T[0] += 700; secs(40)
 check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.yes.shown, 'ten minutes passed: Gina chooses er pegno')
-C.g.ErPattoPegno.Hide(C.g.ErPattoPegno)
+peg = C.g.ErPattoPegno
+row = [r for r in peg.pena.radios.values() if r.v == 2][0]
+row.Click(row)
+peg.yes.Click(peg.yes)
+secs(5)
+ok = SC.Pull('Player-1-BBB', 1)
+secs(3)
+check(first(ok) and any('DANCE' in str(e) for e in B.g.EMOTES.values()), 'er burattino: Gina pulls the strings, Pietro dances')
+again = SC.Pull('Player-1-BBB', 2)
+check(first(again) is False and 'riposano' in str(second(again)), 'once every ten minutes')
 # the dropdowns of the Sfide page: pick a member, pick what, the labels change
 A.ns.Botteghino.Show('sfide')
 pg = A.ns.UI._views.botteghino.sfide
@@ -525,6 +540,18 @@ A.ns.Fun.Said('mo\' vado a pijà er boss', 'Dario')
 A.ns.Fun.OnDeath(); A.ns.T.OnDeath()
 secs(40)
 check(C.ns.Tombola.Balance() == balC + 5 and A.ns.Tombola.Balance() == balA - 5, 'Dario died: Gina gets half more, Dario pays 5: %s %s' % (C.ns.Tombola.Balance(), A.ns.Tombola.Balance()))
+# li scontrini: every line adds up to the purse, and the gufata paid
+for x in (A, B, C):
+    lines = list(x.ns.Tombola.Ledger().values())
+    tot = sum((l.g or 0) - (l.s or 0) for l in lines)
+    check(tot == x.ns.Tombola.Balance(), '%s: the scontrini add up to the purse: %s vs %s' % (x.name, tot, x.ns.Tombola.Balance()))
+gl = [l for l in C.ns.Tombola.Ledger().values() if str(l.k) == 'gu']
+check(gl and gl[0].g == 15 and gl[0].s == 10, 'Gina\'s gufata on Dario: 10 in, 15 back')
+C.ns.Botteghino.Show('conti')
+check(C.has('Scontrini') and C.has('Gufata su Dario') and C.has('Messe'), 'the Scontrini page lists it')
+secs(30)
+lgA = [str(C.ns.Tombola.LedgerText(l)) for l in C.ns.Tombola.LedgerOf(C.ns.state.members['Player-1-AAA']).values()]
+check(any('Gufata de Gina' in t for t in lgA), 'and Gina can read Dario\'s: ' + str(lgA[:4]))
 # the graveyard
 rip = A.rec().rip
 check(rip and 'boss' in str(rip[1].w), 'the gravestone keeps the last words')

@@ -344,6 +344,84 @@ end
 
 local function StakeOf(v, key) return v and v[key] and (v["s" .. key] or 0) or 0 end
 
+----------------------------------------------------------------------
+-- Li scontrini: every piotta in and out, as lines { at, k (what), o (with whom), w (week), s (put in), g (taken,
+-- nil while it's still open) }, newest first; mine from the book, the friends' from their records (lg)
+----------------------------------------------------------------------
+function TB.Ledger()
+  local b = Book()
+  local rec = ns.MyRecord and ns.MyRecord()
+  local out = {}
+  if not (b and rec) then return out end
+  local start = ns.state.settings and ns.state.settings.start or 0
+  out[#out + 1] = { at = start, k = "st", g = TB.START }
+  local hours = TB.GroupPiotte(rec)
+  if hours > 0 then out[#out + 1] = { at = rec.up or U.Now(), k = "gp", g = hours } end
+  local wk = Week() or 1
+  local stakesClosed = 0
+  for w, e in pairs(b.weeks) do
+    local at = TB.WeekStart(w) + M.WEEK
+    if (e.t or 0) > 0 then out[#out + 1] = { at = at, k = "tb", w = w, g = e.t } end
+    if (e.s or 0) > 0 or (e.w or 0) > 0 then out[#out + 1] = { at = at, k = "sc", w = w, s = e.s or 0, g = e.w or 0 } end
+    stakesClosed = stakesClosed + (e.s or 0)
+  end
+  local now = TB.Score(rec, wk)
+  if now and now.points > 0 and not b.weeks[wk] then out[#out + 1] = { at = U.Now(), k = "tb", w = wk, g = now.points, open = 1 } end
+  for w, st in pairs(b.stakes or {}) do if st > 0 then out[#out + 1] = { at = TB.WeekStart(w), k = "sc", w = w, s = st } end end
+  local sfo = type(b.sfo) == "table" and b.sfo or {}
+  for _, x in ipairs(sfo) do out[#out + 1] = { at = x.at, k = "fo", o = x.o, s = TB.SFOTTO, g = 0 } end
+  local rest = (b.spent or 0) - stakesClosed - TB.SFOTTO * #sfo
+  if rest > 0 then out[#out + 1] = { at = start, k = "fo", s = rest, g = 0 } end
+  if ns.Sfide then for _, x in ipairs(ns.Sfide.Ledger()) do out[#out + 1] = x end end
+  table.sort(out, function(x, y) return (x.at or 0) > (y.at or 0) end)
+  return out
+end
+
+-- a friend's lines (the last ones he shared), or mine
+function TB.LedgerOf(m)
+  if not m or m.guid == ns.recordGuid then return TB.Ledger() end
+  local out = {}
+  for _, x in ipairs(m.lg or {}) do out[#out + 1] = x end
+  return out
+end
+
+local function Who(guid)
+  local m = guid and ns.state and ns.state.members[guid]
+  if not m then for _, x in ipairs(UI.Members()) do if x.guid == guid then m = x end end end
+  return m and (tostring(m.name):match("^(%S+)")) or "?"
+end
+-- what a line is, in words
+function TB.LedgerText(x)
+  local k = x.k
+  if k == "st" then return "Le piotte de partenza" end
+  if k == "gp" then return "Ore in gruppo co' er patto: " .. (x.g or 0) end
+  if k == "tb" then return "Tombola, settimana " .. tostring(x.w or "?") .. (x.open and " (finora)" or "") end
+  if k == "sc" then return "Schedina, settimana " .. tostring(x.w or "?") end
+  if k == "fo" then return x.o and ("Sfottò a " .. Who(x.o)) or "Sfottò" end
+  if k == "sf" then return "Sfida co' " .. Who(x.o) end
+  if k == "tj" then return "Taja su " .. Who(x.o) end
+  if k == "tjw" then return "Taja presa su " .. Who(x.o) end
+  if k == "gu" then return "Gufata su " .. Who(x.o) end
+  if k == "gut" then return "Gufata de " .. Who(x.o) .. " su de te" end
+  if k == "sb" then return "Ar Colosseo, su " .. Who(x.o) end
+  return "?"
+end
+
+-- the last lines, short, for my record (so the friends can read my scontrini)
+local function Shared()
+  local out = {}
+  for i, x in ipairs(TB.Ledger()) do
+    if i > 20 then break end
+    out[i] = { at = math.floor(x.at or 0), k = x.k, o = x.o, w = x.w, s = x.s, g = x.g, open = x.open }
+  end
+  return out
+end
+local function Sig(list)
+  local t = {}
+  for _, x in ipairs(list or {}) do t[#t + 1] = table.concat({ x.at or 0, x.k or "", x.o or "", x.w or "", x.s or "", x.g or "-" }, ",") end
+  return table.concat(t, ";")
+end
+
 -- a piotta for every hour played in a group with someone of the patto
 TB.GROUP_HOUR = 3600
 function TB.GroupPiotte(rec)
@@ -555,8 +633,9 @@ function TB.Update()
   local bal = TB.Balance()
   local now = TB.Score(rec, wk)
   local cur = rec.pts or {}
-  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) then
-    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk } }, "pts")
+  local lg = Shared()
+  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) or Sig(lg) ~= Sig(rec.lg) then
+    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk }, lg = lg }, "pts")
   end
   for _, res in ipairs(closed) do
     res.balance = bal
@@ -648,6 +727,9 @@ function TB.Sfotti(guid, text)
   if not TB.Testing() then
     local b = Book()
     b.spent = b.spent + TB.SFOTTO
+    b.sfo = type(b.sfo) == "table" and b.sfo or {}
+    table.insert(b.sfo, 1, { at = U.Now(), o = guid })
+    while #b.sfo > 30 do table.remove(b.sfo) end
     ns.C.Send("F", { t = guid, x = text })
     TB.Update()
   end
