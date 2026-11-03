@@ -159,34 +159,60 @@ end
 -- the dark marble of the character frame's inside (UI-Character-General-TopLeft, 24..250 x 80..250, for small pieces)
 -- and, for areas, the seamless tile made from it, repeated at its own size
 local MX0, MY0, MX1, MY1 = 24, 80, 250, 250
--- The game's marble is made to repeat, but the client does not repeat a texture past its edge for us (the "REPEAT"
--- wrap gives black there), so it is laid as plain copies side by side, each inside the file's 0..1, starting at a
--- random spot so two panels differ. If the file is missing, the frame's own marble, in mirrored copies.
-local MARBLE = "Interface\\FrameGeneral\\UI-Background-Marble"
+-- The marble: the inside of the vanilla character frame (UI-Character-General, the four files together make a
+-- 384x512 picture; its marble runs from 26..330 x 84..422), laid at its own size in copies side by side, every
+-- other copy mirrored so they meet without a seam. It is the same art as the window's border, so it always loads
+-- (the game's separate marble file draws nothing in some clients).
+local GEN = "Interface\\PaperDollInfoFrame\\UI-Character-General-"
+local PX0, PY0, PX1, PY1 = 26, 84, 330, 422
+-- a piece of the 384x512 picture (cx0..cx1, cy0..cy1) drawn 1:1 at x, y (down) in the frame, maybe mirrored
+local function Patch(frame, out, cx0, cy0, cx1, cy1, x, y, flipX, flipY, layer, sub)
+  local xs = { cx0 }
+  if cx0 < 256 and cx1 > 256 then xs[#xs + 1] = 256 end
+  xs[#xs + 1] = cx1
+  local ys = { cy0 }
+  if cy0 < 256 and cy1 > 256 then ys[#ys + 1] = 256 end
+  ys[#ys + 1] = cy1
+  for i = 1, #xs - 1 do
+    for j = 1, #ys - 1 do
+      local a0, a1, b0, b1 = xs[i], xs[i + 1], ys[j], ys[j + 1]
+      local right, bottom = a0 >= 256, b0 >= 256
+      local ox, oy, fw = right and 256 or 0, bottom and 256 or 0, right and 128 or 256
+      local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
+      t:SetTexture(GEN .. (bottom and "Bottom" or "Top") .. (right and "Right" or "Left"))
+      local l, r, tp, bt = (a0 - ox) / fw, (a1 - ox) / fw, (b0 - oy) / 256, (b1 - oy) / 256
+      if flipX then l, r = r, l end
+      if flipY then tp, bt = bt, tp end
+      t:SetTexCoord(l, r, tp, bt)
+      local dx = flipX and (x + (cx1 - a1)) or (x + (a0 - cx0))
+      local dy = flipY and (y + (cy1 - b1)) or (y + (b0 - cy0))
+      Put(t, frame, dx, dy, a1 - a0, b1 - b0)
+      out[#out + 1] = t
+    end
+  end
+end
+
 local function MarbleTiles(frame, x, y, w, h, layer, sub)
   local out = {}
-  local ox, oy = math.random(0, 200), math.random(0, 200)
-  local yy, sy = 0, oy
+  local TW, TH = PX1 - PX0, PY1 - PY0
+  local j, yy = 0, 0
   while yy < h - 0.5 do
-    local ph = math.min(256 - sy, h - yy)
-    local xx, sx = 0, ox
+    local ph = math.min(TH, h - yy)
+    local flipY = j % 2 == 1
+    local cy0 = flipY and (PY1 - ph) or PY0
+    local i, xx = 0, 0
     while xx < w - 0.5 do
-      local pw = math.min(256 - sx, w - xx)
-      local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
-      if t:SetTexture(MARBLE) == false then
-        t:Hide()
-        for _, x2 in ipairs(out) do x2:Hide() end
-        return Tile(frame, GENERAL, 256, 256, MX0, MY0, MX1, MY1, x, y, w, h, layer or "BACKGROUND", sub or -7)
-      end
-      t:SetTexCoord(sx / 256, (sx + pw) / 256, sy / 256, (sy + ph) / 256)
-      Put(t, frame, x + xx, y + yy, pw, ph)
-      out[#out + 1] = t
-      xx, sx = xx + pw, 0
+      local pw = math.min(TW, w - xx)
+      local flipX = i % 2 == 1
+      local cx0 = flipX and (PX1 - pw) or PX0
+      Patch(frame, out, cx0, cy0, cx0 + pw, cy0 + ph, x + xx, y + yy, flipX, flipY, layer, sub)
+      xx, i = xx + pw, i + 1
     end
-    yy, sy = yy + ph, 0
+    yy, j = yy + ph, j + 1
   end
   return out
 end
+
 -- one piece of marble at its own size, for a small frame (w x h at most 226 x 170)
 local function Marble(frame, layer, sub, w, h)
   local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
@@ -1770,7 +1796,7 @@ local function Build()
   -- the "i": what this tab is for, in its tooltip (Extras.INFO)
   local help = CreateFrame("Button", nil, f)
   help:SetSize(16, 16)
-  help:SetPoint("TOPRIGHT", -22, -38)
+  help:SetPoint("TOPRIGHT", -26, -24)
   help:SetFrameLevel(f:GetFrameLevel() + 25)
   help:SetNormalTexture("Interface\\FriendsFrame\\InformationIcon")
   help:SetHighlightTexture("Interface\\FriendsFrame\\InformationIcon-Highlight", "ADD")
