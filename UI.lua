@@ -124,17 +124,55 @@ local SLOTS = "Interface\\PaperDollInfoFrame\\UI-Character-CharacterTab-BottomLe
 local SC = 12 -- corner size of the slot frame
 local SX, SY = 113, 121 -- the slot frame's top left in its 256x256 file
 
--- dark marble from the character frame, stretched over a region
-local function Marble(frame, layer, sub)
+-- Fill a region with a piece of a texture at its own size (never stretched), repeated; every other copy mirrored so
+-- the copies meet without a seam. tileX/tileY false: that direction is stretched instead (plain rails).
+-- file sizes fw, fh; source sx0..sx1, sy0..sy1 in pixels; target x, y (down), w, h inside frame
+local function Tile(frame, file, fw, fh, sx0, sy0, sx1, sy1, x, y, w, h, layer, sub, tileX, tileY)
+  local out = {}
+  local tw, th = sx1 - sx0, sy1 - sy0
+  if tileX == false then tw = w end
+  if tileY == false then th = h end
+  local j, yy = 0, 0
+  while yy < h - 0.5 do
+    local ph = math.min(th, h - yy)
+    local i, xx = 0, 0
+    while xx < w - 0.5 do
+      local pw = math.min(tw, w - xx)
+      local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or 0)
+      t:SetTexture(file)
+      local l, r, tp, bt
+      if tileX == false then l, r = sx0, sx1
+      elseif i % 2 == 0 then l, r = sx0, sx0 + pw else l, r = sx1, sx1 - pw end
+      if tileY == false then tp, bt = sy0, sy1
+      elseif j % 2 == 0 then tp, bt = sy0, sy0 + ph else tp, bt = sy1, sy1 - ph end
+      t:SetTexCoord(l / fw, r / fw, tp / fh, bt / fh)
+      Put(t, frame, x + xx, y + yy, pw, ph)
+      out[#out + 1] = t
+      xx, i = xx + pw, i + 1
+    end
+    yy, j = yy + ph, j + 1
+  end
+  return out
+end
+
+-- the dark marble of the character frame's inside (UI-Character-General-TopLeft, 24..250 x 80..250)
+local MX0, MY0, MX1, MY1 = 24, 80, 250, 250
+local function MarbleTiles(frame, x, y, w, h, layer, sub)
+  return Tile(frame, GENERAL, 256, 256, MX0, MY0, MX1, MY1, x, y, w, h, layer or "BACKGROUND", sub or -7)
+end
+-- one piece of marble at its own size, for a small frame (w x h at most 226 x 170)
+local function Marble(frame, layer, sub, w, h)
   local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
   t:SetTexture(GENERAL)
-  local u0, v0 = math.random(30, 80), math.random(90, 140)
-  t:SetTexCoord(u0 / 256, (u0 + 140) / 256, v0 / 256, (v0 + 100) / 256)
+  w, h = math.min(w or 140, MX1 - MX0), math.min(h or 100, MY1 - MY0)
+  local u0 = math.random(MX0, MX1 - w)
+  local v0 = math.random(MY0, MY1 - h)
+  t:SetTexCoord(u0 / 256, (u0 + w) / 256, v0 / 256, (v0 + h) / 256)
   return t
 end
 
 -- the slot frame round a frame: corners with the rivet, edges stretched (the right and bottom ones mirrored)
-local function SlotBorder(frame, layer, sub)
+local function SlotBorder(frame, layer, sub, w, h)
   local p = {}
   local function piece(x0, y0, w, h, flipX, flipY)
     local t = frame:CreateTexture(nil, layer or "BORDER", nil, sub or 0)
@@ -150,6 +188,18 @@ local function SlotBorder(frame, layer, sub)
   local tr = piece(SX, SY, SC, SC, true) tr:SetSize(SC, SC) tr:SetPoint("TOPRIGHT")
   local bl = piece(SX, SY, SC, SC, false, true) bl:SetSize(SC, SC) bl:SetPoint("BOTTOMLEFT")
   local br = piece(SX, SY, SC, SC, true, true) br:SetSize(SC, SC) br:SetPoint("BOTTOMRIGHT")
+  if w and h then
+    -- the rails repeated at their own size, so their grain is the game's
+    local E = 20
+    local function add(list) for _, x in ipairs(list) do p[#p + 1] = x end end
+    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY, SX + SC + E, SY + SC, SC, 0, w - 2 * SC, SC, layer or "BORDER", sub or 0, true, false))
+    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY + SC, SX + SC + E, SY, SC, h - SC, w - 2 * SC, SC, layer or "BORDER", sub or 0, true, false))
+    -- the side rails: a short clean bit (the slot's side has a bar joining it lower down)
+    local V = 8
+    add(Tile(frame, SLOTS, 256, 256, SX, SY + SC, SX + SC, SY + SC + V, 0, SC, SC, h - 2 * SC, layer or "BORDER", sub or 0, false, true))
+    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY + SC, SX, SY + SC + V, w - SC, SC, SC, h - 2 * SC, layer or "BORDER", sub or 0, false, true))
+    return p
+  end
   local t = piece(SX + SC, SY, 8, SC) t:SetPoint("TOPLEFT", tl, "TOPRIGHT") t:SetPoint("BOTTOMRIGHT", tr, "BOTTOMLEFT")
   local b = piece(SX + SC, SY, 8, SC, false, true) b:SetPoint("TOPLEFT", bl, "TOPRIGHT") b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT")
   local l = piece(SX, SY + SC, SC, 8) l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT") l:SetPoint("BOTTOMRIGHT", bl, "TOPRIGHT")
@@ -206,10 +256,14 @@ local function Box(parent, w, h)
   solid:SetColorTexture(0.04, 0.04, 0.04, 1)
   solid:SetPoint("TOPLEFT", 4, -4)
   solid:SetPoint("BOTTOMRIGHT", -4, 4)
-  local m = Marble(b)
-  m:SetPoint("TOPLEFT", 5, -5)
-  m:SetPoint("BOTTOMRIGHT", -5, 5)
-  b.rails = SlotBorder(b)
+  if w and h then
+    MarbleTiles(b, 5, 5, w - 10, h - 10)
+  else
+    local m = Marble(b)
+    m:SetPoint("TOPLEFT", 5, -5)
+    m:SetPoint("BOTTOMRIGHT", -5, 5)
+  end
+  b.rails = SlotBorder(b, nil, nil, w, h)
   function b:SetBorderColor(r, g, bl) for _, t in pairs(self.rails) do t:SetVertexColor(r, g, bl) end end
   return b
 end
@@ -608,7 +662,7 @@ local function TopTab(parent, label, onClick)
   fill:SetColorTexture(0, 0, 0, 1)
   fill:SetPoint("TOPLEFT", 2, -2)
   fill:SetPoint("BOTTOMRIGHT", -2, 0)
-  local marble = Marble(b, "BACKGROUND", -7)
+  local marble = Marble(b, "BACKGROUND", -7, b:GetWidth() - 4, 24)
   marble:SetPoint("TOPLEFT", 2, -2)
   marble:SetPoint("BOTTOMRIGHT", -2, 0)
   b.stone = { tex = marble }
@@ -1623,8 +1677,9 @@ local function Build()
     local p, _, rp, x, y = self:GetPoint()
     if ns.db then ns.db.ui.main = { p, rp, x, y } end
   end)
-  -- the window: the vanilla character frame (UI-Character-General), cut so it stretches to this size: the top with
-  -- the round portrait, the title strip and the close box as they are; the borders and the marble stretched
+  -- the window: the vanilla character frame (UI-Character-General), cut so it fits this size: the top with the
+  -- round portrait, the title strip and the close box as they are; the borders and the marble repeated at their own
+  -- size (never stretched), so the stone looks as in the game
   local fill = f:CreateTexture(nil, "BACKGROUND", nil, -8)
   fill:SetColorTexture(0.05, 0.05, 0.05, 1)
   fill:SetPoint("TOPLEFT", 2, -2)
@@ -1641,24 +1696,28 @@ local function Build()
     return t
   end
   -- the picture's frame runs from x 10 to 348 and from y 13 to 436
+  -- the same, repeated at its own size instead of stretched (left files only for the repeats)
+  local function ArtTile(x0, x1, y0, y1, x, y, w, h, tileX, tileY)
+    local right, bottom = x0 >= 256, y0 >= 256
+    local ox, oy, fw = right and 256 or 0, bottom and 256 or 0, right and 128 or 256
+    return Tile(f, ART .. (bottom and "Bottom" or "Top") .. (right and "Right" or "Left"), fw, 256,
+      x0 - ox, y0 - oy, x1 - ox, y1 - oy, x, y, w, h, "BACKGROUND", 0, tileX, tileY)
+  end
   Art(0, 100, 0, 80, -10, -13, 100, 80)
-  Art(100, 250, 0, 80, 90, -13, W - 138, 80)
+  ArtTile(100, 250, 0, 80, 90, -13, W - 138, 80, true, false)
   Art(300, 352, 0, 80, W - 48, -13, 52, 80)
-  Art(0, 24, 80, 250, -10, 67, 24, H - 83)
-  Art(24, 250, 80, 250, 14, 67, W - 28, H - 83)
-  Art(334, 352, 80, 250, W - 14, 67, 18, H - 83)
+  ArtTile(0, 24, 80, 250, -10, 67, 24, H - 83, false, true)
+  ArtTile(24, 250, 80, 250, 14, 67, W - 28, H - 83, true, true)
+  ArtTile(334, 352, 80, 250, W - 14, 67, 18, H - 83, false, true)
   Art(0, 24, 420, 440, -10, H - 16, 24, 20)
-  Art(24, 250, 420, 440, 14, H - 16, W - 28, 20)
+  ArtTile(24, 250, 420, 440, 14, H - 16, W - 28, 20, true, false)
   Art(334, 352, 420, 440, W - 14, H - 16, 18, 20)
-  -- the round portrait: your character's face, as in the vanilla character frame
+  -- the round portrait: the icon of the vanilla Social window (the patto is a group of friends)
   local portrait = f:CreateTexture(nil, "BACKGROUND", nil, -1)
-  Put(portrait, f, -4, -10, 61, 61)
+  Put(portrait, f, -5, -11, 63, 63)
+  portrait:SetTexture("Interface\\FriendsFrame\\FriendsFrameScrollIcon")
   f.portrait = portrait
-  local function Face() if SetPortraitTexture then pcall(SetPortraitTexture, portrait, "player") end end
-  Face()
-  f:RegisterEvent("UNIT_PORTRAIT_UPDATE")
-  f:RegisterEvent("PLAYER_ENTERING_WORLD")
-  f:SetScript("OnEvent", function(_, event, unit) if event ~= "UNIT_PORTRAIT_UPDATE" or unit == "player" then Face() end end)
+  local function Face() end
   f.Face = Face
   -- the selected tab, over the bottom border
   f.selTab = { fill = Art(30, 230, 300, 410, 0, 0, 1, 1) }

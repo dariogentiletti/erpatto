@@ -5,7 +5,9 @@ Every design decision follows the original vanilla UI, so the addon looks like a
 Check each new frame, popup, list or control against the vanilla character frame before adding it.
 
 Use (the game's own files, drawn through the helpers in UI.lua):
-- the window: UI-Character-General art, stretched (UI.lua Build); the round portrait shows the player's face
+- the window: UI-Character-General art (UI.lua Build); the round portrait shows the vanilla Social window icon
+  (FriendsFrameScrollIcon), as the user chose
+- textures are never stretched: `Tile` repeats them at their own size (mirrored copies, no seams)
 - panels: `H.Box` (the slot frame with rivets round dark marble), titles in GameFontNormal, data in the Small fonts
 - popups: `H.Chrome` (UI-DialogBox border and background) with `H.DialogHeader` for the title plate
 - buttons: UIPanelButtonTemplate; inputs: InputBoxTemplate; checks: UICheckButtonTemplate; radios: UI-RadioButton
