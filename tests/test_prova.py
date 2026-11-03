@@ -13,23 +13,33 @@ TB = A.ns.Tombola
 check(TB.Testing() is False and TB.Card() is None, 'before the start, no card')
 A.ns.db.opts.testMode = True
 check(TB.Testing() is True and TB.Week() == 1 and TB.Card() is not None, 'test mode: week 1 card before the start')
-A.ns.UI.Toggle(); A.ns.UI.ShowProgress('tombola')
-pv = A.ns.UI._views.progresso
-check(A.has('(prova') and pv.tombola.testBtn.shown and A.has('Totopatto'), 'tombola page in test mode, with the close button')
+A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
+bv = A.ns.UI._views.botteghino
+check(A.has('(prova') and bv.testBtn.shown and A.has('La Schedina'), 'Botteghino in test mode, with the close button')
 # what I do now counts: a duel lost, two quests
 A.ns.T.Bump('dl'); A.ns.T.Bump('q', 20); A.ns.T.Bump('dg', 1)
 sc = TB.Score(A.rec())
 check(sc.cells >= 1, 'my pre-start actions tick the card: %d cells' % sc.cells)
-ok = TB.Vote('a', 'FAKE-3')
-check(ok and A.g.ErPattoDB.testVotes.a == 'FAKE-3' and A.rec().vt is None, 'test vote kept on this computer only')
-A.ns.UI.ShowProgress('tombola')
-check(A.has('Voti:'), 'votes shown, test members included')
-total, sc2, right, lines = TB.SimulateClose()
+ok = TB.Bet('a', 'FAKE-3')
+check(ok and A.g.ErPattoDB.testVotes.a == 'FAKE-3' and A.g.ErPattoDB.testVotes.sa == 5 and A.rec().vt is None, 'test bet (5 by default) kept on this computer only')
+A.ns.UI.Show('botteghino')
+check(A.has('Montepremi'), 'pots shown, test members included')
+# the picker list opens and picks
+r = bv.q[2]
+r.pick.Click(r.pick)
+pk = A.g.ErPattoPickMember
+row = [x for x in pk.rows.values() if x.shown][1]
+row.Click(row)
+check(A.g.ErPattoDB.testVotes.b == row.guid, 'picking from the list places the bet: ' + str(row.guid))
+# the bulletin can be tried in test mode
+A.ns.Home.ShowBulletin(True)
+check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.text), 'test bulletin')
+total, sc2, right, lines, won = TB.SimulateClose()
 check(total is not None and total >= sc2.points, 'simulated close: %s points, %s right' % (total, right))
-btn = pv.tombola.testBtn; btn.Click(btn)
+btn = bv.testBtn; btn.Click(btn)
 check(any('prova, settimana chiusa' in str(x) for x in A.g.CHAT.values()) and A.g.ErPattoBanner.shown, 'close button: chat and banner')
 TB.Update()
-check(A.rec().pts is None or A.rec().pts.t == 0, 'no real points written in test mode')
+check(A.rec().pts is None, 'no real sesterzi written in test mode')
 A.ns.db.opts.testMode = False
 check(TB.Testing() is False and TB.Card() is None, 'test mode off: back to no card')
 bad = A.errors()

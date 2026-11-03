@@ -23,9 +23,19 @@ local function Leader(list, fn)
   end
   return best, bestV
 end
+-- a week's count (in test mode, before the start, the pre-start week stands in for week 1)
 local function W(m, wk, k)
+  if ns.Tombola then return ns.Tombola.Weekly(m, wk)[k] or 0 end
   local w = m.stats and m.stats.w and m.stats.w[wk]
   return type(w) == "table" and (w[k] or 0) or 0
+end
+-- level against the cap, short enough for a narrow column
+local function ShortState(lv, cap)
+  local s, d = M.PlayerState(lv, cap)
+  if s == "over" then return "|cffff4040+" .. d .. "|r" end
+  if s == "at" then return "|cff40ff40cap|r" end
+  if s == "behind" then return "|cffffd100-" .. d .. "|r" end
+  return ""
 end
 
 ----------------------------------------------------------------------
@@ -67,8 +77,9 @@ local function Build()
     local r = {}
     r.name = H.Text(b, "GameFontHighlightSmall", "", 120)
     r.name:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 17)
-    r.lv = H.Text(b, "GameFontHighlightSmall", "", 70)
+    r.lv = H.Text(b, "GameFontHighlightSmall", "", 76)
     r.lv:SetPoint("TOPLEFT", 134, -30 - (i - 1) * 17)
+    if r.lv.SetWordWrap then r.lv:SetWordWrap(false) end
     r.zone = H.Text(b, "GameFontDisableSmall", "", 140)
     r.zone:SetPoint("TOPLEFT", 210, -30 - (i - 1) * 17)
     if r.zone.SetWordWrap then r.zone:SetWordWrap(false) end
@@ -108,13 +119,13 @@ local function Build()
   end
   v.tomb = H.Text(d, "GameFontNormalSmall", "", 344)
   v.tomb:SetPoint("TOPLEFT", 12, -136)
-  v.tombBtn = H.Btn(d, "Tombola", 78, function() UI.ShowProgress("tombola") end, 20)
+  v.tombBtn = H.Btn(d, "Botteghino", 88, function() UI.Show("botteghino") end, 20)
   v.tombBtn:SetPoint("BOTTOMLEFT", 12, 10)
-  v.bullBtn = H.Btn(d, "Bollettino", 88, function() Home.ShowBulletin(true) end, 20)
+  v.bullBtn = H.Btn(d, "Bollettino", 84, function() Home.ShowBulletin(true) end, 20)
   v.bullBtn:SetPoint("LEFT", v.tombBtn, "RIGHT", 6, 0)
-  v.shareBtn = H.Btn(d, "Condividi", 88, function() if ns.Extras then ns.Extras.ShowShare() end end, 20)
+  v.shareBtn = H.Btn(d, "Condividi", 84, function() if ns.Extras then ns.Extras.ShowShare() end end, 20)
   v.shareBtn:SetPoint("LEFT", v.bullBtn, "RIGHT", 6, 0)
-  v.helpBtn = H.Btn(d, "Aiuto", 64, function() if ns.Extras then ns.Extras.ShowGuide() end end, 20)
+  v.helpBtn = H.Btn(d, "Aiuto", 56, function() if ns.Extras then ns.Extras.ShowGuide() end end, 20)
   v.helpBtn:SetPoint("LEFT", v.shareBtn, "RIGHT", 6, 0)
 end
 
@@ -183,7 +194,7 @@ local function Refresh(v)
     if m then
       local mst = m.team and P.HasSettings(state) and M.Status(state.settings, m.team, U.Now())
       r.name:SetText(Colored(m))
-      r.lv:SetText("Liv " .. tostring(m.lv or "?") .. (mst and mst.started and not mst.lifted and (" " .. H.StateText(m.lv, mst.cap)) or ""))
+      r.lv:SetText("Liv " .. tostring(m.lv or "?") .. (mst and mst.started and not mst.lifted and (" " .. ShortState(m.lv, mst.cap)) or ""))
       r.zone:SetText(m.zone or "")
     else
       r.name:SetText(i == 1 and (GREY .. "Nessuno, pe' mo'.|r") or "")
@@ -209,7 +220,8 @@ local function Refresh(v)
   end
 
   -- this week
-  local wk = P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) or 0
+  local testing = ns.Tombola and ns.Tombola.Testing()
+  local wk = (testing and ns.Tombola.Week()) or (P.HasSettings(state) and M.WeekIndex(state.settings, U.Now())) or 0
   local lines = {}
   local function add(label, m, text) if m then lines[#lines + 1] = label .. ": " .. Colored(m) .. " " .. GREY .. text .. "|r" end end
   if wk >= 1 then
@@ -230,8 +242,8 @@ local function Refresh(v)
   for i, l in ipairs(v.week) do l:SetText(lines[i] or "") end
   local TB = ns.Tombola
   local sc = TB and rec and TB.Score(rec)
-  v.tomb:SetText(sc and ("Tombola tua: " .. sc.cells .. "/9 caselle, " .. sc.points .. " punti" .. (sc.full and " (TOMBOLA!)" or "")) or "")
-  v.bullBtn:SetEnabled(wk >= 2)
+  v.tomb:SetText(sc and ("Tombola: " .. sc.cells .. "/9 caselle, +" .. sc.points .. (sc.full and " (TOMBOLA!)" or "") .. ".  Sesterzi: |cffffd100" .. TB.Balance() .. "|r") or "")
+  v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
 
 UI.AddView("casa", "Casa", Build, Refresh, true)
@@ -266,7 +278,7 @@ function Home.Bulletin(wk)
     m, v = Leader(list, function(x) local sc = ns.Tombola.Score(x, wk) return sc and sc.points or 0 end)
     if m then
       local sc = ns.Tombola.Score(m, wk)
-      line("Tombola: " .. Colored(m) .. " " .. v .. " punti" .. (sc and sc.full and " (TOMBOLA!)" or ""))
+      line("Tombola: " .. Colored(m) .. " " .. v .. " sesterzi" .. (sc and sc.full and " (TOMBOLA!)" or ""))
     end
   end
   if #out == 0 then line(GREY .. "Settimana tranquilla: nun s'è mosso nessuno.|r") end
@@ -277,10 +289,13 @@ function Home.ShowBulletin(force)
   local state = ns.state
   if not (state and P.HasSettings(state)) then if force then U.Say("ancora nun c'è un bollettino.") end return end
   local wk = M.WeekIndex(state.settings, U.Now()) - 1
-  if wk < 1 then if force then U.Say("er primo bollettino esce a la fine de la prima settimana.") end return end
+  -- test mode: the bulletin of this (test) week, as it stands now
+  local testing = force and ns.Tombola and ns.Tombola.Testing()
+  if testing then wk = ns.Tombola.Week() end
+  if wk < 1 then if force then U.Say("er primo bollettino esce a la fine de la prima settimana (pe' provallo: /patto prova).") end return end
   ns.db.bulletin = type(ns.db.bulletin) == "table" and ns.db.bulletin or {}
   if not force and ns.db.bulletin[state.code] == wk then return end
-  ns.db.bulletin[state.code] = wk
+  if not testing then ns.db.bulletin[state.code] = wk end
   if not bull then
     bull = CreateFrame("Frame", "ErPattoBulletin", UIParent)
     bull:SetSize(460, 330)
@@ -308,7 +323,7 @@ function Home.ShowBulletin(force)
     bull.ok:SetPoint("BOTTOM", 0, 16)
     if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoBulletin") end
   end
-  bull.title:SetText("Er Bollettino, settimana " .. wk)
+  bull.title:SetText("Er Bollettino, settimana " .. wk .. (testing and " |cffff8000(prova)|r" or ""))
   local lines = Home.Bulletin(wk)
   for i, l in ipairs(bull.lines) do l:SetText(lines[i] or "") end
   local st = ns.MyStatus()

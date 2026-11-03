@@ -304,6 +304,9 @@ local function Handle(body, sender, channel)
   elseif kind == "B" then
     changed = P.MergeBans(state, data)
     if type(data) == "table" and data.v then recent["B:" .. data.v] = Clock() end
+  elseif kind == "F" then
+    -- a sfottò: only the one it's for shows it
+    ns.Fire("Sfotto", from, data)
   elseif kind == "M" then
     if type(data) == "table" and type(data.guid) == "string" then
       recent["M:" .. data.guid .. ":" .. tostring(data.up)] = Clock()

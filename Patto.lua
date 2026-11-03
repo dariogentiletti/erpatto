@@ -189,11 +189,19 @@ function P.CleanMember(r)
     c.ed = { k = Str(r.ed.k, 12), at = Num(r.ed.at, 0, 4e9), z = Str(r.ed.z, 40), by = Str(r.ed.by, 40) }
   end
   if type(r.pts) == "table" then
-    c.pts = { t = math.floor(Num(r.pts.t, 0, 1e6) or 0), w = math.floor(Num(r.pts.w, 0, 1e4) or 0), wk = Num(r.pts.wk, 0, 260) }
+    c.pts = { t = math.floor(Num(r.pts.t, 0, 1e7) or 0), w = math.floor(Num(r.pts.w, 0, 1e4) or 0), wk = Num(r.pts.wk, 0, 260) }
   end
-  if type(r.vt) == "table" and Num(r.vt.wk, 0, 260) then
-    c.vt = { wk = Num(r.vt.wk, 0, 260), a = Str(r.vt.a, 60), b = Str(r.vt.b, 60), c = Str(r.vt.c, 60) }
+  -- bets: this week's (vt) and last week's (vp): pick and stake per question
+  local function Bets(v)
+    if type(v) ~= "table" or not Num(v.wk, 0, 260) then return nil end
+    local out = { wk = Num(v.wk, 0, 260) }
+    for _, k in ipairs({ "a", "b", "c" }) do
+      out[k] = Str(v[k], 60)
+      out["s" .. k] = out[k] and math.floor(Num(v["s" .. k], 0, 1e5) or 0) or nil
+    end
+    return out
   end
+  c.vt, c.vp = Bets(r.vt), Bets(r.vp)
   if type(r.lq) == "table" then
     for i = 1, 3 do
       local q = r.lq[i]

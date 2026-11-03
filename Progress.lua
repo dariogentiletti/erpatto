@@ -1,7 +1,6 @@
--- Er Patto: the "Progresso" tab. Six pages:
+-- Er Patto: the "Progresso" tab. Five pages:
 --   Classifiche: one card per thing worth doing well (level, time played, quests, dungeons, gold, gear, duels, BGs)
 --   Avventure: the fun boards (luck, epics, fish, gathering, road, silly deaths, famous kills, duel ladder, nemesis)
---   Tombola: this week's card, the Totopatto guesses and the season's points
 --   Titoli: every title, who holds it and how it's won
 --   Diario: one member's adventure (time against the plan, milestones, quests and zones, dungeons, professions)
 --   Confronto: you against another member, side by side, with your duels against each other
@@ -9,7 +8,7 @@ local ADDON, ns = ...
 local U, M, P, C, T, UI = ns.U, ns.M, ns.P, ns.C, ns.T, ns.UI
 local H = UI.H
 
-local page = "rank"        -- "rank", "adv", "tombola", "titles", "diary", "vs"
+local page = "rank"        -- "rank", "adv", "titles", "diary", "vs"
 local mode = "t"           -- "t" since always, "w" this week
 local diaryGuid, vsGuid
 local GREEN, RED, WHITE, GREY = "|cff20ff20", "|cffff4040", "|cffffffff", "|cff9d9d9d"
@@ -438,226 +437,6 @@ local function RefreshTitles(v, list)
 end
 
 ----------------------------------------------------------------------
--- Tombola: the card, the Totopatto, the season's points
-----------------------------------------------------------------------
-local pick -- the little list to choose a member
-
-local function PickMember(anchor, onPick)
-  if not pick then
-    pick = CreateFrame("Frame", "ErPattoPickMember", UIParent)
-    pick:SetFrameStrata("DIALOG")
-    pick:SetToplevel(true)
-    pick:EnableMouse(true)
-    H.Chrome(pick)
-    pick.rows = {}
-    if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoPickMember") end
-    pick:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    pick:SetScript("OnHide", function(self) pcall(self.UnregisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    pick:SetScript("OnEvent", function(self)
-      local over = MouseIsOver and (MouseIsOver(self) or (self.anchor and MouseIsOver(self.anchor)))
-      if not over then self:Hide() end
-    end)
-  end
-  pick.anchor = anchor
-  local list = Ordered(UI.Members())
-  for _, r in ipairs(pick.rows) do r:Hide() end
-  for i, m in ipairs(list) do
-    if i > 20 then break end
-    local r = pick.rows[i]
-    if not r then
-      r = CreateFrame("Button", nil, pick)
-      r:SetSize(170, 16)
-      r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-      r.text = H.Text(r, "GameFontHighlightSmall", "", 166)
-      r.text:SetPoint("LEFT", 4, 0)
-      r:SetScript("OnClick", function(self) pick:Hide() if pick.onPick then pick.onPick(self.guid) end UI.Refresh() end)
-      pick.rows[i] = r
-    end
-    r.guid = m.guid
-    r.text:SetText(H.Colored(m))
-    r:ClearAllPoints()
-    r:SetPoint("TOPLEFT", 14, -14 - (i - 1) * 16)
-    r:Show()
-  end
-  pick.onPick = onPick
-  pick:SetSize(200, 28 + math.min(20, #list) * 16)
-  pick:ClearAllPoints()
-  pick:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
-  pick:Show()
-end
-
-local function BuildTombola(v)
-  local TB = ns.Tombola
-  local f = CreateFrame("Frame", nil, v)
-  f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
-  v.tombola = f
-  -- the card
-  local card = H.Box(f, 380, 347)
-  card:SetPoint("TOPLEFT")
-  f.cardTitle = H.Text(card, "GameFontNormal", "", 360)
-  f.cardTitle:SetPoint("TOPLEFT", 12, -10)
-  f.cardSub = H.Text(card, "GameFontHighlightSmall", "", 360)
-  f.cardSub:SetPoint("TOPLEFT", 12, -26)
-  f.cells = {}
-  for i = 1, 9 do
-    local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
-    local c = H.Box(card, 116, 92)
-    c:SetPoint("TOPLEFT", 10 + col * 120, -44 - row * 98)
-    c.glow = c:CreateTexture(nil, "ARTWORK")
-    c.glow:SetPoint("TOPLEFT", 4, -4)
-    c.glow:SetPoint("BOTTOMRIGHT", -4, 4)
-    c.glow:SetColorTexture(1, 0.82, 0, 0.18)
-    c.text = H.Text(c, "GameFontHighlightSmall", "", 100, "CENTER")
-    c.text:SetPoint("TOP", 0, -12)
-    c.prog = H.Text(c, "GameFontNormalSmall", "", 100, "CENTER")
-    c.prog:SetPoint("BOTTOM", 0, 12)
-    c.check = c:CreateTexture(nil, "OVERLAY")
-    c.check:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
-    c.check:SetSize(22, 22)
-    c.check:SetPoint("TOPRIGHT", -4, -4)
-    f.cells[i] = c
-  end
-  -- Totopatto
-  local tp = H.Box(f, 356, 165)
-  tp:SetPoint("TOPLEFT", 388, 0)
-  f.tpTitle = H.Text(tp, "GameFontNormal", "Totopatto", 330)
-  f.tpTitle:SetPoint("TOPLEFT", 12, -10)
-  f.tpSub = H.Text(tp, "GameFontHighlightSmall", "", 330)
-  f.tpSub:SetPoint("TOPLEFT", 12, -26)
-  f.q = {}
-  for i, q in ipairs(TB.QUESTIONS) do
-    local y = -46 - (i - 1) * 38
-    local r = {}
-    r.text = H.Text(tp, "GameFontHighlightSmall", q.text, 150)
-    r.text:SetPoint("TOPLEFT", 12, y - 4)
-    r.btn = H.Btn(tp, "Scegli", 120, function(self)
-      PickMember(self, function(guid) TB.Vote(q.key, guid) end)
-    end, 20)
-    r.btn:SetPoint("TOPLEFT", 160, y)
-    r.votes = H.Text(tp, "GameFontDisableSmall", "", 330)
-    r.votes:SetPoint("TOPLEFT", 12, y - 20)
-    if r.votes.SetWordWrap then r.votes:SetWordWrap(false) end
-    f.q[i] = r
-  end
-  -- test mode: close the week now to see what it would give
-  f.testBtn = H.Btn(card, "Prova: chiudi", 110, function()
-    local total, sc, right, lines = TB.SimulateClose()
-    if not total then return end
-    U.Say("prova, settimana chiusa: tombola " .. sc.points .. " punti (" .. sc.cells .. " caselle, " .. sc.lines .. " terni), Totopatto " .. right .. "/3 = " .. total .. " punti.")
-    for _, l in ipairs(lines) do U.Say("  " .. l) end
-    if ns.News then ns.News.Banner("Settimana chiusa (prova)", total .. " punti: tombola " .. sc.points .. ", Totopatto " .. right .. "/3", nil, "evento") end
-  end, 20)
-  f.testBtn:SetPoint("TOPRIGHT", -8, -6)
-  f.testBtn:SetScript("OnEnter", function(self) H.Tip(self, { "Prova", "Chiude la settimana adesso pe' vede quanti punti faresti (tombola + Totopatto). Nun se salva gnente." }) end)
-  f.testBtn:SetScript("OnLeave", H.HideTip)
-  -- season
-  local pts = H.Box(f, 356, 178)
-  pts:SetPoint("TOPLEFT", 388, -169)
-  f.ptsTitle = H.Text(pts, "GameFontNormal", "Classifica de li punti", 330)
-  f.ptsTitle:SetPoint("TOPLEFT", 12, -10)
-  local hdr = H.Text(pts, "GameFontNormalSmall", "Stagione   'Sta sett.", 140, "RIGHT")
-  hdr:SetPoint("TOPRIGHT", -14, -12)
-  f.ptsRows = {}
-  for i = 1, 8 do
-    local r = {}
-    r.name = H.Text(pts, "GameFontHighlightSmall", "", 200)
-    r.name:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 17)
-    if r.name.SetWordWrap then r.name:SetWordWrap(false) end
-    r.total = H.Text(pts, "GameFontHighlightSmall", "", 50, "RIGHT")
-    r.total:SetPoint("TOPRIGHT", -84, -30 - (i - 1) * 17)
-    r.week = H.Text(pts, "GameFontHighlightSmall", "", 60, "RIGHT")
-    r.week:SetPoint("TOPRIGHT", -14, -30 - (i - 1) * 17)
-    f.ptsRows[i] = r
-  end
-end
-
-local function RefreshTombola(v, list)
-  local TB = ns.Tombola
-  local f = v.tombola
-  local wk = TB.Week()
-  local me = ns.MyRecord()
-  local card = TB.Card(wk)
-  if not (card and wk and wk >= 1) then
-    f.cardTitle:SetText("Tombola de la settimana")
-    f.cardSub:SetText(GREY .. "La prima cartella esce quanno parte er patto.|r")
-    for _, c in ipairs(f.cells) do c:Hide() end
-  else
-    local sc = TB.Score(me, wk) or { done = {}, cells = 0, lines = 0, points = 0 }
-    f.cardTitle:SetText("Tombola de la settimana " .. wk)
-    f.cardSub:SetText("Caselle |cffffffff" .. sc.cells .. "/9|r, terni |cffffffff" .. sc.lines .. "|r, punti |cffffd100" .. sc.points .. "|r" ..
-      (sc.full and "  |cffffd100TOMBOLA!|r" or "") .. GREY .. "   (1 a casella, +2 a riga, +10 tutta)|r")
-    local w = me and me.stats and me.stats.w and me.stats.w[wk] or {}
-    for i, c in ipairs(f.cells) do
-      local sq = card[i]
-      local done, cur, target = TB.Progress(sq, w)
-      c.text:SetText(sq.t)
-      c.prog:SetText(done and "|cff20ff20Fatto|r" or TB.ProgressText(sq, cur, target))
-      c.check:SetShown(done)
-      c.glow:SetShown(done)
-      c:Show()
-    end
-  end
-  f.testBtn:SetShown(TB.Testing())
-  if TB.Testing() then
-    f.cardTitle:SetText("Tombola " .. "|cffff8000(prova: conta quello che fai mo')|r")
-  end
-  -- Totopatto
-  local can = TB.CanVote()
-  local byGuid = {}
-  for _, m in ipairs(list) do byGuid[m.guid] = m end
-  if TB.Testing() then
-    f.tpSub:SetText("|cffff8000Prova: voti solo su 'sto computer.|r")
-  elseif wk and wk >= 1 then
-    local closes = TB.WeekStart(wk) + TB.VOTE_WINDOW
-    f.tpSub:SetText(can and ("Se vota fino a " .. U.When(closes) .. ". 3 punti a risposta giusta.")
-      or (GREY .. "Votazioni chiuse: li punti a fine settimana. Se rivota a la prossima.|r"))
-  else
-    f.tpSub:SetText(GREY .. "Se comincia co' la prima settimana der patto.|r")
-  end
-  for i, q in ipairs(TB.QUESTIONS) do
-    local r = f.q[i]
-    local myVotes = TB.VotesOf(me, wk)
-    local mine = myVotes and myVotes[q.key]
-    local m = mine and byGuid[mine]
-    r.btn:SetText(m and (tostring(m.name):match("^(%S+)")) or (can and "Scegli" or "-"))
-    r.btn:SetEnabled(can and true or false)
-    local counts = {}
-    for _, x in ipairs(list) do
-      local xv = TB.VotesOf(x, wk)
-      local g = xv and xv[q.key]
-      if g and byGuid[g] then
-        local n = (tostring(byGuid[g].name):match("^(%S+)"))
-        counts[n] = (counts[n] or 0) + 1
-      end
-    end
-    local parts = {}
-    for n, c in pairs(counts) do parts[#parts + 1] = n .. " " .. c end
-    table.sort(parts)
-    r.votes:SetText(#parts > 0 and ("Voti: " .. table.concat(parts, ", ")) or "Ancora nessun voto")
-  end
-  -- season
-  local order = {}
-  for _, m in ipairs(list) do order[#order + 1] = m end
-  table.sort(order, function(a, b)
-    local x, y = TB.TotalOf(a), TB.TotalOf(b)
-    if x ~= y then return x > y end
-    return tostring(a.name) < tostring(b.name)
-  end)
-  for i, r in ipairs(f.ptsRows) do
-    local m = order[i]
-    if m then
-      local sc = TB.Score(m, wk)
-      r.name:SetText(Ordinal(i) .. "  " .. H.Colored(m) .. ((m.guid == ns.recordGuid) and " |cffffd100<|r" or ""))
-      r.total:SetText(tostring(TB.TotalOf(m)))
-      r.week:SetText(sc and (sc.points .. (sc.full and " T" or "")) or "0")
-    else
-      r.name:SetText("") r.total:SetText("") r.week:SetText("")
-    end
-  end
-end
-
-----------------------------------------------------------------------
 -- Diario
 ----------------------------------------------------------------------
 local function Section(parent, w, h, title)
@@ -1077,10 +856,8 @@ local function Build()
   v.tabRank:SetPoint("TOPLEFT", 0, 0)
   v.tabAdv = H.TopTab(v, "Avventure", function() page = "adv" end)
   v.tabAdv:SetPoint("LEFT", v.tabRank, "RIGHT", 2, 0)
-  v.tabTombola = H.TopTab(v, "Tombola", function() page = "tombola" end)
-  v.tabTombola:SetPoint("LEFT", v.tabAdv, "RIGHT", 2, 0)
   v.tabTitles = H.TopTab(v, "Titoli", function() page = "titles" end)
-  v.tabTitles:SetPoint("LEFT", v.tabTombola, "RIGHT", 2, 0)
+  v.tabTitles:SetPoint("LEFT", v.tabAdv, "RIGHT", 2, 0)
   v.tabDiary = H.TopTab(v, "Diario", function() page = "diary" end)
   v.tabDiary:SetPoint("LEFT", v.tabTitles, "RIGHT", 2, 0)
   v.tabVs = H.TopTab(v, "Confronto", function() page = "vs" end)
@@ -1091,7 +868,6 @@ local function Build()
   v.weekBtn:SetPoint("RIGHT", v.totBtn, "LEFT", -14, 0)
   BuildCards(v)
   BuildCards(v, ADV, "adv")
-  BuildTombola(v)
   BuildTitles(v)
   BuildDiary(v)
   BuildVs(v)
@@ -1101,7 +877,6 @@ local function Refresh(v)
   local list = UI.Members()
   v.tabRank:SetSelected(page == "rank")
   v.tabAdv:SetSelected(page == "adv")
-  v.tabTombola:SetSelected(page == "tombola")
   v.tabTitles:SetSelected(page == "titles")
   v.tabDiary:SetSelected(page == "diary")
   v.tabVs:SetSelected(page == "vs")
@@ -1113,14 +888,12 @@ local function Refresh(v)
   v.totBtn:SetShown(counted)
   v.rank:SetShown(page == "rank")
   v.adv:SetShown(page == "adv")
-  v.tombola:SetShown(page == "tombola")
   v.titles:SetShown(page == "titles")
   v.diary:SetShown(page == "diary")
   v.vs:SetShown(page == "vs")
   nameIdx = R().NameIndex(list)
   if page == "rank" then RefreshCards(v, list)
   elseif page == "adv" then RefreshCards(v, list, "adv")
-  elseif page == "tombola" then RefreshTombola(v, list)
   elseif page == "titles" then RefreshTitles(v, list)
   elseif page == "diary" then RefreshDiary(v, list)
   else RefreshVs(v, list) end
@@ -1128,8 +901,9 @@ end
 
 UI.AddView("progresso", "Progresso", Build, Refresh, false)
 
--- open the Progresso tab on a given page ("rank", "adv", "tombola", "titles", "diary", "vs")
+-- open the Progresso tab on a given page ("rank", "adv", "titles", "diary", "vs"); the tombola lives in Er Botteghino
 function UI.ShowProgress(which)
+  if which == "tombola" then UI.Show("botteghino") return end
   page = which or page
   UI.Show("progresso")
 end

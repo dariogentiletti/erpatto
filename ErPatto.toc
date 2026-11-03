@@ -22,6 +22,7 @@ Character.lua
 Titles.lua
 Tombola.lua
 Progress.lua
+Botteghino.lua
 News.lua
 Extras.lua
 Diag.lua

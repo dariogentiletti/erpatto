@@ -347,8 +347,8 @@ function UI.Members()
             fi = i * 3 % 15, he = i * 2 % 12, mi = i % 9, sk = i % 4, lb = i % 2, le = 0, em = i % 2, nk = i % 3, tr = i * 2311 % 25000, fl = i % 4, hs = i % 3 } } },
         ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
         nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
-        pts = { t = i * 7 % 40, w = i % 9, wk = wk },
-        vt = { wk = wk, a = "FAKE-" .. ((i * 3) % #FAKE + 1), b = "FAKE-" .. ((i * 5) % #FAKE + 1), c = "FAKE-" .. ((i * 7) % #FAKE + 1) },
+        pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk },
+        vt = { wk = wk, a = "FAKE-" .. ((i * 3) % 4 + 1), b = "FAKE-" .. ((i * 5) % 5 + 1), c = "FAKE-" .. ((i * 7) % 3 + 1), sa = (i % 3) * 5 + 1, sb = 5, sc = i % 2 == 0 and 10 or 1 },
       }
     end
   end
@@ -1559,7 +1559,7 @@ local function Build()
   BuildCapo()
   local order = {}
   for _, x in ipairs(UI.extra) do if x.first then order[#order + 1] = { x.key, x.label } end end
-  for _, t in ipairs({ { "cap", "Cap" }, { "gruppi", "Squadre" }, { "progresso", "Progresso" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
+  for _, t in ipairs({ { "cap", "Cap" }, { "gruppi", "Squadre" }, { "progresso", "Progresso" }, { "botteghino", "Botteghino" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
     order[#order + 1] = t
   end
   for i, t in ipairs(order) do MakeTab(i, t[1], t[2]) end

@@ -136,22 +136,34 @@ cardB = [str(sq.id) for sq in B.ns.Tombola.Card().values()]
 check(len(set(ids)) == 9 and ids == cardB, 'one 3x3 card, the same for everybody: ' + ','.join(ids))
 sc = A.ns.Tombola.Score(A.rec())
 A.ns.Tombola.Update()
-check(A.rec().pts and A.rec().pts.t == sc.points, 'my points shared: %s' % sc.points)
-A.ns.UI.ShowProgress('tombola')
-check(A.has('Tombola de la settimana 1') and A.has('Totopatto') and A.has('Classifica de li punti'), 'tombola page: card, guesses, season')
+check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my sesterzi shared: 20 + %s' % sc.points)
+A.ns.UI.Show('botteghino')
+check(A.has('La Tombola, settimana 1') and A.has('La Schedina') and A.has('Li più ricchi') and A.has('sesterzi'), 'Botteghino: card, schedina, richest, purse')
 
-# ---- Totopatto: Dario bets that Pietro levels most this week
-ok = A.ns.Tombola.Vote('a', 'Player-1-BBB')
-check(ok and str(A.rec().vt.a) == 'Player-1-BBB', 'vote stored in my record')
+# ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
+TB = A.ns.Tombola
+bal0 = TB.Balance()
+ok = TB.Bet('a', 'Player-1-BBB')
+ok2 = TB.Bet('a', None, 10)
+check(ok and ok2 and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 sesterzi on Pietro')
+res = TB.Bet('b', None, 5)
+check(res[0] is False if isinstance(res, tuple) else res is False, 'no stake without a pick')
+big = TB.Bet('c', 'Player-1-AAA', 10000)
+check((big[0] if isinstance(big, tuple) else big) is False, 'cannot stake more than you have')
+B.ns.Tombola.Bet('a', 'Player-1-BBB'); B.ns.Tombola.Bet('a', None, 5)
 secs(10)
-check(str(B.ns.state.members['Player-1-AAA'].vt.a) == 'Player-1-BBB', 'the others see the vote')
-A.ns.UI.ShowProgress('tombola')
-check(A.has('Voti: Pietro 1'), 'votes counted on the page')
-before = A.rec().pts.t
+check(str(B.ns.state.members['Player-1-AAA'].vt.a) == 'Player-1-BBB', 'the others see the bet')
+A.ns.UI.Show('botteghino')
+check(A.has('Montepremi 15: Pietro 2 (paga 1,0)'), 'pot and the top pick with its payout')
 T[0] = START + WEEK + 3600; secs(130)
 book = A.g.ErPattoDB.points[code]
-check(book.weeks[1] is not None and book.right == 1, 'week 1 closed with one right guess: %s' % (book.weeks[1],))
-check(any('Totopatto' in str(x) for x in A.g.CHAT.values()), 'told in chat')
+check(book.weeks[1] is not None and book.right == 1 and book.weeks[1].w == 10, 'week 1 paid: pot 15 shared 10/5 -> Dario gets 10: %s' % (book.weeks[1].w,))
+check(any('Schedina' in str(x) for x in A.g.CHAT.values()), 'told in chat')
+# a sfottò costs 3 and lands on the other screen
+before = TB.Balance()
+ok, msg = TB.Sfotti('Player-1-BBB')
+secs(5)
+check(ok and TB.Balance() == before - 3 and any("t'ha sfottuto" in n for n in B.news()), "sfotto paid and delivered to the friend (banner queued, news)")
 
 # ---- Casa and Er Bollettino
 A.ns.UI.Show('casa')
@@ -213,16 +225,17 @@ A.ns.Extras.ShowShare()
 check(A.g.ErPattoShare.shown, 'share window')
 
 nils = []
-for page in ['adv', 'tombola', 'titles', 'rank', 'diary']:
+for page in ['adv', 'titles', 'rank', 'diary']:
     A.ns.UI.ShowProgress(page)
     nils += [t for t in A.texts() if re.search(r'\bnil\b', t)]
-for tab in ['casa', 'pg', 'cap', 'gruppi', 'imp', 'capo']:
+for tab in ['casa', 'pg', 'cap', 'gruppi', 'botteghino', 'imp', 'capo']:
     A.ns.UI.Show(tab)
     nils += [t for t in A.texts() if re.search(r'\bnil\b', t)]
 check(not nils, 'no "nil" on any page: ' + str(nils[:3]))
 A.ns.db.opts.testMode = True
-for page in ['adv', 'tombola', 'titles']:
+for page in ['adv', 'titles']:
     A.ns.UI.ShowProgress(page)
+A.ns.UI.Show('botteghino')
 A.ns.UI.Show('casa')
 check(A.has('Aldo'), 'test mode members fill the new pages too')
 bad = [e for c in clients for e in c.errors()]

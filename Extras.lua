@@ -204,8 +204,8 @@ X.GUIDE = table.concat({
   "|cffffd100Personaggio e Progresso|r",
   "Er personaggio tuo (o de 'n amico) co' l'equipaggiamento e li piazzamenti. In Progresso: le classifiche, le Avventure (fortuna, pesca, raccolta, morti ridicole, nemesi, teste famose...), er Diario de ognuno e er Confronto testa a testa.",
   "",
-  "|cffffd100Tombola e Totopatto|r",
-  "Ogni settimana 'na cartella 3x3 de sfide, uguale pe' tutti, che se spunta da sola. 1 punto a casella, +2 a riga (terno), +10 si la finisci (tombola). Nei primi 2 giorni de la settimana scommetti su chi sale de più, chi fa più quest e chi more de più: 3 punti a risposta giusta. Li punti fanno la classifica de la stagione.",
+  "|cffffd100Er Botteghino: Tombola, Schedina e sesterzi|r",
+  "Se gioca a sesterzi: se parte co' 20. La Tombola: ogni settimana 'na cartella 3x3 de sfide, uguale pe' tutti (la tira er sacchetto), che se spunta da sola: 1 sesterzio a casella, +2 a riga, +10 tutta. La Schedina: nei primi 2 giorni de la settimana scegli chi sale de più, chi fa più quest e chi more de più, e ce metti 1, 5 o 10 sesterzi. A fine settimana er montepremi se lo dividono chi ha indovinato (si nun indovina nessuno, ognuno se ripija la posta). Co' li sesterzi poi sfotte l'amichi: je compare 'na scritta sullo schermo.",
   "",
   "|cffffd100Titoli|r",
   "Chi è er primo in quarcosa vince 'n titolo (A Pariolino, A Topo de Fogna...). Lo scegli ner Personaggio, in arto a destra, e compare in chat davanti ar nome. Er titolo se perde si quarcuno te supera. La lista completa sta in Progresso, Titoli.",
@@ -214,7 +214,7 @@ X.GUIDE = table.concat({
   "/patto invita Nome: all'amico je compare 'na finestra pe' entrà co' 'n clic. Oppure daje er codice (in Impostazioni). L'addon passa li dati da 'n amico all'artro, quindi basta che uno sia online.",
   "",
   "|cffffd100Comandi|r",
-  "/patto apre la finestra, /patto stato er cap in chat, /patto bollettino, /patto condividi (testo pe' Discord), /patto bug (rapporto pe' segnalà 'n problema), /patto hud la barretta.",
+  "/patto apre la finestra, /patto stato er cap in chat, /patto prova (solo er capo) pe' provà tutto co' membri finti, /patto bollettino, /patto condividi (testo pe' Discord), /patto bug (rapporto pe' segnalà 'n problema), /patto hud la barretta.",
 }, "\n")
 
 local guide
@@ -265,7 +265,10 @@ function X.ShareText()
     lead("Più morti", function(m) return W(m, "dt") end)
     lead("Morti ridicole", function(m) return W(m, "em") end)
     lead("Più fortunato", function(m) return W(m, "lb") + 5 * W(m, "le") end, function() return "che culo" end)
-    if ns.Tombola then lead("Tombola", function(m) local sc = ns.Tombola.Score(m, wk) return sc and sc.points or 0 end, function(v) return v .. " punti" end) end
+    if ns.Tombola then
+      lead("Tombola", function(m) local sc = ns.Tombola.Score(m, wk) return sc and sc.points or 0 end, function(v) return v .. " sesterzi" end)
+      lead("Er più ricco", function(m) return ns.Tombola.TotalOf(m) end, function(v) return v .. " sesterzi" end)
+    end
     local wipes = ns.News and ns.News.WipeCount() or 0
     if wipes > 0 then out[#out + 1] = "Wipe der patto: " .. wipes end
   end
