@@ -214,19 +214,39 @@ function P.CleanMember(r)
     end
     return out
   end
+  -- free text that shows in chat (nicknames, the verse): plain, no escapes
+  local function Plain(t, n)
+    t = Str(t, n)
+    if not t then return nil end
+    t = t:gsub("|", ""):gsub("[%c]", "")
+    return t ~= "" and t or nil
+  end
+  local KINDS = { d = true, l = true, s = true, q = true }
   c.sf = List(r.sf, 6, function(x)
     local k = Str(x.k, 1)
-    if not (Str(x.id, 40) and Str(x.to, 60) and (k == "d" or k == "l" or k == "q")) then return nil end
+    if not (Str(x.id, 40) and Str(x.to, 60) and KINDS[k]) then return nil end
     return { id = Str(x.id, 40), to = Str(x.to, 60), k = k, n = Num(x.n, 2, 60), s = math.floor(Num(x.s, 0, 1e5) or 0),
-      g = math.floor(Num(x.g, 0, 8) or 0), at = Num(x.at, 0, 4e9) }
+      p = math.floor(Num(x.p, 0, 4) or 0), t = Plain(x.t, 20), e = math.floor(Num(x.e, 0, 6) or 0),
+      st = Str(x.st, 3), w = Str(x.w, 1), m = Num(x.m, 0, 1) and math.floor(Num(x.m, 0, 1)) or nil, at = Num(x.at, 0, 4e9) }
   end)
   c.sk = List(r.sk, 10, function(x)
     if not Str(x.id, 40) then return nil end
-    return { id = Str(x.id, 40), a = (Num(x.a, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9) }
+    return { id = Str(x.id, 40), a = (Num(x.a, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9),
+      e = Num(x.e, 0, 4e9), sa = Num(x.sa, 0, 1e9), sb = Num(x.sb, 0, 1e9) }
   end)
   c.tg = List(r.tg, 4, function(x)
     if not (Str(x.id, 40) and Str(x.on, 60)) then return nil end
     return { id = Str(x.id, 40), on = Str(x.on, 60), s = math.floor(Num(x.s, 0, 1e5) or 0), g = math.floor(Num(x.g, 0, 8) or 0), at = Num(x.at, 0, 4e9) }
+  end)
+  -- gufate: piotte bet that someone dies in the next five minutes
+  c.gf = List(r.gf, 4, function(x)
+    if not (Str(x.id, 40) and Str(x.on, 60) and Num(x.at, 0, 4e9)) then return nil end
+    return { id = Str(x.id, 40), on = Str(x.on, 60), s = math.floor(Num(x.s, 0, 1e5) or 0), at = Num(x.at, 0, 4e9) }
+  end)
+  -- the graveyard: my last deaths with who, where, the level and my last words
+  c.rip = List(r.rip, 10, function(x)
+    if not Num(x.at, 0, 4e9) then return nil end
+    return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 60), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
   end)
   c.dd = List(r.dd, 8, function(x)
     if not (Str(x.o, 60) and Num(x.at, 0, 4e9)) then return nil end

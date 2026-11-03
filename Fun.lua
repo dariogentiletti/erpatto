@@ -140,9 +140,33 @@ end
 
 F.SILLY = { cascato = true, affogato = true, pischello = true }
 
+-- the last thing I wrote in chat, for the epitaph (only if said in the last ten minutes)
+local lastWords
+F.WORDS_FRESH = 600
+function F.Said(msg, author)
+  if type(msg) ~= "string" or U.IsSecret(msg) or type(author) ~= "string" or U.IsSecret(author) then return end
+  local me = UnitName and Plain(Safe(UnitName, "player"), "string")
+  if not me or (author ~= me and author:match("^([^%-]+)") ~= me) then return end
+  msg = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h(.-)|h", "%1"):gsub("|", "")
+  if msg ~= "" then lastWords = { t = msg:sub(1, 80), at = U.Now() } end
+end
+
+-- the gravestone: when, at what level, who, where, the last words
+local function Grave(kind, killer)
+  local rec = ns.MyRecord and ns.MyRecord()
+  if not rec then return end
+  local words = lastWords and U.Now() - lastWords.at <= F.WORDS_FRESH and lastWords.t or nil
+  local stone = { at = U.Now(), lv = Plain(Safe(UnitLevel, "player"), "number"), by = killer, z = Zone(), w = words, k = kind }
+  local rip = { stone }
+  for i = 1, 9 do if rec.rip and rec.rip[i] then rip[#rip + 1] = rec.rip[i] end end
+  lastWords = nil
+  P.UpdateSelf(ns.state, ns.recordGuid, { rip = rip }, "rip")
+end
+
 function F.OnDeath()
   if not Ready() then return end
   local kind, killer = F.DeathKind()
+  pcall(Grave, kind, killer)
   local j = Journal()
   -- the journal wrote its own entry on the same event; give it the kind (and the killer, if it missed it)
   local function tag()
@@ -256,6 +280,11 @@ local handlers = {
   end,
   PLAYER_LEVEL_UP = function() if C_Timer then C_Timer.After(5, F.RaiseFromGame) end end,
 }
+for _, ev in ipairs({ "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID",
+  "CHAT_MSG_RAID_LEADER", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_WHISPER_INFORM", "CHAT_MSG_INSTANCE_CHAT",
+  "CHAT_MSG_INSTANCE_CHAT_LEADER", "CHAT_MSG_CHANNEL" }) do
+  handlers[ev] = function(msg, author) F.Said(msg, author) end
+end
 frame:SetScript("OnEvent", function(_, event, ...)
   local fn = handlers[event]
   if fn then

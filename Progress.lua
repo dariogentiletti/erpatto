@@ -832,6 +832,66 @@ local function RefreshVs(v, list)
 end
 
 ----------------------------------------------------------------------
+-- Er Cimitero: every death of the patto with its last words, who died most, who took most penitenze
+----------------------------------------------------------------------
+local function BuildCimitero(v)
+  local f = CreateFrame("Frame", nil, v)
+  f:SetPoint("TOPLEFT", 0, -28)
+  f:SetSize(744, 347)
+  v.cimitero = f
+  local box = H.Box(f, 494, 347)
+  box:SetPoint("TOPLEFT")
+  local t = H.Text(box, "GameFontNormal", "Er Cimitero", 200) t:SetPoint("TOPLEFT", 12, -10)
+  f.graves = {}
+  for i = 1, 10 do
+    local y = -30 - (i - 1) * 31
+    local r = {}
+    r.top = H.Text(box, "GameFontHighlightSmall", "", 380) r.top:SetPoint("TOPLEFT", 14, y)
+    if r.top.SetWordWrap then r.top:SetWordWrap(false) end
+    r.when = H.Text(box, "GameFontDisableSmall", "", 90, "RIGHT") r.when:SetPoint("TOPRIGHT", -14, y)
+    r.words = H.Text(box, "GameFontNormalSmall", "", 460) r.words:SetPoint("TOPLEFT", 26, y - 13)
+    if r.words.SetWordWrap then r.words:SetWordWrap(false) end
+    f.graves[i] = r
+  end
+  f.none = H.Text(box, "GameFontDisableSmall", "", 400) f.none:SetPoint("TOPLEFT", 14, -30)
+  local side = H.Box(f, 244, 347)
+  side:SetPoint("TOPLEFT", 500, 0)
+  local t1 = H.Text(side, "GameFontNormal", "Li più morti", 200) t1:SetPoint("TOPLEFT", 12, -10)
+  f.dead = Lines(side, 8, 14, -30, 216, 15)
+  local t2 = H.Text(side, "GameFontNormal", "Le penitenze", 200) t2:SetPoint("TOPLEFT", 12, -164)
+  f.shame = Lines(side, 8, 14, -184, 216, 15)
+end
+
+local function RefreshCimitero(v, list)
+  local f = v.cimitero
+  local S = ns.Sfide
+  local graves = S and S.Graves() or {}
+  for i, r in ipairs(f.graves) do
+    local x = graves[i]
+    if x then
+      r.top:SetText("R.I.P. " .. H.Colored(x.m) .. (S.GraveText(x.g) or ""))
+      r.when:SetText(U.Day(x.g.at))
+      r.words:SetText(x.g.w and ("\"" .. x.g.w .. "\"") or "")
+    else
+      r.top:SetText("") r.when:SetText("") r.words:SetText("")
+    end
+  end
+  f.none:SetText(#graves == 0 and (GREY .. "Ancora nessun morto. Pe' mo'.|r") or "")
+  local function Ranked(lines, value, fmt)
+    local order = {}
+    for _, m in ipairs(list) do local n = value(m) if n > 0 then order[#order + 1] = { m = m, n = n } end end
+    table.sort(order, function(a, b) if a.n ~= b.n then return a.n > b.n end return tostring(a.m.name) < tostring(b.m.name) end)
+    for i, l in ipairs(lines) do
+      local o = order[i]
+      l:SetText(o and (i .. "º  " .. H.Colored(o.m)) or (i == 1 and (GREY .. "Nessuno|r") or ""))
+      l.right:SetText(o and fmt(o.n) or "")
+    end
+  end
+  Ranked(f.dead, function(m) return H.StatOf(m, "dt", "t") end, function(n) return tostring(n) end)
+  Ranked(f.shame, function(m) return S and S.ShameOf(m.guid) or 0 end, function(n) return tostring(n) end)
+end
+
+----------------------------------------------------------------------
 local function Build()
   local v = H.NewView("progresso")
   v.tabRank = H.TopTab(v, "La Corsa", function() page = "rank" end)
@@ -844,6 +904,8 @@ local function Build()
   v.tabDiary:SetPoint("LEFT", v.tabTitles, "RIGHT", 2, 0)
   v.tabVs = H.TopTab(v, "Confronto", function() page = "vs" end)
   v.tabVs:SetPoint("LEFT", v.tabDiary, "RIGHT", 2, 0)
+  v.tabRip = H.TopTab(v, "Cimitero", function() page = "rip" end)
+  v.tabRip:SetPoint("LEFT", v.tabVs, "RIGHT", 2, 0)
   v.totBtn = H.Radio(v, "Da sempre", function() mode = "t" end)
   v.totBtn:SetPoint("TOPRIGHT", -4, -6)
   v.weekBtn = H.Radio(v, "'Sta settimana", function() mode = "w" end)
@@ -853,6 +915,7 @@ local function Build()
   BuildTitles(v)
   BuildDiary(v)
   BuildVs(v)
+  BuildCimitero(v)
 end
 
 local function Refresh(v)
@@ -862,6 +925,7 @@ local function Refresh(v)
   v.tabTitles:SetSelected(page == "titles")
   v.tabDiary:SetSelected(page == "diary")
   v.tabVs:SetSelected(page == "vs")
+  v.tabRip:SetSelected(page == "rip")
   v.weekBtn:SetSelected(mode == "w")
   v.totBtn:SetSelected(mode == "t")
   -- the week/always switch only means something on the pages that count things
@@ -873,11 +937,13 @@ local function Refresh(v)
   v.titles:SetShown(page == "titles")
   v.diary:SetShown(page == "diary")
   v.vs:SetShown(page == "vs")
+  v.cimitero:SetShown(page == "rip")
   nameIdx = R().NameIndex(list)
   if page == "rank" then RefreshCards(v, list)
   elseif page == "adv" then RefreshCards(v, list, "adv")
   elseif page == "titles" then RefreshTitles(v, list)
   elseif page == "diary" then RefreshDiary(v, list)
+  elseif page == "rip" then RefreshCimitero(v, list)
   else RefreshVs(v, list) end
 end
 

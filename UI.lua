@@ -454,7 +454,9 @@ end
 -- the name in its class colour; at the gogna, its icon in front
 local function Colored(rec)
   local g = ns.Sfide and ns.Sfide.GognaOf(rec)
-  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
+  local n = ns.Sfide and ns.Sfide.NickOf(rec)
+  local name = n and ("\"" .. n.t .. "\"") or tostring(rec.name)
+  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. "|c" .. ClassHex(rec.cls) .. name .. "|r"
 end
 
 local function StateText(lv, cap)

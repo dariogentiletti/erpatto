@@ -61,6 +61,8 @@ Ti.LIST = {
   { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più boss e rari.", value = function(m) return Stat(m, "nk") end },
   { id = "imbranato", name = "A Imbranato", kind = "top", desc = "Chi è morto più vorte in modo ridicolo: cascato, affogato o da 'n pischello.",
     value = function(m) return Stat(m, "em") end },
+  { id = "pecore", name = "A Re de le Pecore", kind = "top", desc = "Chi s'è preso più penitenze ner patto: ha perso più sfide de tutti.",
+    value = function(m) return ns.Sfide and ns.Sfide.ShameOf(m.guid) or 0 end },
   { id = "tombolaro", name = "A Strozzino", kind = "top", desc = "Er più ricco der Botteghino: più piotte de tutti.",
     value = function(m) return math.max(0, (ns.Tombola and ns.Tombola.TotalOf(m) or 0) - 20) end },
   { id = "imperatore", name = "A Imperatore", kind = "check", desc = "Er primo der patto a arrivà ar 60.",
@@ -146,7 +148,7 @@ function Ti.Earned(list)
 end
 
 -- the title a member shows, only if they still hold it
-local cache = { at = -1, earned = {}, byName = {} }
+local cache = { at = -1, earned = {}, byName = {}, verse = {} }
 local function Refresh(force)
   if not ns.state then cache.earned, cache.byName = {}, {} return end
   local now = GetTime and GetTime() or 0
@@ -155,12 +157,21 @@ local function Refresh(force)
   local list = UI.Members()
   cache.earned = Ti.Earned(list)
   cache.byName = {}
+  cache.verse = {}
   for _, m in ipairs(list) do
     local t = m.ti and Ti.BY_ID[m.ti]
     if not (t and cache.earned[m.guid] and cache.earned[m.guid][t.id]) then t = nil end
-    -- the gogna wins over the title for its week
+    -- a penitenza wins over the title while it lasts: the nickname, or the picture's name
     local g = ns.Sfide and ns.Sfide.GognaOf(m)
+    local n = ns.Sfide and ns.Sfide.NickOf(m)
     if g then t = { id = "gogna", name = g.name, icon = g.icon, desc = g.say } end
+    if n then t = { id = "gogna", name = n.t, icon = g and g.icon } end
+    local v = ns.Sfide and ns.Sfide.VerseOf(m)
+    if v and type(m.name) == "string" then
+      cache.verse[m.name] = v.t
+      local short = m.name:match("^(%S+)")
+      if short then cache.verse[short] = v.t end
+    end
     if t and type(m.name) == "string" then
       cache.byName[m.name] = t
       local short = m.name:match("^(%S+)")
@@ -171,7 +182,9 @@ end
 
 function Ti.Of(rec)
   if not rec then return nil end
-  -- the gogna wins over any title for its week
+  -- a penitenza wins over any title while it lasts
+  local n = ns.Sfide and ns.Sfide.NickOf(rec)
+  if n then return "\"" .. n.t .. "\"" end
   local g = ns.Sfide and ns.Sfide.GognaOf(rec)
   if g then return g.name end
   Refresh()
@@ -254,7 +267,12 @@ local function ChatFilter(_, _, msg, author, ...)
   Refresh()
   local short = author:match("^([^%-]+)") or author
   local t = cache.byName[short] or cache.byName[author]
-  if not t then return false end
+  local verse = cache.verse and (cache.verse[short] or cache.verse[author])
+  if verse then msg = msg .. " |cffff8040" .. verse .. "|r" end
+  if not t then
+    if verse then return false, msg, author, ... end
+    return false
+  end
   -- a link: clicking it explains the title
   if t.icon then
     return false, "|T" .. t.icon .. ":0|t |cffff8040|Haddon:ErPatto:title:gogna|h[" .. t.name .. "]|h|r " .. msg, author, ...
@@ -269,8 +287,8 @@ function Ti.ShowLink(id)
   if id == "gogna" and tip then
     if tip.SetOwner then tip:SetOwner(UIParent, "ANCHOR_PRESERVE") end
     tip:ClearLines()
-    tip:AddLine("La gogna", 1, 0.5, 0.25)
-    tip:AddLine("Ha perso 'na sfida der patto: se la porta pe' 'na settimana.", 1, 1, 1, true)
+    tip:AddLine("La penitenza", 1, 0.5, 0.25)
+    tip:AddLine("Ha perso 'na sfida der patto, e mo' se la porta.", 1, 1, 1, true)
     tip:AddLine("Er Patto", 0.6, 0.6, 0.6)
     tip:Show()
     return

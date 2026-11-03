@@ -307,6 +307,9 @@ local function Handle(body, sender, channel)
   elseif kind == "F" then
     -- a sfottò: only the one it's for shows it
     ns.Fire("Sfotto", from, data)
+  elseif kind == "X" then
+    -- something happening now (a sfida thrown, a duel starting, a gufata): Sfide.lua shows it at once
+    ns.Fire("Live", from, data)
   elseif kind == "M" then
     if type(data) == "table" and type(data.guid) == "string" then
       recent["M:" .. data.guid .. ":" .. tostring(data.up)] = Clock()
