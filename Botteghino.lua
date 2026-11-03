@@ -20,7 +20,8 @@ local function Sound(kit, fallback)
   local id = (SOUNDKIT and SOUNDKIT[kit]) or fallback
   if id then pcall(PlaySound, id) end
 end
-local HL = "Interface\\QuestFrame\\UI-QuestTitleHighlight"
+local HL = "Interface\\Buttons\\UI-Listbox-Highlight2"
+local SEL = "Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue"
 
 ----------------------------------------------------------------------
 -- the closing window: one vanilla dialog per closed week
@@ -45,19 +46,14 @@ local function BuildClosing()
     f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
       tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } })
   end
-  local hdr = f:CreateTexture(nil, "ARTWORK")
-  hdr:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-  hdr:SetSize(330, 64)
-  hdr:SetPoint("TOP", 0, 12)
-  f.title = H.Text(f, "GameFontNormal", "", 230, "CENTER")
-  f.title:SetPoint("TOP", hdr, "TOP", 0, -14)
+  f.title = H.DialogHeader(f, "", 200)
   f.sub = H.Text(f, "GameFontHighlight", "", 390, "CENTER")
   f.sub:SetPoint("TOP", 0, -32)
 
   local function Head(y, label)
-    local l = H.Text(f, "GameFontNormalLarge", label, 250)
+    local l = H.Text(f, "GameFontNormal", label, 250)
     l:SetPoint("TOPLEFT", 26, y)
-    local r = H.Text(f, "GameFontHighlightLarge", "", 130, "RIGHT")
+    local r = H.Text(f, "GameFontHighlight", "", 130, "RIGHT")
     r:SetPoint("TOPRIGHT", -26, y)
     return l, r
   end
@@ -78,7 +74,7 @@ local function BuildClosing()
     if r.detail.SetWordWrap then r.detail:SetWordWrap(false) end
     f.rows[i] = r
   end
-  f.total = H.Text(f, "GameFontNormalHuge", "", 390, "CENTER")
+  f.total = H.Text(f, "GameFontNormal", "", 390, "CENTER")
   f.total:SetPoint("TOP", 0, -240)
   f.balance = H.Text(f, "GameFontHighlight", "", 390, "CENTER")
   f.balance:SetPoint("TOP", 0, -268)
@@ -163,16 +159,10 @@ local function BuildTombola(v)
     local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
     local c = H.Box(p, 154, 92)
     c:SetPoint("TOPLEFT", 10 + col * 158, -34 - row * 96)
-    c.glow = c:CreateTexture(nil, "ARTWORK")
-    c.glow:SetPoint("TOPLEFT", 4, -4)
-    c.glow:SetPoint("BOTTOMRIGHT", -4, 4)
-    c.glow:SetTexture(HL)
-    c.glow:SetBlendMode("ADD")
-    c.glow:SetVertexColor(1, 0.82, 0, 0.45)
-    c.text = H.Text(c, "GameFontHighlight", "", 136, "CENTER")
-    c.text:SetPoint("TOP", 0, -16)
-    c.prog = H.Text(c, "GameFontNormal", "", 136, "CENTER")
-    c.prog:SetPoint("BOTTOM", 0, 14)
+    c.text = H.Text(c, "GameFontNormal", "", 130, "CENTER")
+    c.text:SetPoint("TOP", 0, -18)
+    c.prog = H.Text(c, "GameFontHighlightSmall", "", 130, "CENTER")
+    c.prog:SetPoint("BOTTOM", 0, 16)
     c.check = c:CreateTexture(nil, "OVERLAY")
     c.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
     c.check:SetSize(24, 24)
@@ -236,9 +226,8 @@ local function BuildSchedina(v)
       b:SetHighlightTexture(HL, "ADD")
       b.selTex = b:CreateTexture(nil, "BACKGROUND")
       b.selTex:SetAllPoints()
-      b.selTex:SetTexture(HL)
+      b.selTex:SetTexture(SEL)
       b.selTex:SetBlendMode("ADD")
-      b.selTex:SetVertexColor(1, 0.82, 0, 0.6)
       b.mine = b:CreateTexture(nil, "OVERLAY")
       b.mine:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
       b.mine:SetSize(16, 16)
@@ -336,7 +325,7 @@ local function Build()
   v.coin:SetTexture(TB.ICON)
   v.coin:SetSize(20, 20)
   v.coin:SetPoint("RIGHT", 0, 0)
-  v.purse = H.Text(purse, "GameFontHighlightLarge", "", 170, "RIGHT")
+  v.purse = H.Text(purse, "GameFontHighlight", "", 170, "RIGHT")
   v.purse:SetPoint("RIGHT", v.coin, "LEFT", -6, 0)
   BuildTombola(v)
   BuildSchedina(v)
@@ -365,7 +354,6 @@ local function RefreshTombola(v, wk, me, list, testing)
       c.text:SetText(sq.t)
       c.prog:SetText(done and "|cff20ff20Fatto|r" or TB.ProgressText(sq, cur, target))
       c.check:SetShown(done)
-      c.glow:SetShown(done)
       c:Show()
     end
   end

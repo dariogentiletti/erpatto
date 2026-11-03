@@ -55,9 +55,9 @@ local function Build()
   v.capTitle = Title(a, "Er cap tuo")
   v.team = H.Text(a, "GameFontHighlightSmall", "", 160, "RIGHT")
   v.team:SetPoint("TOPRIGHT", -12, -12)
-  v.capBig = H.Text(a, "GameFontNormalHuge", "", 120)
+  v.capBig = H.Text(a, "GameFontNormalLarge", "", 120)
   v.capBig:SetPoint("TOPLEFT", 14, -32)
-  v.capState = H.Text(a, "GameFontHighlightLarge", "", 220)
+  v.capState = H.Text(a, "GameFontHighlight", "", 220)
   v.capState:SetPoint("TOPLEFT", 130, -36)
   v.bar = H.CapBar(a, 344, 18)
   v.bar:SetPoint("TOPLEFT", 12, -66)
@@ -308,12 +308,11 @@ function Home.ShowBulletin(force)
     bull:SetScript("OnDragStart", bull.StartMoving)
     bull:SetScript("OnDragStop", bull.StopMovingOrSizing)
     H.Chrome(bull)
-    bull.title = H.Text(bull, "GameFontNormalLarge", "", 420, "CENTER")
-    bull.title:SetPoint("TOP", 0, -18)
+    bull.title = H.DialogHeader(bull, "", 340)
     bull.lines = {}
     for i = 1, 11 do
       local l = H.Text(bull, "GameFontHighlight", "", 420)
-      l:SetPoint("TOPLEFT", 22, -50 - (i - 1) * 21)
+      l:SetPoint("TOPLEFT", 22, -36 - (i - 1) * 21)
       if l.SetWordWrap then l:SetWordWrap(false) end
       bull.lines[i] = l
     end

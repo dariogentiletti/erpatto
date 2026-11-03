@@ -114,29 +114,152 @@ local function FitStone(frame, inset, dark)
   return st
 end
 
--- a vanilla window: dark stone inside the metal border (dialogs, menus)
+-- The vanilla art everything is drawn with (all the game's own files):
+--   GENERAL  the character frame (UI-Character-General): the window, and its dark marble for every inside
+--   SLOTS    the frames round the weapon slots (UI-Character-CharacterTab-BottomLeft): a metal frame with a rivet in
+--            each corner; cut in corners and edges it frames every panel
+--   DIALOG   the dialog box (UI-DialogBox-Border/Background) for popups, as the game menu and the confirmations
+local GENERAL = "Interface\\PaperDollInfoFrame\\UI-Character-General-TopLeft"
+local SLOTS = "Interface\\PaperDollInfoFrame\\UI-Character-CharacterTab-BottomLeft"
+local SC = 12 -- corner size of the slot frame
+local SX, SY = 113, 121 -- the slot frame's top left in its 256x256 file
+
+-- dark marble from the character frame, stretched over a region
+local function Marble(frame, layer, sub)
+  local t = frame:CreateTexture(nil, layer or "BACKGROUND", nil, sub or -7)
+  t:SetTexture(GENERAL)
+  local u0, v0 = math.random(30, 80), math.random(90, 140)
+  t:SetTexCoord(u0 / 256, (u0 + 140) / 256, v0 / 256, (v0 + 100) / 256)
+  return t
+end
+
+-- the slot frame round a frame: corners with the rivet, edges stretched (the right and bottom ones mirrored)
+local function SlotBorder(frame, layer, sub)
+  local p = {}
+  local function piece(x0, y0, w, h, flipX, flipY)
+    local t = frame:CreateTexture(nil, layer or "BORDER", nil, sub or 0)
+    t:SetTexture(SLOTS)
+    local l, r, tp, bt = x0 / 256, (x0 + w) / 256, y0 / 256, (y0 + h) / 256
+    if flipX then l, r = r, l end
+    if flipY then tp, bt = bt, tp end
+    t:SetTexCoord(l, r, tp, bt)
+    p[#p + 1] = t
+    return t
+  end
+  local tl = piece(SX, SY, SC, SC) tl:SetSize(SC, SC) tl:SetPoint("TOPLEFT")
+  local tr = piece(SX, SY, SC, SC, true) tr:SetSize(SC, SC) tr:SetPoint("TOPRIGHT")
+  local bl = piece(SX, SY, SC, SC, false, true) bl:SetSize(SC, SC) bl:SetPoint("BOTTOMLEFT")
+  local br = piece(SX, SY, SC, SC, true, true) br:SetSize(SC, SC) br:SetPoint("BOTTOMRIGHT")
+  local t = piece(SX + SC, SY, 8, SC) t:SetPoint("TOPLEFT", tl, "TOPRIGHT") t:SetPoint("BOTTOMRIGHT", tr, "BOTTOMLEFT")
+  local b = piece(SX + SC, SY, 8, SC, false, true) b:SetPoint("TOPLEFT", bl, "TOPRIGHT") b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT")
+  local l = piece(SX, SY + SC, SC, 8) l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT") l:SetPoint("BOTTOMRIGHT", bl, "TOPRIGHT")
+  local r = piece(SX, SY + SC, SC, 8, true) r:SetPoint("TOPLEFT", tr, "BOTTOMLEFT") r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT")
+  return p
+end
+
+-- a popup in the vanilla dialog box (the game menu, the confirmations)
+local DIALOG = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+  tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } }
 local function Chrome(frame)
-  local solid = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
-  solid:SetColorTexture(0.07, 0.068, 0.065, 1) -- what you see if the stone is missing
-  solid:SetPoint("TOPLEFT", 4, -4)
-  solid:SetPoint("BOTTOMRIGHT", -4, 4)
-  frame.stone = FitStone(frame, 4, true)
-  frame.rails = Border(frame)
+  if not frame.SetBackdrop and BackdropTemplateMixin and Mixin then
+    Mixin(frame, BackdropTemplateMixin)
+    if frame.OnBackdropLoaded then pcall(frame.OnBackdropLoaded, frame) end
+    if frame.HookScript and frame.OnBackdropSizeChanged then frame:HookScript("OnSizeChanged", frame.OnBackdropSizeChanged) end
+  end
+  if frame.SetBackdrop then frame:SetBackdrop(DIALOG) end
+  frame.stone = { Refit = function() end }
   return frame.stone
 end
 
--- inner panels like the vanilla ones: thin metal edge, lighter stone inside (nothing shows through)
+-- the header plate of the dialog box, with a title on it: the plate's two ends as they are, its middle stretched
+-- to the title (UI-DialogBox-Header: the plate sits at 118..394 x 2..80 of the 512x128 file)
+local function DialogHeader(frame, text, minW)
+  local HDR = "Interface\\DialogFrame\\UI-DialogBox-Header"
+  local function piece(x0, x1)
+    local t = frame:CreateTexture(nil, "ARTWORK")
+    t:SetTexture(HDR)
+    t:SetTexCoord(x0 / 512, x1 / 512, 2 / 128, 80 / 128)
+    t:SetHeight(39)
+    return t
+  end
+  local mid = piece(152, 360)
+  mid:SetPoint("TOP", frame, "TOP", 0, 12)
+  local l = piece(118, 152) l:SetWidth(17) l:SetPoint("RIGHT", mid, "LEFT")
+  local r = piece(360, 394) r:SetWidth(17) r:SetPoint("LEFT", mid, "RIGHT")
+  local fs = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  fs:SetPoint("CENTER", mid, "CENTER", 0, 0)
+  local set = fs.SetText
+  local function fit()
+    local tw = fs.GetStringWidth and fs:GetStringWidth() or 100
+    mid:SetWidth(math.max((minW or 120) - 34, math.floor(tw + 0.5) + 16))
+  end
+  fs.SetText = function(self, t) set(self, t) fit() end
+  fs:SetText(text or "")
+  return fs, mid
+end
+
+-- inner panels as in the vanilla character frame: the slot frame with its rivets round dark marble
 local function Box(parent, w, h)
   local b = CreateFrame("Frame", nil, parent)
   if w then b:SetSize(w, h) end
   local solid = b:CreateTexture(nil, "BACKGROUND", nil, -8)
-  solid:SetColorTexture(0.12, 0.115, 0.11, 1)
-  solid:SetPoint("TOPLEFT", 3, -3)
-  solid:SetPoint("BOTTOMRIGHT", -3, 3)
-  b.stone = FitStone(b, 3)
-  b.rails = Border(b)
+  solid:SetColorTexture(0.04, 0.04, 0.04, 1)
+  solid:SetPoint("TOPLEFT", 4, -4)
+  solid:SetPoint("BOTTOMRIGHT", -4, 4)
+  local m = Marble(b)
+  m:SetPoint("TOPLEFT", 5, -5)
+  m:SetPoint("BOTTOMRIGHT", -5, 5)
+  b.rails = SlotBorder(b)
   function b:SetBorderColor(r, g, bl) for _, t in pairs(self.rails) do t:SetVertexColor(r, g, bl) end end
   return b
+end
+
+-- the scroll bar as in vanilla: gold arrows in their square buttons, the round knob, the thin double rail behind
+-- (UIPanelScrollFrameTemplate drawn again with the old files, whatever the client puts in it)
+local function VanillaScroll(scroll)
+  local bar = scroll and (scroll.ScrollBar or (scroll.GetName and scroll:GetName() and _G[scroll:GetName() .. "ScrollBar"]))
+  if type(bar) ~= "table" or not bar.GetRegions then return end
+  local B = "Interface\\Buttons\\UI-ScrollBar-"
+  local thumb = bar.ThumbTexture
+  if type(thumb) ~= "table" then thumb = bar.GetThumbTexture and bar:GetThumbTexture() end
+  if type(thumb) ~= "table" then thumb = nil end
+  -- whatever the client draws on the bar goes, the knob stays
+  for _, r in ipairs({ bar:GetRegions() }) do if r ~= thumb and r.Hide then r:Hide() end end
+  local track = bar:CreateTexture(nil, "BACKGROUND")
+  track:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-ScrollBar")
+  track:SetTexCoord(0, 0.45, 0.1, 0.95)
+  track:SetPoint("TOPLEFT", -4, 18)
+  track:SetPoint("BOTTOMRIGHT", 4, -18)
+  if thumb then
+    thumb:SetTexture(B .. "Knob")
+    thumb:SetTexCoord(0.2, 0.8, 0.125, 0.875)
+    thumb:SetSize(18, 24)
+  end
+  local name = bar.GetName and bar:GetName()
+  for _, kind in ipairs({ "Up", "Down" }) do
+    local btn = bar["Scroll" .. kind .. "Button"]
+    if type(btn) ~= "table" then btn = name and _G[name .. "Scroll" .. kind .. "Button"] end
+    if type(btn) == "table" and btn.SetNormalTexture then
+      local f = B .. "Scroll" .. kind .. "Button-"
+      btn:SetNormalTexture(f .. "Up")
+      btn:SetPushedTexture(f .. "Down")
+      if btn.SetDisabledTexture then btn:SetDisabledTexture(f .. "Disabled") end
+      btn:SetHighlightTexture(f .. "Highlight", "ADD")
+      btn:SetSize(16, 16)
+      for _, k in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetDisabledTexture", "GetHighlightTexture" }) do
+        local t = btn[k] and btn[k](btn)
+        if t and t.SetTexCoord then t:SetTexCoord(0.2, 0.8, 0.25, 0.75) t:ClearAllPoints() t:SetAllPoints() end
+      end
+      -- the client's own pieces on the button go too
+      for _, r in ipairs({ btn:GetRegions() }) do
+        local keep = false
+        for _, k in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetDisabledTexture", "GetHighlightTexture" }) do
+          if btn[k] and btn[k](btn) == r then keep = true end
+        end
+        if not keep and r.Hide then r:Hide() end
+      end
+    end
+  end
 end
 
 local function Text(parent, font, text, w, justify)
@@ -485,7 +608,10 @@ local function TopTab(parent, label, onClick)
   fill:SetColorTexture(0, 0, 0, 1)
   fill:SetPoint("TOPLEFT", 2, -2)
   fill:SetPoint("BOTTOMRIGHT", -2, 0)
-  b.stone = FitStone(b, 2)
+  local marble = Marble(b, "BACKGROUND", -7)
+  marble:SetPoint("TOPLEFT", 2, -2)
+  marble:SetPoint("BOTTOMRIGHT", -2, 0)
+  b.stone = { tex = marble }
   Border(b, nil, "BORDER", 0, "bottom")
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
   hl:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-Tab-RealHighlight")
@@ -598,7 +724,7 @@ local function BuildPicker()
     b.sel:SetBlendMode("ADD")
     b.sel:SetVertexColor(1, 0.82, 0, 0.8)
     b.sel:SetAllPoints()
-    b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    b:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
     b.text = Text(b, "GameFontHighlightSmall", "", 30, "CENTER")
     b.text:SetPoint("CENTER")
     b:SetScript("OnClick", function(self)
@@ -678,7 +804,7 @@ local function BuildWelcome()
   local v = NewView("welcome")
   local left = Box(v, 362, 375)
   left:SetPoint("TOPLEFT", 0, 0)
-  local jt = Text(left, "GameFontNormalLarge", "Entra co' 'n codice")
+  local jt = Text(left, "GameFontNormal", "Entra co' 'n codice")
   jt:SetPoint("TOPLEFT", 16, -16)
   local js = Text(left, "GameFontHighlight",
     "Chi ha creato er patto t'ha dato 'n codice de 5 lettere e nummeri. Scrivilo qui sotto: entri subito e poi te scegli la squadra.", 330)
@@ -704,7 +830,7 @@ local function BuildWelcome()
 
   local right = Box(v, 374, 375)
   right:SetPoint("TOPRIGHT", 0, 0)
-  local ct = Text(right, "GameFontNormalLarge", "Crea 'n patto novo")
+  local ct = Text(right, "GameFontNormal", "Crea 'n patto novo")
   ct:SetPoint("TOPLEFT", 16, -16)
   local cs = Text(right, "GameFontHighlight",
     "Diventi er capo der patto. Decidi quanno se parte e quante ore a settimana gioca ogni squadra. L'addon calcola er cap de ogni settimana.", 340)
@@ -718,7 +844,7 @@ local function BuildCreate()
   local v = NewView("create")
   local box = Box(v, 744, 375)
   box:SetPoint("TOPLEFT", 0, 0)
-  local t = Text(box, "GameFontNormalLarge", "Crea 'n patto novo")
+  local t = Text(box, "GameFontNormal", "Crea 'n patto novo")
   t:SetPoint("TOPLEFT", 16, -14)
 
   local name = Input(box, 260, 40)
@@ -789,7 +915,7 @@ local function BuildWaiting()
   local v = NewView("waiting")
   local b = Box(v, 520, 170)
   b:SetPoint("TOP", 0, -60)
-  local t = Text(b, "GameFontNormalLarge", "Aspetto li dati der patto...", 490, "CENTER")
+  local t = Text(b, "GameFontNormal", "Aspetto li dati der patto...", 490, "CENTER")
   t:SetPoint("TOP", 0, -18)
   v.info = Text(b, "GameFontHighlight", "", 490, "CENTER")
   v.info:SetPoint("TOP", t, "BOTTOM", 0, -12)
@@ -804,9 +930,9 @@ local function BuildCap()
   local v = NewView("cap")
   local top = Box(v, 744, 150)
   top:SetPoint("TOPLEFT", 0, 0)
-  v.title = Text(top, "GameFontNormalLarge", "", 520)
+  v.title = Text(top, "GameFontNormal", "", 520)
   v.title:SetPoint("TOPLEFT", 14, -12)
-  v.capNum = Text(top, "GameFontNormalHuge", "", 200, "RIGHT")
+  v.capNum = Text(top, "GameFontNormalLarge", "", 200, "RIGHT")
   v.capNum:SetPoint("TOPRIGHT", -14, -10)
   v.status = Text(top, "GameFontHighlight", "", 520)
   v.status:SetPoint("TOPLEFT", 14, -36)
@@ -814,7 +940,7 @@ local function BuildCap()
   v.bar:SetPoint("TOPLEFT", 14, -60)
   local l1 = Text(top, "GameFontDisableSmall", "1")
   l1:SetPoint("TOPLEFT", v.bar, "BOTTOMLEFT", 2, -2)
-  local legend = Text(top, "GameFontDisableSmall", "Barra: livello da 1 a 60. Linea bianca: er cap de 'sta settimana. Linee chiare: li cap dopo.", 560, "CENTER")
+  local legend = Text(top, "GameFontDisableSmall", "", 560, "CENTER")
   legend:SetPoint("TOP", v.bar, "BOTTOM", 0, -2)
   local l60 = Text(top, "GameFontDisableSmall", "60")
   l60:SetPoint("TOPRIGHT", v.bar, "BOTTOMRIGHT", -2, -2)
@@ -828,6 +954,7 @@ local function BuildCap()
   v.tableTitle = Text(tb, "GameFontNormal", "Er calendario de li cap")
   v.tableTitle:SetPoint("TOPLEFT", 14, -10)
   local scroll = CreateFrame("ScrollFrame", "ErPattoCapScroll", tb, "UIPanelScrollFrameTemplate")
+  VanillaScroll(scroll)
   scroll:SetPoint("TOPLEFT", 10, -50)
   scroll:SetPoint("BOTTOMRIGHT", -30, 8)
   local body = CreateFrame("Frame", nil, scroll)
@@ -931,9 +1058,8 @@ local function RefreshCap(v)
       row:SetSize(700, 18)
       row.hl = row:CreateTexture(nil, "BACKGROUND")
       row.hl:SetAllPoints()
-      row.hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+      row.hl:SetTexture("Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue")
       row.hl:SetBlendMode("ADD")
-      row.hl:SetVertexColor(1, 0.82, 0, 0.5)
       row.cells = {}
       v.rows[k] = row
     end
@@ -1027,7 +1153,6 @@ local function MemberRow(parent, w)
       lines[#lines + 1] = "Alt: " .. table.concat(a, ", ")
     end
     if rec.ver then lines[#lines + 1] = "|cff9d9d9dAddon " .. rec.ver .. "|r" end
-    lines[#lines + 1] = "|cff9d9d9dBarra: livello da 1 a 60. Linea bianca: er cap de 'sta settimana.|r"
     Tip(self, lines)
   end)
   r:SetScript("OnLeave", HideTip)
@@ -1151,13 +1276,13 @@ local function BuildImp()
   local v = NewView("imp")
   local b1 = Box(v, 744, 110)
   b1:SetPoint("TOPLEFT", 0, 0)
-  v.pattoName = Text(b1, "GameFontNormalLarge", "", 480)
+  v.pattoName = Text(b1, "GameFontNormal", "", 480)
   v.pattoName:SetPoint("TOPLEFT", 12, -10)
   v.code = Input(b1, 190, 20)
   v.code:SetPoint("TOPLEFT", 20, -52)
   v.code:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
   v.code:SetScript("OnTextChanged", function(self, user) if user and ns.state then self:SetText(ns.state.code) self:HighlightText() end end)
-  Label(b1, "Codice pe' fa' entrà l'amichi (clicca, poi Ctrl+C)", v.code)
+  Label(b1, "Codice der patto", v.code)
   -- one-click invite: they get a window with "Entra"
   v.invite = Input(b1, 150, 40, function(self)
     local name = self:GetText() or ""
@@ -1165,7 +1290,7 @@ local function BuildImp()
     self:ClearFocus()
   end)
   v.invite:SetPoint("TOPLEFT", 250, -52)
-  Label(b1, "Invita 'n amico (nome der personaggio)", v.invite)
+  Label(b1, "Invita 'n amico", v.invite)
   v.inviteBtn = Btn(b1, "Invita", 70, function()
     local name = v.invite:GetText() or ""
     if name ~= "" then ns.InviteFriend(name) v.invite:SetText("") end
@@ -1245,7 +1370,7 @@ local function RefreshImp(v)
     v.altText:SetText("Stai co' 'n alt de " .. tostring(main and main.name or "?") .. ": vedi tutto, ma livelli e statistiche contano solo pe' er principale. Se vòi che 'sto personaggio conti, entra cor codice.")
     v.altBtn:Show()
   else
-    v.altText:SetText("Personaggio: " .. tostring(ns.myName) .. ". L'artri personaggi tua che entrano ner gioco vengheno mostrati come alt.")
+    v.altText:SetText("Personaggio: " .. tostring(ns.myName))
     v.altBtn:Hide()
   end
 end
@@ -1371,6 +1496,7 @@ local function BuildCapo()
   v.err = Text(b3, "GameFontRedSmall", "", 460, "RIGHT")
   v.err:SetPoint("TOPRIGHT", -12, -10)
   local scroll = CreateFrame("ScrollFrame", "ErPattoCapoScroll", b3, "UIPanelScrollFrameTemplate")
+  VanillaScroll(scroll)
   scroll:SetPoint("TOPLEFT", 8, -30)
   scroll:SetPoint("BOTTOMRIGHT", -30, 8)
   local body = CreateFrame("Frame", nil, scroll)
@@ -1524,15 +1650,16 @@ local function Build()
   Art(0, 24, 420, 440, -10, H - 16, 24, 20)
   Art(24, 250, 420, 440, 14, H - 16, W - 28, 20)
   Art(334, 352, 420, 440, W - 14, H - 16, 18, 20)
-  -- the round portrait: the lupa, emblem of the patto
+  -- the round portrait: your character's face, as in the vanilla character frame
   local portrait = f:CreateTexture(nil, "BACKGROUND", nil, -1)
   Put(portrait, f, -4, -10, 61, 61)
-  local EMBLEM = "Interface\\Icons\\Ability_Hunter_Pet_Wolf"
-  if not (SetPortraitToTexture and pcall(SetPortraitToTexture, portrait, EMBLEM)) then
-    portrait:SetTexture(EMBLEM)
-    if portrait.SetMask then pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
-  end
   f.portrait = portrait
+  local function Face() if SetPortraitTexture then pcall(SetPortraitTexture, portrait, "player") end end
+  Face()
+  f:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+  f:RegisterEvent("PLAYER_ENTERING_WORLD")
+  f:SetScript("OnEvent", function(_, event, unit) if event ~= "UNIT_PORTRAIT_UPDATE" or unit == "player" then Face() end end)
+  f.Face = Face
   -- the selected tab, over the bottom border
   f.selTab = { fill = Art(30, 230, 300, 410, 0, 0, 1, 1) }
   f.selTab.fill:SetDrawLayer("ARTWORK", 0)
@@ -1541,7 +1668,7 @@ local function Build()
   f:Hide()
 
   -- the name of the patto in the title strip, the close button in its box
-  local title = Text(f, "GameFontNormal", "Er Patto", W - 160, "CENTER")
+  local title = Text(f, "GameFontHighlight", "Er Patto", W - 160, "CENTER")
   title:SetPoint("CENTER", f, "TOPLEFT", W / 2 + 18, -10)
   if title.SetWordWrap then title:SetWordWrap(false) end
   f.title = title
@@ -1580,7 +1707,7 @@ local function Build()
     order[#order + 1] = t
   end
   for i, t in ipairs(order) do MakeTab(i, t[1], t[2]) end
-  f:SetScript("OnShow", function() UI.Refresh() end)
+  f:SetScript("OnShow", function() f.Face() UI.Refresh() end)
   f:SetScript("OnHide", function() if UI.CloseMenus then UI.CloseMenus() end end)
 end
 
@@ -1606,7 +1733,7 @@ function UI.FitScroll(scroll, contentH, viewH)
   if not need and scroll.SetVerticalScroll then scroll:SetVerticalScroll(0) end
 end
 
-UI.H = { FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
+UI.H = { FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, DialogHeader = DialogHeader, Marble = Marble, VanillaScroll = VanillaScroll, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
   Position = Position, CapBar = CapBar, NewView = NewView, StatOf = StatOf, Online = Online, Safe = Safe, ClassHex = ClassHex }
 function UI.IsShown(key) return f and f:IsShown() and current == key end
 
@@ -1851,10 +1978,9 @@ local function BuildAnnouncement()
   annFrame:SetToplevel(true)
   annFrame:EnableMouse(true)
   Chrome(annFrame)
-  local title = Text(annFrame, "GameFontNormal", "Annuncio der capo", 300, "CENTER")
-  title:SetPoint("TOP", 0, -16)
+  DialogHeader(annFrame, "Annuncio der capo", 260)
   annFrame.text = Text(annFrame, "GameFontHighlight", "", 310, "CENTER")
-  annFrame.text:SetPoint("TOP", 0, -40)
+  annFrame.text:SetPoint("TOP", 0, -36)
   annFrame.by = Text(annFrame, "GameFontNormalSmall", "", 310, "CENTER")
   annFrame.ok = Btn(annFrame, "Ho letto", 120, function()
     local ann = ns.state and ns.state.settings.ann

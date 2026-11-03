@@ -20,46 +20,25 @@ local MAX_NEWS = 80
 local banner
 local queue = {}
 
-local function Gradient(tex, orient, a1, a2)
-  tex:SetColorTexture(1, 1, 1, 1)
-  local ok = false
-  if CreateColor then ok = pcall(tex.SetGradient, tex, orient, CreateColor(0, 0, 0, a1), CreateColor(0, 0, 0, a2)) end
-  if not ok and tex.SetGradientAlpha then ok = pcall(tex.SetGradientAlpha, tex, orient, 0, 0, 0, a1, 0, 0, 0, a2) end
-  if not ok then tex:SetColorTexture(0, 0, 0, math.max(a1, a2) * 0.8) end
-end
-
-local function GoldLine(parent, y)
-  local l = parent:CreateTexture(nil, "ARTWORK")
-  l:SetColorTexture(1, 0.82, 0.2, 0.8)
-  l:SetHeight(1)
-  l:SetPoint("LEFT", 60, 0)
-  l:SetPoint("RIGHT", -60, 0)
-  l:SetPoint("TOP", 0, y)
-  return l
-end
-
 local function BuildBanner()
+  -- as the vanilla zone text: big gold letters with a black shadow in the middle of the screen, a smaller white line
+  -- under them, nothing behind
   banner = CreateFrame("Button", "ErPattoBanner", UIParent)
   banner:SetSize(640, 92)
   banner:SetPoint("TOP", 0, -150)
   banner:SetFrameStrata("HIGH")
   banner:Hide()
-  -- a dark band that fades out at both ends, gold lines above and below: like the vanilla level-up text
-  local l = banner:CreateTexture(nil, "BACKGROUND") l:SetPoint("TOPLEFT") l:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -120, 0)
-  Gradient(l, "HORIZONTAL", 0, 0.75)
-  local r = banner:CreateTexture(nil, "BACKGROUND") r:SetPoint("TOPRIGHT") r:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 120, 0)
-  Gradient(r, "HORIZONTAL", 0.75, 0)
-  local m = banner:CreateTexture(nil, "BACKGROUND") m:SetPoint("TOPLEFT", l, "TOPRIGHT") m:SetPoint("BOTTOMRIGHT", r, "BOTTOMLEFT")
-  m:SetColorTexture(0, 0, 0, 0.75)
-  banner.top = GoldLine(banner, 0)
-  banner.bottom = GoldLine(banner, -91)
   banner.title = banner:CreateFontString(nil, "OVERLAY")
-  banner.title:SetFont(FONT, 26, "OUTLINE")
-  banner.title:SetPoint("TOP", 0, -16)
+  banner.title:SetFont(FONT, 28, "")
+  banner.title:SetShadowColor(0, 0, 0, 1)
+  banner.title:SetShadowOffset(2, -2)
+  banner.title:SetPoint("TOP", 0, -10)
   banner.title:SetWidth(620)
   banner.sub = banner:CreateFontString(nil, "OVERLAY")
-  banner.sub:SetFont(FONT, 15, "OUTLINE")
-  banner.sub:SetPoint("TOP", banner.title, "BOTTOM", 0, -8)
+  banner.sub:SetFont(FONT, 16, "")
+  banner.sub:SetShadowColor(0, 0, 0, 1)
+  banner.sub:SetShadowOffset(1, -1)
+  banner.sub:SetPoint("TOP", banner.title, "BOTTOM", 0, -6)
   banner.sub:SetWidth(600)
   banner.sub:SetTextColor(1, 1, 1)
   banner:SetScript("OnClick", function(self) self.t = math.max(self.t or 0, 4.4) end)
@@ -329,10 +308,9 @@ ns.On("Invited", function(code, pattoName, by)
     inv:SetFrameStrata("DIALOG")
     inv:EnableMouse(true)
     H.Chrome(inv)
-    inv.title = H.Text(inv, "GameFontNormal", "Invito ner patto", 320, "CENTER")
-    inv.title:SetPoint("TOP", 0, -16)
+    inv.title = H.DialogHeader(inv, "Invito ner patto", 260)
     inv.text = H.Text(inv, "GameFontHighlight", "", 320, "CENTER")
-    inv.text:SetPoint("TOP", 0, -42)
+    inv.text:SetPoint("TOP", 0, -36)
     inv.yes = H.Btn(inv, "Entra", 110, function()
       inv:Hide()
       local ok, err = ns.JoinPatto(inv.code)

@@ -493,6 +493,7 @@ local function BuildWindow()
   logTitle:SetPoint("TOPLEFT", 24, -262)
   logTitle:SetText("Registro")
   local scroll = CreateFrame("ScrollFrame", "ErPattoDiagLogScroll", frame, "UIPanelScrollFrameTemplate")
+  if ns.UI and ns.UI.H then ns.UI.H.VanillaScroll(scroll) end
   scroll:SetPoint("TOPLEFT", 24, -280)
   scroll:SetPoint("BOTTOMRIGHT", -42, 22)
   local box = CreateFrame("EditBox", nil, scroll)

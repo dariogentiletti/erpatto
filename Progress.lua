@@ -113,7 +113,7 @@ local function MemberList(parent, onClick)
     b.sel:SetBlendMode("ADD")
     b.sel:SetVertexColor(1, 0.82, 0, 0.6)
     b.sel:SetAllPoints()
-    b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    b:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
     b.text = H.Text(b, "GameFontHighlightSmall", "", 136)
     b.text:SetPoint("LEFT", 4, 0)
     b.lv = H.Text(b, "GameFontHighlightSmall", "", 28, "RIGHT")
@@ -184,7 +184,7 @@ local function BuildCards(v, metrics, field)
       local r = CreateFrame("Button", nil, card)
       r:SetSize(128, 22)
       r:SetPoint("TOPLEFT", 8, -28 - (k - 1) * 24)
-      r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+      r:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
       r.pos = H.Text(r, "GameFontNormalSmall", "", 24)
       r.pos:SetPoint("TOPLEFT", 2, -2)
       r.name = H.Text(r, "GameFontHighlightSmall", "", 64)
@@ -339,10 +339,12 @@ local ADV = {
 ----------------------------------------------------------------------
 -- Titoli: every title, who holds it, how it's won
 ----------------------------------------------------------------------
-local GROUPS = { { "primi", "Li primi der patto" }, { "traguardi", "Traguardi" }, { "mestieri", "Mestieri" } }
-local TROW = 30
+local GROUPS = { { "primi", "Li primi der patto", 0, 0, 494, 222, 2 }, { "traguardi", "Traguardi", 0, -228, 494, 119, 2 },
+  { "mestieri", "Mestieri", 500, 0, 244, 347, 1 } }
+local TSTEP = 15
 
--- one box per kind of title, side by side; each title shows who holds it, the tooltip has how it's won and all holders
+-- the titles as the Diario: a box per kind, a line per title (name, who holds it); the tooltip has how it's won
+-- and everyone who holds it
 local function BuildTitles(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
@@ -350,26 +352,14 @@ local function BuildTitles(v)
   v.titles = f
   f.cols = {}
   for i, g in ipairs(GROUPS) do
-    local box = H.Box(f, 244, 347)
-    box:SetPoint("TOPLEFT", (i - 1) * 250, 0)
-    local c = { key = g[1], rows = {} }
-    c.head = H.Text(box, "GameFontNormalLarge", g[2], 170)
+    local box = H.Box(f, g[5], g[6])
+    box:SetPoint("TOPLEFT", g[3], g[4])
+    local c = { key = g[1], box = box, cols = g[7], rows = {} }
+    c.head = H.Text(box, "GameFontNormal", g[2], 200)
     c.head:SetPoint("TOPLEFT", 12, -10)
-    c.count = H.Text(box, "GameFontHighlightSmall", "", 50, "RIGHT")
-    c.count:SetPoint("TOPRIGHT", -12, -13)
-    local line = box:CreateTexture(nil, "ARTWORK")
-    line:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-    line:SetVertexColor(1, 0.82, 0, 0.7)
-    line:SetBlendMode("ADD")
-    line:SetHeight(2)
-    line:SetPoint("TOPLEFT", 10, -32)
-    line:SetPoint("TOPRIGHT", -10, -32)
-    c.scroll = CreateFrame("ScrollFrame", "ErPattoTitlesScroll" .. i, box, "UIPanelScrollFrameTemplate")
-    c.scroll:SetPoint("TOPLEFT", 6, -38)
-    c.scroll:SetPoint("BOTTOMRIGHT", -26, 6)
-    c.body = CreateFrame("Frame", nil, c.scroll)
-    c.body:SetSize(210, 10)
-    c.scroll:SetScrollChild(c.body)
+    c.count = H.Text(box, "GameFontHighlightSmall", "", 60, "RIGHT")
+    c.count:SetPoint("TOPRIGHT", -12, -11)
+    c.colW = math.floor((g[5] - 24 - (g[7] - 1) * 12) / g[7])
     f.cols[i] = c
   end
 end
@@ -377,23 +367,13 @@ end
 local function TitleRow(c, i)
   local r = c.rows[i]
   if r then return r end
-  r = CreateFrame("Button", nil, c.body)
-  r:SetSize(210, TROW)
-  r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-  r.bg = r:CreateTexture(nil, "BACKGROUND")
-  r.bg:SetAllPoints()
-  r.bg:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-  r.bg:SetBlendMode("ADD")
-  r.bg:SetVertexColor(1, 0.82, 0, 0.3)
-  r.mine = r:CreateTexture(nil, "ARTWORK")
-  r.mine:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-  r.mine:SetSize(16, 16)
-  r.mine:SetPoint("TOPRIGHT", -2, -1)
-  r.name = H.Text(r, "GameFontNormal", "", 186)
-  r.name:SetPoint("TOPLEFT", 4, -2)
+  r = CreateFrame("Button", nil, c.box)
+  r:SetSize(c.colW, TSTEP)
+  r.name = H.Text(r, "GameFontNormalSmall", "", math.floor(c.colW * 0.55))
+  r.name:SetPoint("LEFT", 0, 0)
   if r.name.SetWordWrap then r.name:SetWordWrap(false) end
-  r.who = H.Text(r, "GameFontHighlightSmall", "", 202)
-  r.who:SetPoint("TOPLEFT", 4, -16)
+  r.who = H.Text(r, "GameFontHighlightSmall", "", math.floor(c.colW * 0.45), "RIGHT")
+  r.who:SetPoint("RIGHT", 0, 0)
   if r.who.SetWordWrap then r.who:SetWordWrap(false) end
   r:SetScript("OnEnter", function(self)
     if not self.t then return end
@@ -413,34 +393,29 @@ local function RefreshTitles(v, list)
   for _, m in ipairs(list) do byGuid[m.guid] = m end
   for _, c in ipairs(f.cols) do
     for _, r in ipairs(c.rows) do r:Hide() end
-    local i, y, mine, all = 0, 0, 0, 0
-    for _, t in ipairs(ns.Titles.LIST) do
-      if t.group == c.key then
-        i, all = i + 1, all + 1
-        local r = TitleRow(c, i)
-        r:ClearAllPoints()
-        r:SetPoint("TOPLEFT", 0, -y)
-        local set = holders[t.id] or {}
-        local names = {}
-        for guid in pairs(set) do
-          local m = byGuid[guid]
-          if m then names[#names + 1] = H.Colored(m) end
-        end
-        table.sort(names)
-        local isMine = set[ns.recordGuid] and true or false
-        if isMine then mine = mine + 1 end
-        r.t, r.names = t, names
-        r.mine:SetShown(isMine)
-        r.bg:SetShown(isMine)
-        r.name:SetText(#names > 0 and t.name or (GREY .. t.name .. "|r"))
-        r.who:SetText(#names > 0 and table.concat(names, ", ") or (GREY .. "nessuno|r"))
-        r:Show()
-        y = y + TROW
+    local items = {}
+    for _, t in ipairs(ns.Titles.LIST) do if t.group == c.key then items[#items + 1] = t end end
+    local perCol = math.ceil(#items / c.cols)
+    local mine = 0
+    for i, t in ipairs(items) do
+      local r = TitleRow(c, i)
+      local col, row = math.floor((i - 1) / perCol), (i - 1) % perCol
+      r:ClearAllPoints()
+      r:SetPoint("TOPLEFT", 12 + col * (c.colW + 12), -28 - row * TSTEP)
+      local set = holders[t.id] or {}
+      local names = {}
+      for guid in pairs(set) do
+        local m = byGuid[guid]
+        if m then names[#names + 1] = H.Colored(m) end
       end
+      table.sort(names)
+      if set[ns.recordGuid] then mine = mine + 1 end
+      r.t, r.names = t, names
+      r.name:SetText(#names > 0 and t.name or (GREY .. t.name .. "|r"))
+      r.who:SetText(#names == 0 and (GREY .. "nessuno|r") or (#names == 1 and names[1] or (names[1] .. GREY .. " +" .. (#names - 1) .. "|r")))
+      r:Show()
     end
-    c.count:SetText(mine > 0 and ("|cffffd100" .. mine .. "|r/" .. all) or (GREY .. "0/" .. all .. "|r"))
-    c.body:SetHeight(math.max(10, y))
-    H.FitScroll(c.scroll, y, 347 - 44)
+    c.count:SetText(mine .. "/" .. #items)
   end
 end
 
@@ -508,6 +483,7 @@ local function BuildDiary(v)
   f.quest.sub = H.Text(f.quest, "GameFontHighlightSmall", "", colW - 20)
   f.quest.sub:SetPoint("TOPLEFT", 10, -26)
   local scroll = CreateFrame("ScrollFrame", "ErPattoQuestScroll", f.quest, "UIPanelScrollFrameTemplate")
+  UI.H.VanillaScroll(scroll)
   scroll:SetPoint("TOPLEFT", 8, -42)
   scroll:SetPoint("BOTTOMRIGHT", -28, 8)
   local body = CreateFrame("Frame", nil, scroll)
@@ -756,9 +732,9 @@ local function BuildVs(v)
   box:SetPoint("TOPLEFT", 198, 0)
   f.box = box
   local mid = 273
-  f.left = H.Text(box, "GameFontNormalLarge", "", 200, "RIGHT")
+  f.left = H.Text(box, "GameFontNormal", "", 200, "RIGHT")
   f.left:SetPoint("TOPRIGHT", box, "TOPLEFT", mid - 40, -12)
-  f.right = H.Text(box, "GameFontNormalLarge", "", 200, "LEFT")
+  f.right = H.Text(box, "GameFontNormal", "", 200, "LEFT")
   f.right:SetPoint("TOPLEFT", mid + 40, -12)
   local vsText = H.Text(box, "GameFontNormal", "contro", 60, "CENTER")
   vsText:SetPoint("TOP", box, "TOPLEFT", mid, -14)
@@ -792,7 +768,7 @@ local function BuildVs(v)
   f.h2hTitle:ClearAllPoints()
   f.h2hTitle:SetPoint("TOP", box, "TOPLEFT", 273, -274)
   f.h2hTitle:SetJustifyH("CENTER")
-  f.h2h = H.Text(box, "GameFontNormalHuge", "", 160)
+  f.h2h = H.Text(box, "GameFontNormalLarge", "", 160)
   f.h2h:ClearAllPoints()
   f.h2h:SetPoint("TOP", f.h2hTitle, "BOTTOM", 0, -6)
   f.h2h:SetJustifyH("CENTER")
