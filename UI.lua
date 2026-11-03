@@ -452,11 +452,13 @@ local function ClassHex(cls)
 end
 
 -- the name in its class colour; at the gogna, its icon in front
-local function Colored(rec)
-  local g = ns.Sfide and ns.Sfide.GognaOf(rec)
-  local n = ns.Sfide and ns.Sfide.NickOf(rec)
-  local name = n and ("\"" .. n.t .. "\"") or tostring(rec.name)
-  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. "|c" .. ClassHex(rec.cls) .. name .. "|r"
+-- the name in its class colour; with a penitenza, its icon in front and the nickname after (never instead)
+local function Colored(rec, plain)
+  local base = "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
+  if plain or not ns.Sfide then return base end
+  local g = ns.Sfide.GognaOf(rec)
+  local n = ns.Sfide.NickOf(rec)
+  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. base .. (n and (" |cffff8040\"" .. n.t .. "\"|r") or "")
 end
 
 local function StateText(lv, cap)

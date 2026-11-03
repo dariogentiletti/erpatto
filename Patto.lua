@@ -226,7 +226,7 @@ function P.CleanMember(r)
     local k = Str(x.k, 1)
     if not (Str(x.id, 40) and Str(x.to, 60) and KINDS[k]) then return nil end
     return { id = Str(x.id, 40), to = Str(x.to, 60), k = k, n = Num(x.n, 2, 60), s = math.floor(Num(x.s, 0, 1e5) or 0),
-      p = math.floor(Num(x.p, 0, 4) or 0), t = Plain(x.t, 20), e = math.floor(Num(x.e, 0, 6) or 0),
+      p = math.floor(Num(x.p, 0, 8) or 0), t = Plain(x.t, 20), e = math.floor(Num(x.e, 0, 8) or 0),
       st = Str(x.st, 3), w = Str(x.w, 1), m = Num(x.m, 0, 1) and math.floor(Num(x.m, 0, 1)) or nil, at = Num(x.at, 0, 4e9) }
   end)
   c.sk = List(r.sk, 10, function(x)

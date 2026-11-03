@@ -61,6 +61,8 @@ Ti.LIST = {
   { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più boss e rari.", value = function(m) return Stat(m, "nk") end },
   { id = "imbranato", name = "A Imbranato", kind = "top", desc = "Chi è morto più vorte in modo ridicolo: cascato, affogato o da 'n pischello.",
     value = function(m) return Stat(m, "em") end },
+  { id = "campione", name = "A Campione", kind = "check", desc = "Ha vinto l'urtimo duello a la gogna contro er campione: la corona è sua finché nun perde.",
+    check = function(m) return ns.Sfide and ns.Sfide.Champion() == m.guid end },
   { id = "pecore", name = "A Re de le Pecore", kind = "top", desc = "Chi s'è preso più penitenze ner patto: ha perso più sfide de tutti.",
     value = function(m) return ns.Sfide and ns.Sfide.ShameOf(m.guid) or 0 end },
   { id = "tombolaro", name = "A Strozzino", kind = "top", desc = "Er più ricco der Botteghino: più piotte de tutti.",
@@ -165,7 +167,7 @@ local function Refresh(force)
     local g = ns.Sfide and ns.Sfide.GognaOf(m)
     local n = ns.Sfide and ns.Sfide.NickOf(m)
     if g then t = { id = "gogna", name = g.name, icon = g.icon, desc = g.say } end
-    if n then t = { id = "gogna", name = n.t, icon = g and g.icon } end
+    if n then t = { id = "gogna", name = "detto " .. n.t, icon = g and g.icon } end
     local v = ns.Sfide and ns.Sfide.VerseOf(m)
     if v and type(m.name) == "string" then
       cache.verse[m.name] = v.t
@@ -184,7 +186,7 @@ function Ti.Of(rec)
   if not rec then return nil end
   -- a penitenza wins over any title while it lasts
   local n = ns.Sfide and ns.Sfide.NickOf(rec)
-  if n then return "\"" .. n.t .. "\"" end
+  if n then return "detto \"" .. n.t .. "\"" end
   local g = ns.Sfide and ns.Sfide.GognaOf(rec)
   if g then return g.name end
   Refresh()
