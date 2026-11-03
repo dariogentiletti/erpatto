@@ -209,7 +209,7 @@ X.INFO = {
     "Diario: la settimana de ognuno. Confronto: tu contro 'n amico.",
     "Cimitero: tutti li morti der patto, co' l'urtime parole scritte in chat prima de morì, e chi sta a la gogna.",
     "Er duello a la gogna (tasto destro su 'n amico): parte la richiesta de duello der gioco, e accettalla vor dì accettà la gogna. Chi perde sta a la gogna 'n giorno, e chi vince sceje er pegno: 'n soprannome, 'n verso in chat, la maschera, la figuraccia, lo strillone o er servo. Cliccanno l'icona de la gogna vicino a li buff vedi che te succede.",
-    "Chi perde pò chiede la rivincita entro 10 minuti; si l'artro la perde, pò chiede la bella. Chi chiede la rivincita (o la bella) e la perde sta a la gogna 'na settimana. Un duello a la gogna ar giorno, e chi sta a la gogna nun ne pò fà.",
+    "Chi perde pò chiede la rivincita entro 10 minuti; si l'artro la perde, pò chiede la bella. Chi chiede la rivincita (o la bella) e la perde sta a la gogna 'na settimana. Chi sta a la gogna nun ne pò fà; chi vince, invece, pò sfidà chi je pare.",
     "Er Campione: chi manna a la gogna er campione se pija la corona.",
     "'Sta settimana e Da sempre cambiano er periodo contato." },
   botteghino = { "Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20, e ogni ora in gruppo co' quarcuno der patto te dà 'na piotta.",

@@ -140,7 +140,7 @@ local function Balance() return ns.Tombola and ns.Tombola.Balance() or 0 end
 ----------------------------------------------------------------------
 -- reading the records (and the quick messages not yet in a record)
 ----------------------------------------------------------------------
-local liveSf, liveGd, liveAns, livePick = {}, {}, {}, {}
+local liveSf, liveGd, liveAns, livePick, liveGf = {}, {}, {}, {}, {}
 
 -- the sfide a piotte
 function S.All()
@@ -174,7 +174,14 @@ local function Lists(key, field)
   return out
 end
 function S.Taje() return Lists("tg", "by") end
-function S.Gufate() return Lists("gf", "by") end
+function S.Gufate()
+  local out = Lists("gf", "by")
+  local seen = {}
+  for _, g in ipairs(out) do seen[g.id] = true end
+  for id, g in pairs(liveGf) do if not seen[id] then out[#out + 1] = g end end
+  table.sort(out, function(a, b) return (a.at or 0) > (b.at or 0) end)
+  return out
+end
 
 -- the answer to a sfida or a duello a la gogna, from the one it was thrown at
 local function Ans(c, all)
@@ -407,18 +414,15 @@ function S.Series(all)
   return out
 end
 
--- why guid can't do a duello a la gogna now: "aperto", "gogna" (+ until), "oggi" (+ when again), or nil
+-- why guid can't do a duello a la gogna now: "aperto", "gogna" (+ until), or nil. Whoever wins can go on
+-- winning: no daily limit
 local function Block(guid, series, except)
   local now = Now()
   local why, til
   for _, s in ipairs(series) do
     if s.id ~= except and (s.a == guid or s.b == guid) then
       if s.state == "aspetta" or s.state == "incorso" or s.state == "rivincita" then return "aperto" end
-      if s.state == "chiusa" then
-        if s.l == guid and now < s.til then return "gogna", s.til end
-        local first = s.duels[1]
-        if first and now - first.at < DAY and not why then why, til = "oggi", first.at + DAY end
-      end
+      if s.state == "chiusa" and s.l == guid and now < s.til then return "gogna", s.til end
     end
   end
   return why, til
@@ -430,13 +434,11 @@ local function BlockText(guid, series, all, except)
   if not why then return nil end
   if guid == ns.recordGuid then
     if why == "aperto" then return "C'hai già 'n duello a la gogna in ballo." end
-    if why == "gogna" then return "Stai a la gogna fino a " .. U.When(til) .. "." end
-    return "Er duello a la gogna de oggi l'hai già fatto. Er prossimo: " .. U.When(til) .. "."
+    return "Stai a la gogna fino a " .. U.When(til) .. "."
   end
   local name = Short(all[guid])
   if why == "aperto" then return name .. " c'ha già 'n duello a la gogna in ballo." end
-  if why == "gogna" then return name .. " sta già a la gogna." end
-  return name .. " er duello a la gogna de oggi l'ha già fatto."
+  return name .. " sta già a la gogna."
 end
 S.BlockText = BlockText
 
@@ -769,7 +771,7 @@ function S.Gufa(on, stake)
   for _, x in ipairs(MyList("gf")) do if #keep < 4 then keep[#keep + 1] = x end end
   Pay(g.id, stake)
   P.UpdateSelf(ns.state, ns.recordGuid, { gf = keep }, "sfide")
-  Send({ t = "gf", on = on, s = stake, id = g.id })
+  Send({ t = "gf", on = on, s = stake, id = g.id, at = g.at })
   S.Update()
   return true
 end
@@ -1018,6 +1020,7 @@ function S.Update()
   end
   quiet = false
   S.ShowMyGogna()
+  S.GufaWatch()
   if ns.Tombola then ns.Tombola.Update() end
 end
 
@@ -1510,6 +1513,120 @@ function S.ShowMyGogna()
   pic:Show()
 end
 
+----------------------------------------------------------------------
+-- the gufate going on, mine or on me: a block in the style of the old quest tracker (gold title, "- " lines)
+-- with a timer bar as the breath bar of the game (UI-CastingBar-Border-Small), under the minimap
+----------------------------------------------------------------------
+local watch
+local function MMSS(sec) sec = math.max(0, math.floor(sec)) return string.format("%d:%02d", math.floor(sec / 60), sec % 60) end
+local function BuildWatch()
+  watch = CreateFrame("Frame", "ErPattoGufaWatch", UIParent)
+  watch:SetSize(230, 80)
+  local pos = ns.db.ui and ns.db.ui.gufa
+  if type(pos) == "table" and pos[1] then watch:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else watch:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -40, -240) end
+  watch:SetMovable(true)
+  watch:EnableMouse(true)
+  watch:SetClampedToScreen(true)
+  watch:RegisterForDrag("LeftButton")
+  watch:SetScript("OnDragStart", watch.StartMoving)
+  watch:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local p, _, rp, x, y = self:GetPoint()
+    ns.db.ui = ns.db.ui or {}
+    ns.db.ui.gufa = { p, rp, x, y }
+  end)
+  watch.items = {}
+  for i = 1, 2 do
+    local it = {}
+    it.title = watch:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    it.line1 = watch:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    it.line2 = watch:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    for _, f in ipairs({ it.title, it.line1, it.line2 }) do f:SetJustifyH("LEFT") f:SetWidth(230) end
+    local bar = CreateFrame("StatusBar", nil, watch)
+    bar:SetSize(195, 13)
+    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    bar:SetStatusBarColor(0.8, 0.1, 0.1)
+    bar:SetMinMaxValues(0, S.GUFA)
+    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.5)
+    local border = bar:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border-Small")
+    border:SetSize(256, 64)
+    border:SetPoint("TOP", 0, 25)
+    bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bar.text:SetPoint("CENTER", 0, 1)
+    it.bar = bar
+    watch.items[i] = it
+  end
+  watch.acc = 0
+  watch:SetScript("OnUpdate", function(self, el)
+    self.acc = self.acc + (el or 0)
+    if self.acc < 0.25 then return end
+    self.acc = 0
+    S.GufaWatch()
+  end)
+  watch:Hide()
+end
+local ended = {} -- id -> when the result was first seen (shown a few seconds)
+function S.GufaWatch()
+  if not (ns.state and ns.db) then return end
+  local me = ns.recordGuid
+  local all = Members()
+  local list = {}
+  for _, g in ipairs(S.Gufate()) do
+    if g.on == me or g.by == me then
+      local state = S.GufaState(g, all)
+      if state == "aperta" then list[#list + 1] = { g = g }
+      elseif Now() - (g.at or 0) < S.GUFA * 3 then
+        ended[g.id] = ended[g.id] or Now()
+        if Now() - ended[g.id] < 10 then list[#list + 1] = { g = g, state = state } end
+      end
+    end
+    if #list >= 2 then break end
+  end
+  if #list == 0 then if watch then watch:Hide() end return end
+  if not watch then BuildWatch() end
+  local y = 0
+  for i, it in ipairs(watch.items) do
+    local x = list[i]
+    local shown = x ~= nil
+    for _, f in ipairs({ it.title, it.line1, it.line2, it.bar }) do f:SetShown(shown) end
+    if x then
+      local g, half = x.g, math.floor(x.g.s / 2)
+      local onMe = g.on == me
+      local other = Name(all, onMe and g.by or g.on)
+      it.title:ClearAllPoints() it.title:SetPoint("TOPLEFT", 0, -y)
+      it.line1:ClearAllPoints() it.line1:SetPoint("TOPLEFT", 0, -y - 16)
+      it.line2:ClearAllPoints() it.line2:SetPoint("TOPLEFT", 0, -y - 29)
+      it.bar:ClearAllPoints() it.bar:SetPoint("TOPLEFT", 4, -y - 48)
+      if onMe then
+        it.title:SetText("Gufata: " .. other .. " te gufa")
+        it.line1:SetText("- In palio: " .. Piotte(g.s))
+        it.line2:SetText("- Si campi te le pij, si mori ne paghi " .. half)
+      else
+        it.title:SetText("Gufata: gufi " .. other)
+        it.line1:SetText("- In palio: " .. Piotte(g.s))
+        it.line2:SetText("- Si more vinci " .. half .. ", si campa le perdi")
+      end
+      local left = (g.at or Now()) + S.GUFA - Now()
+      if x.state then
+        it.bar:SetValue(0)
+        local good = (x.state == "campato") == onMe
+        it.bar.text:SetText(x.state == "campato" and (onMe and "Sei campato!" or "È campato") or (onMe and "Sei morto" or "È morto!"))
+        it.bar:SetStatusBarColor(good and 0.1 or 0.8, good and 0.7 or 0.1, 0.1)
+      else
+        it.bar:SetStatusBarColor(0.8, 0.1, 0.1)
+        it.bar:SetValue(math.max(0, left))
+        it.bar.text:SetText(MMSS(left))
+      end
+      y = y + 72
+    end
+  end
+  watch:SetHeight(math.max(72, y))
+  watch:Show()
+end
+
 -- the pegni that act by themselves: la figuraccia when coming back to life, er servo bowing to his master
 local lastEmote = 0
 local function Emote(tok, target)
@@ -1625,8 +1742,10 @@ ns.On("Live", function(from, data)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
     end
-  elseif data.t == "gf" and data.on == me and ns.News then
-    ns.News.Banner(Short(all[from]) .. " te sta a gufà!", "Si campi 5 minuti, te pij " .. Piotte(tonumber(data.s) or 0) .. ".", { 1, 0.5, 0.2 }, "evento")
+  elseif data.t == "gf" and type(data.id) == "string" and type(data.on) == "string" then
+    liveGf[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), on = data.on:sub(1, 60), s = math.floor(tonumber(data.s) or 0), at = tonumber(data.at) or Now(), by = from }
+    if data.on == me then Epic() end
+    S.GufaWatch()
   end
   if C_Timer then C_Timer.After(3, S.Update) end
 end)

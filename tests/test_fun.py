@@ -363,8 +363,7 @@ check(str(SC.Champion()) == 'Player-1-BBB', 'Pietro sent Dario a la gogna: er Ca
 check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'Pippa' in n for n in C.news()), 'news: the bella lost and er pegno')
 r1 = S.Gogna('Player-1-CCC')
 check(first(r1) is False and 'Stai a la gogna' in str(second(r1)), 'Dario a la gogna: no duelli a la gogna')
-r2 = SB.Gogna('Player-1-CCC')
-check(first(r2) is False and 'oggi' in str(second(r2)), 'Pietro had his one today')
+check(SB.BlockText('Player-1-BBB', SB.Series(), SB.Members()) is None, 'Pietro won: he can throw another one at once, no daily limit')
 # not near: no request, the reason in the window
 T[0] += 86400 + 60; secs(5)
 C.g.TARGETNAME = None
@@ -514,6 +513,9 @@ balA, balB = A.ns.Tombola.Balance(), B.ns.Tombola.Balance()
 ok = S.Gufa('Player-1-BBB', 10)
 check(ok and A.ns.Tombola.Balance() == balA - 10, 'gufata placed')
 secs(5)
+gw = B.g.ErPattoGufaWatch
+check(gw is not None and gw.shown and 'Dario te gufa' in str(gw['items'][1].title.text) and '10 piotte' in str(gw['items'][1].line1.text) and ':' in str(gw['items'][1].bar.text.text), 'Pietro sees the gufata with its timer: ' + str(gw and gw['items'][1].bar.text.text))
+check(A.g.ErPattoGufaWatch is not None and A.g.ErPattoGufaWatch.shown and 'gufi Pietro' in str(A.g.ErPattoGufaWatch['items'][1].title.text), 'and Dario sees his own')
 T[0] += 400; secs(70)
 check(B.ns.Tombola.Balance() == balB + 10 and A.ns.Tombola.Balance() == balA - 10, 'Pietro lived: he takes the 10')
 balA, balC = A.ns.Tombola.Balance(), C.ns.Tombola.Balance()
