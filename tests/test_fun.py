@@ -325,7 +325,26 @@ check(str(A.ns.Sfide.Champion()) == 'Player-1-AAA' and A.ns.Titles.Holders()['ca
 res = A.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Pietro-Realm')
 check(res[0] is False and 'Pippa' in str(res[1]), 'and in chat: ' + str(res[1]))
 check(any('Pippa' in n for n in A.news()) and any('battuto' in n for n in A.news()), 'news: the result and the duel')
+# la rivincita: Pietro asks for it at once and loses again: "Pippa" for a week
+nick24 = A.ns.Sfide.NickOf(A.ns.state.members['Player-1-BBB']).til
+off = B.g.ErPattoRivincita
+check(off is not None and off.shown and 'Rivincita' in str(off.text.text), 'Pietro is offered the rivincita')
+again = S.Challenge(A.lua.table_from({'to': 'Player-1-BBB', 'k': 'd', 's': 0, 'p': 1}))
+check((again[0] if isinstance(again, tuple) else again) is False, 'no second duello a la gogna today between the two')
+off.yes.Click(off.yes)
+secs(5)
+check(A.g.ErPattoSfida.shown and 'Rivincita' in str(A.g.ErPattoSfida.title.text), 'Dario is asked for the rivincita')
+A.g.ErPattoSfida.yes.Click(A.g.ErPattoSfida.yes)
+secs(5)
+T[0] += 60
+A.ns.T.OnSystemMessage('Dario has defeated Pietro in a duel')
+B.ns.T.OnSystemMessage('Dario has defeated Pietro in a duel')
+secs(40)
+nick7 = A.ns.Sfide.NickOf(A.ns.state.members['Player-1-BBB']).til
+check(nick7 - nick24 >= 6 * 86400 - 300, 'lost the rivincita too: "Pippa" for a week')
+check(any('pure la rivincita' in n for n in A.news()), 'news: lost the rivincita too')
 # the verse and the figuraccia: Pietro throws one back with the verse; then one with the figuraccia
+T[0] += 86400 + 60; secs(5)
 ok, c2 = SB.Challenge(B.lua.table_from({'to': 'Player-1-AAA', 'k': 'd', 's': 0, 'p': 3, 't': 'bee'}))
 secs(5)
 A.g.ErPattoSfida.yes.Click(A.g.ErPattoSfida.yes)
@@ -336,6 +355,7 @@ B.ns.T.OnSystemMessage('Pietro has defeated Dario in a duel')
 secs(40)
 res = B.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ho perso', 'Dario-Realm')
 check('ho perso' in str(res[1]) and str(res[1]).endswith('bee|r'), 'Dario ends what he writes with "bee": ' + str(res[1]))
+T[0] += 86400 + 60; secs(5)
 ok, c3 = S.Challenge(A.lua.table_from({'to': 'Player-1-BBB', 'k': 'd', 's': 0, 'p': 4, 'e': 2}))
 secs(5)
 B.g.ErPattoSfida.yes.Click(B.g.ErPattoSfida.yes)
@@ -348,6 +368,7 @@ check(any('CHICKEN' in str(e) for e in B.g.EMOTES.values()), 'Pietro does the ch
 # lo strillone: Pietro loses one more, then every death of his is shouted
 hook = C.lua.eval('function(N) local o = N.Banner; BANNERS = {}; N.Banner = function(t, s, ...) table.insert(BANNERS, tostring(t) .. " / " .. tostring(s)) return o(t, s, ...) end end')
 hook(C.ns.News)
+T[0] += 86400 + 60; secs(5)
 ok, c5 = S.Challenge(A.lua.table_from({'to': 'Player-1-BBB', 'k': 'd', 's': 0, 'p': 5}))
 secs(5)
 B.g.ErPattoSfida.yes.Click(B.g.ErPattoSfida.yes)
@@ -360,6 +381,18 @@ B.ns.Fun.OnDeath(); B.ns.T.OnDeath()
 secs(30)
 bn = [str(x) for x in C.g.BANNERS.values()]
 check(any('morto de novo Pietro' in n and 'strillone de Dario' in n for n in bn), 'lo strillone: Gina is told Pietro died again: ' + str(bn[-2:]))
+# this time Pietro takes the rivincita and wins it: lo strillone passes to Dario
+off = B.g.ErPattoRivincita
+off.yes.Click(off.yes)
+secs(5)
+A.g.ErPattoSfida.yes.Click(A.g.ErPattoSfida.yes)
+secs(5)
+T[0] += 60
+A.ns.T.OnSystemMessage('Pietro has defeated Dario in a duel')
+B.ns.T.OnSystemMessage('Pietro has defeated Dario in a duel')
+secs(40)
+check(SC.CrierOf(C.ns.state.members['Player-1-AAA']) is not None and SC.CrierOf(C.ns.state.members['Player-1-BBB']) is None, 'Pietro won the rivincita: lo strillone is on Dario now')
+check(any('vennicato' in n for n in C.news()), 'news: Pietro got even')
 # a counted sfida: who fishes more in an hour
 ok, c4 = SB.Challenge(B.lua.table_from({'to': 'Player-1-AAA', 'k': 's', 'st': 'fi', 'w': 'h', 's': 2}))
 secs(5)

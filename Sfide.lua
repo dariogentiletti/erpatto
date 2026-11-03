@@ -13,6 +13,9 @@
 --   Er verso        a day: a word the winner chose at the end of everything they write in chat
 --   La figuraccia   at once: the loser's character kneels, clucks, cries or surrenders in front of everyone
 --   Lo strillone    a week: every time they die, the whole patto is told on screen
+-- A penitenza lasts 24 hours. Right after losing a duello a la gogna, the loser can ask for la rivincita (once,
+-- within ten minutes, fought within the hour): win it and the penitenza passes to the other for 24 hours; lose it
+-- and yours lasts a week. Two members can have one duello a la gogna a day (the rivincita aside).
 -- Er Campione: whoever wins a duello a la gogna against the champion (or the first one) holds the crown, a title,
 -- until someone beats them in one.
 --
@@ -33,17 +36,20 @@ ns.Sfide = S
 local DAY = 86400
 S.PENDING = DAY           -- time to answer
 S.DUEL_WINDOW = DAY       -- time to fight the duel once accepted
+S.RV_ASK = 600            -- the rivincita can be asked for ten minutes after losing
+S.RV_WINDOW = 3600        -- and is fought within the hour
+S.LONG = 7                -- days of penitenza after losing the rivincita too
 S.RACE_WINDOW = 21 * DAY  -- time to reach the level
 S.TAJA_WINDOW = 7 * DAY
 S.GUFA = 300              -- five minutes
 S.BET_WINDOW = 600        -- a bet on a duel waits ten minutes for the result
 
 S.PENE = {
-  { key = "img", name = "L'immagine", days = 7, tip = "Pe' 'na settimana 'na figura sur su' schermo e er nome suo davanti ar nome in chat." },
-  { key = "nick", name = "Er soprannome", days = 7, ask = "Soprannome", tip = "Pe' 'na settimana, accanto ar nome suo, er soprannome che je dai tu: ner patto e davanti a quello che scrive in chat." },
-  { key = "bee", name = "Er verso", days = 1, ask = "Verso", tip = "Pe' 'n giorno, a la fine de tutto quello che scrive in chat, 'sta parola." },
+  { key = "img", name = "L'immagine", days = 1, tip = "Pe' 24 ore 'na figura sur su' schermo e er nome suo davanti ar nome in chat." },
+  { key = "nick", name = "Er soprannome", days = 1, ask = "Soprannome", tip = "Pe' 24 ore, accanto ar nome suo, er soprannome che je dai tu: ner patto e davanti a quello che scrive in chat." },
+  { key = "bee", name = "Er verso", days = 1, ask = "Verso", tip = "Pe' 24 ore, a la fine de tutto quello che scrive in chat, 'sta parola." },
   { key = "emote", name = "La figuraccia", days = 0, tip = "Appena perde, er personaggio suo la fa davanti a tutti." },
-  { key = "crier", name = "Lo strillone", days = 7, tip = "Pe' 'na settimana, ogni vorta che more lo sa tutto er patto, scritto grosso sur su' schermo." },
+  { key = "crier", name = "Lo strillone", days = 1, tip = "Pe' 24 ore, ogni vorta che more lo sa tutto er patto, scritto grosso sur su' schermo." },
 }
 S.FIGURE = {
   { name = "A Pecora", icon = "Interface\\Icons\\Spell_Nature_Polymorph", say = "Ha perso e mo' fa bee." },
@@ -122,7 +128,7 @@ function S.All()
       local k, st, w = c.k, c.st, c.w
       if k == "q" then k, st, w = "s", "q", "w" end -- the old quest sfida
       out[#out + 1] = { id = c.id, from = guid, to = c.to, k = k, n = c.n, s = c.s or 0, p = c.p or 0, t = c.t, e = c.e or 0,
-        st = st, w = w, m = c.m, at = c.at or 0 }
+        st = st, w = w, m = c.m, rv = c.rv, at = c.at or 0 }
     end
   end
   table.sort(out, function(a, b) return (a.at or 0) > (b.at or 0) end)
@@ -223,8 +229,9 @@ function S.State(c, all)
   local r
   if c.k == "d" then
     local d = FirstDuel(all, c.from, c.to, t0)
+    local window = c.rv and S.RV_WINDOW or S.DUEL_WINDOW
     if d then r = { w = d.w, l = d.l, at = d.at }
-    elseif now - t0 > S.DUEL_WINDOW then r = { w = "", at = t0 + S.DUEL_WINDOW } end
+    elseif now - t0 > window then r = { w = "", at = t0 + window } end
   elseif c.k == "l" then
     local a, b = all[c.from], all[c.to]
     local ta, tb = a and a.ms and a.ms[c.n], b and b.ms and b.ms[c.n]
@@ -301,6 +308,7 @@ function S.GognaOf(rec) local g = rec and gogne[rec.guid] if g and Now() < g.til
 function S.NickOf(rec) local g = rec and nicks[rec.guid] if g and Now() < g.til then return g end end
 function S.VerseOf(rec) local g = rec and verses[rec.guid] if g and Now() < g.til then return g end end
 function S.ShameOf(guid) return shame[guid] or 0 end
+function S.CrierOf(rec) local g = rec and criers[rec.guid] if g and Now() < g.til then return g end end
 
 local function Rebuild()
   gogne, nicks, verses, shame, criers = {}, {}, {}, {}, {}
@@ -311,12 +319,29 @@ local function Rebuild()
     if Now() >= x.til then return end
     if not map[guid] or x.til > map[guid].til then map[guid] = x end
   end
-  for _, c in ipairs(S.All()) do
+  -- results first, and the rivincita of each duel (if any)
+  local list = S.All()
+  local res, rematch = {}, {}
+  for _, c in ipairs(list) do
     local state, r = S.State(c, all)
-    if state == "finita" and r.w ~= "" and r.l and c.p > 0 then
+    if state == "finita" and r.w ~= "" then res[c.id] = r end
+    if c.rv then rematch[c.rv] = c end
+  end
+  for _, c in ipairs(list) do
+    local r = res[c.id]
+    local pena = S.PENE[c.p]
+    local days = pena and pena.days or 0
+    if r and pena and c.rv and res[c.rv] and res[c.rv].l == r.l then
+      pena = nil -- lost the rivincita too: the first penitenza gets longer instead
+    elseif r and pena and not c.rv then
+      local rv = rematch[c.id]
+      local rr = rv and res[rv.id]
+      if rr and rr.l == r.l then days = S.LONG
+      elseif rr then pena = nil end -- won the rivincita: this one is gone, the other one counts
+    end
+    if r and r.l and pena then
       shame[r.l] = (shame[r.l] or 0) + 1
-      local pena = S.PENE[c.p]
-      local til = r.at + pena.days * DAY
+      local til = r.at + days * DAY
       local why = "ha perso co' " .. Short(all[r.w])
       if pena.key == "img" then
         local f = Figure(c.id)
@@ -329,7 +354,7 @@ local function Rebuild()
         keep(criers, r.l, { from = r.at, til = til, by = r.w })
       end
     end
-    if state == "finita" and r.w ~= "" and c.k == "d" and c.p > 0 then duels[#duels + 1] = { w = r.w, l = r.l, at = r.at } end
+    if r and c.k == "d" and c.p > 0 then duels[#duels + 1] = { w = r.w, l = r.l, at = r.at } end
   end
   table.sort(duels, function(a, b) return a.at < b.at end)
   champion = nil
@@ -341,7 +366,7 @@ local function Rebuild()
     if state == "finita" and r.w ~= "" then
       shame[t.on] = (shame[t.on] or 0) + 1
       local f = Figure(t.id)
-      keep(gogne, t.on, { name = f.name, icon = f.icon, say = f.say, til = r.at + 2 * DAY, why = "c'aveva 'na taja e l'ha battuto " .. Short(all[r.w]), by = r.w })
+      keep(gogne, t.on, { name = f.name, icon = f.icon, say = f.say, til = r.at + DAY, why = "c'aveva 'na taja e l'ha battuto " .. Short(all[r.w]), by = r.w })
     end
   end
   local me = ns.recordGuid
@@ -403,8 +428,26 @@ function S.Challenge(o)
     if not n then return false, "Ar 60 nun se corre più." end
   end
   if Open(all, ns.recordGuid, o.to) then return false, "Co' " .. Short(other) .. " c'è già 'na sfida aperta." end
+  if o.rv then
+    -- la rivincita: once, by the loser, right after
+    local orig
+    for _, x in ipairs(S.All()) do if x.id == o.rv then orig = x end if x.rv == o.rv then return false, "La rivincita s'è già fatta." end end
+    local r
+    if orig then _, r = S.State(orig, all) end
+    if not (orig and r and r.l == ns.recordGuid and r.w == o.to and not orig.rv) then return false, "Nun c'è rivincita da chiede." end
+    if Now() - r.at > S.RV_ASK then return false, "È passato troppo tempo pe' la rivincita." end
+  elseif o.k == "d" and p > 0 then
+    -- one duello a la gogna a day between the same two
+    for _, x in ipairs(S.All()) do
+      local pair = (x.from == ns.recordGuid and x.to == o.to) or (x.from == o.to and x.to == ns.recordGuid)
+      if pair and x.k == "d" and x.p > 0 and not x.rv and Now() - x.at < DAY then
+        local st = S.State(x, all)
+        if st ~= "rifiutata" and st ~= "scaduta" then return false, "Co' " .. Short(other) .. " er duello a la gogna de oggi l'avete già fatto." end
+      end
+    end
+  end
   local c = { id = NewId(), to = o.to, k = o.k, n = n, st = o.st, w = o.w, s = stake, p = p, t = text,
-    e = tonumber(o.e) or 0, m = o.m and 1 or nil, at = Now() }
+    e = tonumber(o.e) or 0, m = o.m and 1 or nil, rv = o.rv, at = Now() }
   local keep = { c }
   for _, x in ipairs(MyList("sf")) do if #keep < 6 then keep[#keep + 1] = x end end
   Pay(c.id, stake)
@@ -585,21 +628,41 @@ function S.Update()
     if state == "finita" then
       Tell(st, c.id .. ":fine", function()
         if r.w ~= "" and r.l == me and S.PENE[c.p] and S.PENE[c.p].key == "emote" and Now() - (r.at or 0) < 600 then Figuraccia(c, all, r) end
+        -- I lost a duello a la gogna: offer the rivincita
+        if r.w ~= "" and r.l == me and c.k == "d" and c.p > 0 and not c.rv and Now() - (r.at or 0) < S.RV_ASK and not ns.alt then S.OfferRematch(c, r) end
         if quiet or not News then return end
         if r.w == "" then
           News.Add("La sfida tra " .. Name(all, c.from) .. " e " .. Name(all, c.to) .. " è finita pari: poste ridate.")
           return
         end
         local pena = S.PENE[c.p]
+        -- a rivincita: the loser of the first duel either got even or lost twice
+        local orig
+        if c.rv then for _, x in ipairs(S.All()) do if x.id == c.rv then orig = x end end end
+        local ro
+        if orig then _, ro = S.State(orig, all) end
+        local twice = ro and ro.l == r.l
+        local span = twice and "pe' 'na settimana" or "pe' 24 ore"
         local tail = ""
-        if pena and pena.key == "img" then tail = ". " .. Name(all, r.l) .. " va a la gogna: " .. Figure(c.id).name
-        elseif pena and pena.key == "nick" then tail = ". Pe' 'na settimana " .. Name(all, r.l) .. " se chiama \"" .. tostring(c.t) .. "\""
-        elseif pena and pena.key == "bee" then tail = ". Pe' 'n giorno " .. Name(all, r.l) .. " finisce tutto co' \"" .. tostring(c.t) .. "\""
+        if pena and pena.key == "img" then tail = ". " .. Name(all, r.l) .. " va a la gogna " .. span .. ": " .. Figure((twice and orig or c).id).name
+        elseif pena and pena.key == "nick" then tail = ". " .. Name(all, r.l) .. " è detto \"" .. tostring(c.t) .. "\" " .. span
+        elseif pena and pena.key == "bee" then tail = ". " .. Name(all, r.l) .. " finisce tutto co' \"" .. tostring(c.t) .. "\" " .. span
         elseif pena and pena.key == "emote" then tail = ". " .. Name(all, r.l) .. " " .. (S.EMOTES[c.e] or S.EMOTES[1]).name:lower() .. " davanti a tutti"
-        elseif pena and pena.key == "crier" then tail = ". Pe' 'na settimana, ogni vorta che " .. Name(all, r.l) .. " more, lo sa tutto er patto" end
-        News.Add("|cffffd100" .. Name(all, r.w) .. "|r ha vinto la sfida co' |cffffd100" .. Name(all, r.l) .. "|r" ..
-          (c.s > 0 and (" (+" .. (2 * c.s) .. ")") or "") .. tail)
-        if pena then News.Banner(Name(all, r.l) .. " ha perso!", pena.name .. (c.t and (": " .. c.t) or "") .. ". Lo ha battuto " .. Name(all, r.w) .. ".", { 1, 0.5, 0.2 }, "evento") end
+        elseif pena and pena.key == "crier" then tail = ". " .. span .. ", ogni vorta che " .. Name(all, r.l) .. " more, lo sa tutto er patto" end
+        local head
+        if c.rv and twice then head = "|cffffd100" .. Name(all, r.l) .. "|r ha perso pure la rivincita co' |cffffd100" .. Name(all, r.w) .. "|r"
+        elseif c.rv then head = "|cffffd100" .. Name(all, r.w) .. "|r s'è vennicato: ha vinto la rivincita co' |cffffd100" .. Name(all, r.l) .. "|r"
+        else head = "|cffffd100" .. Name(all, r.w) .. "|r ha vinto la sfida co' |cffffd100" .. Name(all, r.l) .. "|r" end
+        News.Add(head .. (c.s > 0 and (" (+" .. (2 * c.s) .. ")") or "") .. tail)
+        if pena then
+          local title = c.rv and (twice and (Name(all, r.l) .. " ha perso pure la rivincita!") or (Name(all, r.w) .. " s'è vennicato!")) or (Name(all, r.l) .. " ha perso!")
+          News.Banner(title, pena.name .. (c.t and (": " .. c.t) or "") .. " " .. span .. ". " .. (c.rv and twice and "" or ("Lo ha battuto " .. Name(all, r.w) .. ".")), { 1, 0.5, 0.2 }, "evento")
+        end
+      end)
+    end
+    if state == "rifiutata" and c.rv then
+      Tell(st, c.id .. ":no", function()
+        if not quiet and News then News.Add("|cffffd100" .. Name(all, c.to) .. "|r nun ha voluto da' la rivincita a |cffffd100" .. Name(all, c.from) .. "|r.") end
       end)
     end
     if c.to == me and state == "aspetta" and not st.asked[c.id] and not ns.alt then
@@ -755,12 +818,40 @@ function S.Ask(c, all)
     ask.no:SetPoint("BOTTOMLEFT", ask, "BOTTOM", 6, 18)
   end
   ask.c = c
-  ask.title:SetText(c.k == "d" and c.p > 0 and "Duello a la gogna!" or "Sfida!")
+  ask.title:SetText(c.rv and "Rivincita!" or (c.k == "d" and c.p > 0 and "Duello a la gogna!" or "Sfida!"))
   local pena = S.PENE[c.p]
-  ask.text:SetText("|cffffd100" .. Name(all, c.from) .. "|r te sfida.\n" .. S.What(c, all) ..
-    (pena and ("\n|cff9d9d9d" .. pena.tip .. "|r") or ""))
+  if c.rv then
+    ask.text:SetText("|cffffd100" .. Name(all, c.from) .. "|r vole la rivincita.\nSi vince lui, la penitenza passa a te pe' 24 ore.\nSi perde, la sua dura 'na settimana.")
+  else
+    ask.text:SetText("|cffffd100" .. Name(all, c.from) .. "|r te sfida.\n" .. S.What(c, all) ..
+      (pena and ("\n|cff9d9d9d" .. pena.tip .. "|r") or ""))
+  end
   ask:Show()
   if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
+end
+
+-- right after losing a duello a la gogna: la rivincita?
+local offer
+function S.OfferRematch(c, r)
+  local all = Members()
+  if not offer then
+    offer = Dialog("ErPattoRivincita", 380, 150, "Hai perso!")
+    offer.text = H.Text(offer, "GameFontHighlight", "", 340, "CENTER")
+    offer.text:SetPoint("TOP", 0, -32)
+    offer.yes = H.Btn(offer, "Rivincita!", 110, function()
+      local x = offer.c
+      Say(S.Challenge({ to = offer.w, k = "d", s = x.s, p = x.p, t = x.t, e = x.e, m = 1, rv = x.id }))
+      offer:Hide()
+    end)
+    offer.yes:SetPoint("BOTTOMRIGHT", offer, "BOTTOM", -6, 18)
+    offer.no = H.Btn(offer, "Me la tengo", 110, function() offer:Hide() end)
+    offer.no:SetPoint("BOTTOMLEFT", offer, "BOTTOM", 6, 18)
+  end
+  offer.c, offer.w = c, r.w
+  local pena = S.PENE[c.p]
+  offer.text:SetText((pena and pena.name or "La penitenza") .. " pe' 24 ore.\nRivincita co' " .. Name(all, r.w) .. "? Si la vinci, passa a lui.\nSi la perdi, la tua dura 'na settimana.")
+  offer:Show()
+  if C_Timer then C_Timer.After(S.RV_ASK, function() if offer and offer.c == c then offer:Hide() end end) end
 end
 
 local bet
@@ -994,7 +1085,7 @@ ns.On("Live", function(from, data)
     if st and not st.asked[c.id] and not ns.alt then
       st.asked[c.id] = true
       local x = { id = c.id, from = from, to = me, k = c.k, n = c.n, st = c.st, w = c.w, s = tonumber(c.s) or 0, p = tonumber(c.p) or 0,
-        t = c.t and tostring(c.t):gsub("|", ""):sub(1, 20) or nil, e = tonumber(c.e) or 0, m = c.m, at = tonumber(c.at) or Now() }
+        t = c.t and tostring(c.t):gsub("|", ""):sub(1, 20) or nil, e = tonumber(c.e) or 0, m = c.m, rv = type(c.rv) == "string" and c.rv:sub(1, 40) or nil, at = tonumber(c.at) or Now() }
       S.Ask(x, Members())
     end
   elseif data.t == "live" and data.a ~= me and data.b ~= me and not ns.alt then
