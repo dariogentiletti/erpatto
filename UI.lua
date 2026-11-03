@@ -25,7 +25,8 @@ end
 -- The frame art:
 --   borders  the game's own vanilla stat-box art (UI-Character-StatBackground): its thin metal rail, cut in nine
 --            pieces (four corners, four edges) of 6 px, so every border here is the one of the vanilla character frame
---   stone    Media\\bg.tga, a 512x512 seamless tile of cloudy grey stone; the window darkens it, panels show it as is
+--   marble   Media\\marble.tga, a 512x512 seamless tile made to match the vanilla frame's dark marble (same colour,
+--            same grain), repeated at its own size: the inside of the window and of every panel
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 local TILE = 512
 local RAIL_FILE = "Interface\\PaperDollInfoFrame\\UI-Character-StatBackground"
@@ -42,8 +43,8 @@ local PIECES = {
 -- (x, y from the frame's top left) keeping the pattern fixed to the frame, so pieces of it join without seams
 local function Stone(frame, ox, oy, dark)
   local t = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
-  t:SetTexture(MEDIA .. "bg.tga", "REPEAT", "REPEAT")
-  local k = dark and 0.55 or 1
+  t:SetTexture(MEDIA .. "marble.tga", "REPEAT", "REPEAT")
+  local k = dark and 0.75 or 1
   t:SetVertexColor(k, k, k)
   local st = { tex = t, u0 = math.random(0, TILE - 1), v0 = math.random(0, TILE - 1) }
   function st:Fit(w, h, x, y)
@@ -155,10 +156,14 @@ local function Tile(frame, file, fw, fh, sx0, sy0, sx1, sy1, x, y, w, h, layer, 
   return out
 end
 
--- the dark marble of the character frame's inside (UI-Character-General-TopLeft, 24..250 x 80..250)
+-- the dark marble of the character frame's inside (UI-Character-General-TopLeft, 24..250 x 80..250, for small pieces)
+-- and, for areas, the seamless tile made from it, repeated at its own size
 local MX0, MY0, MX1, MY1 = 24, 80, 250, 250
-local function MarbleTiles(frame, x, y, w, h, layer, sub)
-  return Tile(frame, GENERAL, 256, 256, MX0, MY0, MX1, MY1, x, y, w, h, layer or "BACKGROUND", sub or -7)
+local function MarbleTiles(frame, x, y, w, h, layer, sub, dark)
+  local st = Stone(frame, x, y, dark)
+  st.tex:SetDrawLayer(layer or "BACKGROUND", sub or -7)
+  st:Fit(w, h)
+  return { st.tex }
 end
 -- one piece of marble at its own size, for a small frame (w x h at most 226 x 170)
 local function Marble(frame, layer, sub, w, h)
@@ -188,22 +193,11 @@ local function SlotBorder(frame, layer, sub, w, h)
   local tr = piece(SX, SY, SC, SC, true) tr:SetSize(SC, SC) tr:SetPoint("TOPRIGHT")
   local bl = piece(SX, SY, SC, SC, false, true) bl:SetSize(SC, SC) bl:SetPoint("BOTTOMLEFT")
   local br = piece(SX, SY, SC, SC, true, true) br:SetSize(SC, SC) br:SetPoint("BOTTOMRIGHT")
-  if w and h then
-    -- the rails repeated at their own size, so their grain is the game's
-    local E = 20
-    local function add(list) for _, x in ipairs(list) do p[#p + 1] = x end end
-    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY, SX + SC + E, SY + SC, SC, 0, w - 2 * SC, SC, layer or "BORDER", sub or 0, true, false))
-    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY + SC, SX + SC + E, SY, SC, h - SC, w - 2 * SC, SC, layer or "BORDER", sub or 0, true, false))
-    -- the side rails: a short clean bit (the slot's side has a bar joining it lower down)
-    local V = 8
-    add(Tile(frame, SLOTS, 256, 256, SX, SY + SC, SX + SC, SY + SC + V, 0, SC, SC, h - 2 * SC, layer or "BORDER", sub or 0, false, true))
-    add(Tile(frame, SLOTS, 256, 256, SX + SC, SY + SC, SX, SY + SC + V, w - SC, SC, SC, h - 2 * SC, layer or "BORDER", sub or 0, false, true))
-    return p
-  end
-  local t = piece(SX + SC, SY, 8, SC) t:SetPoint("TOPLEFT", tl, "TOPRIGHT") t:SetPoint("BOTTOMRIGHT", tr, "BOTTOMLEFT")
-  local b = piece(SX + SC, SY, 8, SC, false, true) b:SetPoint("TOPLEFT", bl, "TOPRIGHT") b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT")
-  local l = piece(SX, SY + SC, SC, 8) l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT") l:SetPoint("BOTTOMRIGHT", bl, "TOPRIGHT")
-  local r = piece(SX, SY + SC, SC, 8, true) r:SetPoint("TOPLEFT", tr, "BOTTOMLEFT") r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT")
+  -- the rails: a one pixel cut across the rail, drawn along its whole length, so the line is smooth as in the game
+  local t = piece(SX + SC + 4, SY, 1, SC) t:SetPoint("TOPLEFT", tl, "TOPRIGHT") t:SetPoint("BOTTOMRIGHT", tr, "BOTTOMLEFT")
+  local b = piece(SX + SC + 4, SY, 1, SC, false, true) b:SetPoint("TOPLEFT", bl, "TOPRIGHT") b:SetPoint("BOTTOMRIGHT", br, "BOTTOMLEFT")
+  local l = piece(SX, SY + SC + 4, SC, 1) l:SetPoint("TOPLEFT", tl, "BOTTOMLEFT") l:SetPoint("BOTTOMRIGHT", bl, "TOPRIGHT")
+  local r = piece(SX, SY + SC + 4, SC, 1, true) r:SetPoint("TOPLEFT", tr, "BOTTOMLEFT") r:SetPoint("BOTTOMRIGHT", br, "TOPRIGHT")
   return p
 end
 
@@ -257,7 +251,8 @@ local function Box(parent, w, h)
   solid:SetPoint("TOPLEFT", 4, -4)
   solid:SetPoint("BOTTOMRIGHT", -4, 4)
   if w and h then
-    MarbleTiles(b, 5, 5, w - 10, h - 10)
+    -- a little darker than the window, as the inside of the vanilla slots and stat box
+    MarbleTiles(b, 5, 5, w - 10, h - 10, nil, nil, true)
   else
     local m = Marble(b)
     m:SetPoint("TOPLEFT", 5, -5)
@@ -1704,14 +1699,20 @@ local function Build()
       x0 - ox, y0 - oy, x1 - ox, y1 - oy, x, y, w, h, "BACKGROUND", 0, tileX, tileY)
   end
   Art(0, 100, 0, 80, -10, -13, 100, 80)
-  ArtTile(100, 250, 0, 80, 90, -13, W - 138, 80, true, false)
+  -- the top between the portrait and the close box: the title strip and the rails as a one pixel cut drawn along
+  -- (column 170, where the art has no studs), the stone under the title repeated at its own size
+  Art(170, 171, 0, 34, 90, -13, W - 138, 34)
+  ArtTile(100, 250, 34, 72, 90, 21, W - 138, 38, true, false)
+  Art(170, 171, 72, 80, 90, 59, W - 138, 8)
   Art(300, 352, 0, 80, W - 48, -13, 52, 80)
-  ArtTile(0, 24, 80, 250, -10, 67, 24, H - 83, false, true)
-  ArtTile(24, 250, 80, 250, 14, 67, W - 28, H - 83, true, true)
-  ArtTile(334, 352, 80, 250, W - 14, 67, 18, H - 83, false, true)
-  Art(0, 24, 420, 440, -10, H - 16, 24, 20)
-  ArtTile(24, 250, 420, 440, 14, H - 16, W - 28, 20, true, false)
-  Art(334, 352, 420, 440, W - 14, H - 16, 18, 20)
+  -- the side and bottom rails: a one pixel cut drawn along the whole length (smooth, as in the game); the marble
+  -- inside repeated at its own size
+  Art(0, 24, 150, 151, -10, 67, 24, H - 77)
+  MarbleTiles(f, 14, 67, W - 28, H - 77, "BACKGROUND", 0)
+  Art(334, 352, 150, 151, W - 14, 67, 18, H - 77)
+  Art(0, 24, 426, 440, -10, H - 10, 24, 14)
+  Art(150, 151, 426, 440, 14, H - 10, W - 28, 14)
+  Art(334, 352, 426, 440, W - 14, H - 10, 18, 14)
   -- the round portrait: the icon of the vanilla Social window (the patto is a group of friends)
   local portrait = f:CreateTexture(nil, "BACKGROUND", nil, -1)
   Put(portrait, f, -5, -11, 63, 63)
