@@ -616,12 +616,10 @@ local function MakeTab(i, key, label)
   b.text = Text(b, "GameFontNormalSmall", label, nil, "CENTER")
   local tw = math.floor((b.text.GetStringWidth and b.text:GetStringWidth() or 60) + 0.5)
   b:SetSize(math.max(64, tw + 30), TAB_H)
-  local hl = b:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-Tab-RealHighlight")
-  hl:SetBlendMode("ADD")
-  hl:SetPoint("TOPLEFT", 3, -2)
-  hl:SetPoint("BOTTOMRIGHT", -3, 6)
-  b.hl = hl
+  -- no glow on the mouse: the label turns white, nothing else
+  b.hl = { SetShown = function() end }
+  b:SetScript("OnEnter", function(self) if not self.selected then self.text:SetFontObject("GameFontHighlightSmall") end end)
+  b:SetScript("OnLeave", function(self) if not self.selected then self.text:SetFontObject("GameFontNormalSmall") end end)
   -- the unselected look, owned by the window so its border covers the top
   b.off = { fill = f:CreateTexture(nil, "BACKGROUND", nil, -6) }
   b.off.fill:SetColorTexture(0, 0, 0, 1)
@@ -723,13 +721,10 @@ local function TopTab(parent, label, onClick)
   marble:SetPoint("BOTTOMRIGHT", -2, 0)
   b.stone = { tex = marble }
   Border(b, nil, "BORDER", 0, "bottom")
-  local hl = b:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-Tab-RealHighlight")
-  hl:SetTexCoord(0, 1, 1, 0) -- glow on the top edge
-  hl:SetBlendMode("ADD")
-  hl:SetPoint("TOPLEFT", 3, -2)
-  hl:SetPoint("BOTTOMRIGHT", -3, 0)
-  b.hl = hl
+  -- no glow on the mouse: the label turns white, nothing else
+  b.hl = { SetShown = function() end }
+  b:SetScript("OnEnter", function(self) if not self.selected then self.text:SetFontObject("GameFontHighlightSmall") end end)
+  b:SetScript("OnLeave", function(self) if not self.selected then self.text:SetFontObject("GameFontNormalSmall") end end)
   b:SetScript("OnClick", function(self)
     if self.selected then return end
     Safe(onClick, self)

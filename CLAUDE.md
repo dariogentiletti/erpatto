@@ -16,7 +16,7 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - popups: `H.Chrome` (UI-DialogBox border and background) with `H.DialogHeader` for the title plate
 - buttons: UIPanelButtonTemplate; inputs: InputBoxTemplate; checks: UICheckButtonTemplate; radios: UI-RadioButton
 - lists: hover `Interface\Buttons\UI-Listbox-Highlight2`, selection `UI-FriendsFrame-HighlightBar-Blue`
-- tabs: bottom tabs and `H.TopTab`, with UI-Character-Tab-RealHighlight
+- tabs: bottom tabs and `H.TopTab`; no glow on mouseover (the user removed it), only the label turns white
 - scroll: only through `H.VanillaScroll` (old arrows, knob, rail); better no scroll at all when the content fits
 - announcements: plain big Friz Quadrata text with a shadow (like the zone text), nothing behind it
 - backgrounds: the dark marble (the user chose it over the lighter header stone)
