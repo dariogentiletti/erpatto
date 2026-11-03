@@ -832,7 +832,7 @@ local function RefreshVs(v, list)
 end
 
 ----------------------------------------------------------------------
--- Er Cimitero: every death of the patto with its last words, who died most, who took most penitenze
+-- Er Cimitero: every death of the patto with its last words, who died most, who is a la gogna now
 ----------------------------------------------------------------------
 local function BuildCimitero(v)
   local f = CreateFrame("Frame", nil, v)
@@ -858,7 +858,7 @@ local function BuildCimitero(v)
   side:SetPoint("TOPLEFT", 500, 0)
   local t1 = H.Text(side, "GameFontNormal", "Li più morti", 200) t1:SetPoint("TOPLEFT", 12, -10)
   f.dead = Lines(side, 8, 14, -30, 216, 15)
-  local t2 = H.Text(side, "GameFontNormal", "Le penitenze", 200) t2:SetPoint("TOPLEFT", 12, -164)
+  local t2 = H.Text(side, "GameFontNormal", "A la gogna", 200) t2:SetPoint("TOPLEFT", 12, -164)
   f.shame = Lines(side, 8, 14, -184, 216, 15)
 end
 
@@ -888,7 +888,23 @@ local function RefreshCimitero(v, list)
     end
   end
   Ranked(f.dead, function(m) return H.StatOf(m, "dt", "t") end, function(n) return tostring(n) end)
-  Ranked(f.shame, function(m) return S and S.ShameOf(m.guid) or 0 end, function(n) return tostring(n) end)
+  -- who is a la gogna now, with er pegno and until when
+  local now = {}
+  for _, m in ipairs(list) do
+    local g = S and S.AtGogna(m.guid)
+    if g then now[#now + 1] = { m = m, g = g } end
+  end
+  table.sort(now, function(a, b) return a.g.til > b.g.til end)
+  for i, l in ipairs(f.shame) do
+    local x = now[i]
+    if x then
+      l:SetText(H.Colored(x.m))
+      l.right:SetText("fino a " .. U.Day(x.g.til))
+    else
+      l:SetText(i == 1 and (GREY .. "Nessuno, pe' mo'.|r") or "")
+      l.right:SetText("")
+    end
+  end
 end
 
 ----------------------------------------------------------------------

@@ -229,6 +229,16 @@ function P.CleanMember(r)
       p = math.floor(Num(x.p, 0, 8) or 0), t = Plain(x.t, 20), e = math.floor(Num(x.e, 0, 8) or 0),
       st = Str(x.st, 3), w = Str(x.w, 1), m = Num(x.m, 0, 1) and math.floor(Num(x.m, 0, 1)) or nil, rv = Str(x.rv, 40), at = Num(x.at, 0, 4e9) }
   end)
+  -- er duello a la gogna: the challenges I threw (gd: rv = the duel it's the rivincita of, x = 1: "basta"), the
+  -- pegni I chose as winner (gp: id of the first challenge, which pegno, its text, the emote)
+  c.gd = List(r.gd, 6, function(x)
+    if not (Str(x.id, 40) and Str(x.to, 60) and Num(x.at, 0, 4e9)) then return nil end
+    return { id = Str(x.id, 40), to = Str(x.to, 60), rv = Str(x.rv, 40), x = (Num(x.x, 0, 1) == 1) and 1 or nil, at = Num(x.at, 0, 4e9) }
+  end)
+  c.gp = List(r.gp, 4, function(x)
+    if not (Str(x.id, 40) and Num(x.p, 1, 8) and Num(x.at, 0, 4e9)) then return nil end
+    return { id = Str(x.id, 40), p = math.floor(Num(x.p, 1, 8)), t = Plain(x.t, 20), e = Num(x.e, 1, 8) and math.floor(Num(x.e, 1, 8)) or nil, at = Num(x.at, 0, 4e9) }
+  end)
   c.sk = List(r.sk, 10, function(x)
     if not Str(x.id, 40) then return nil end
     return { id = Str(x.id, 40), a = (Num(x.a, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9),

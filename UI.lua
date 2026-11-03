@@ -372,15 +372,99 @@ local function Text(parent, font, text, w, justify)
   return fs
 end
 
-local function Btn(parent, text, w, onClick, h)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+-- the red button of the old game, drawn by hand: the client's UIPanelButtonTemplate is the new dark one.
+-- Three cuts of UI-Panel-Button-Up/Down/Disabled (80x22 of 128x32), the highlight added on top, as 1.12 did.
+local BUTTON = "Interface\\Buttons\\UI-Panel-Button-"
+local function RedButton(parent, w, h)
+  local b = CreateFrame("Button", nil, parent)
   b:SetSize(w or 120, h or 22)
+  local l = b:CreateTexture(nil, "BACKGROUND")
+  l:SetPoint("TOPLEFT") l:SetPoint("BOTTOMLEFT") l:SetWidth(12)
+  l:SetTexCoord(0, 0.09375, 0, 0.6875)
+  local r = b:CreateTexture(nil, "BACKGROUND")
+  r:SetPoint("TOPRIGHT") r:SetPoint("BOTTOMRIGHT") r:SetWidth(12)
+  r:SetTexCoord(0.53125, 0.625, 0, 0.6875)
+  local m = b:CreateTexture(nil, "BACKGROUND")
+  m:SetPoint("TOPLEFT", l, "TOPRIGHT") m:SetPoint("BOTTOMRIGHT", r, "BOTTOMLEFT")
+  m:SetTexCoord(0.09375, 0.53125, 0, 0.6875)
+  local function Skin(state) for _, t in ipairs({ l, m, r }) do t:SetTexture(BUTTON .. state) end end
+  Skin("Up")
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetTexture(BUTTON .. "Highlight")
+  hl:SetTexCoord(0, 0.625, 0, 0.6875)
+  hl:SetBlendMode("ADD")
+  hl:SetAllPoints()
+  local small = (h or 22) < 21
+  local fs = b:CreateFontString(nil, "OVERLAY", small and "GameFontNormalSmall" or "GameFontNormal")
+  fs:SetPoint("CENTER", 0, 1)
+  if b.SetFontString then b:SetFontString(fs) end
+  if b.SetNormalFontObject then
+    b:SetNormalFontObject(small and "GameFontNormalSmall" or "GameFontNormal")
+    b:SetHighlightFontObject(small and "GameFontHighlightSmall" or "GameFontHighlight")
+    b:SetDisabledFontObject(small and "GameFontDisableSmall" or "GameFontDisable")
+  end
+  b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then Skin("Down") end end)
+  b:SetScript("OnMouseUp", function(self) if self:IsEnabled() then Skin("Up") end end)
+  b:SetScript("OnDisable", function() Skin("Disabled") end)
+  b:SetScript("OnEnable", function() Skin("Up") end)
+  return b
+end
+
+local function Btn(parent, text, w, onClick, h)
+  local b = RedButton(parent, w, h)
   b:SetText(text)
   b:SetScript("OnClick", function(self, ...)
     Safe(onClick, self, ...)
     UI.Refresh()
   end)
   return b
+end
+
+-- the old dropdown (UIDropDownMenu of 1.12): the label frame of character creation in three cuts, the text on the
+-- right, the round arrow; width is the visible box. A click anywhere on it calls onClick(self).
+local function Dropdown(parent, width, onClick)
+  local f = CreateFrame("Button", nil, parent)
+  f:SetSize(width, 24)
+  local LF = "Interface\\Glues\\CharacterCreate\\CharacterCreate-LabelFrame"
+  local l = f:CreateTexture(nil, "ARTWORK")
+  l:SetTexture(LF) l:SetSize(25, 64) l:SetTexCoord(0, 0.1953125, 0, 1)
+  l:SetPoint("LEFT", f, "LEFT", -12, 0)
+  local r = f:CreateTexture(nil, "ARTWORK")
+  r:SetTexture(LF) r:SetSize(25, 64) r:SetTexCoord(0.8046875, 1, 0, 1)
+  r:SetPoint("RIGHT", f, "RIGHT", 13, 0)
+  local m = f:CreateTexture(nil, "ARTWORK")
+  m:SetTexture(LF) m:SetTexCoord(0.1953125, 0.8046875, 0, 1)
+  m:SetPoint("TOPLEFT", l, "TOPRIGHT") m:SetPoint("BOTTOMRIGHT", r, "BOTTOMLEFT")
+  local label = Text(f, "GameFontHighlightSmall", "", width - 40, "RIGHT")
+  label:SetPoint("RIGHT", f, "RIGHT", -28, 1)
+  if label.SetWordWrap then label:SetWordWrap(false) end
+  local arrow = CreateFrame("Button", nil, f)
+  arrow:SetSize(24, 24)
+  arrow:SetPoint("RIGHT", f, "RIGHT", -2, 1)
+  arrow:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up")
+  arrow:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Down")
+  arrow:SetDisabledTexture("Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Disabled")
+  arrow:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+  local function Open() Safe(onClick, f) end
+  f:SetScript("OnClick", Open)
+  arrow:SetScript("OnClick", Open)
+  f.label, f.arrow = label, arrow
+  function f.SetText(self, t) label:SetText(t) end
+  function f.GetText(self) return label:GetText() end
+  return f
+end
+
+-- the old close button (the X in the corner of a dialog)
+local function CloseX(parent, onClick)
+  local x = CreateFrame("Button", nil, parent)
+  x:SetSize(32, 32)
+  x:SetPoint("TOPRIGHT", -2, -2)
+  x:SetNormalTexture(MEDIA .. "close-up.tga")
+  x:SetPushedTexture(MEDIA .. "close-down.tga")
+  x:SetHighlightTexture(MEDIA .. "close-hl.tga", "ADD")
+  if x.SetHitRectInsets then x:SetHitRectInsets(5, 5, 5, 5) end
+  x:SetScript("OnClick", function() if onClick then onClick() else parent:Hide() end end)
+  return x
 end
 
 -- first click arms, second click (within 4 s) confirms
@@ -1868,7 +1952,7 @@ function UI.FitScroll(scroll, contentH, viewH)
   if not need and scroll.SetVerticalScroll then scroll:SetVerticalScroll(0) end
 end
 
-UI.H = { FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, DialogHeader = DialogHeader, Marble = Marble, VanillaScroll = VanillaScroll, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
+UI.H = { RedButton = RedButton, CloseX = CloseX, Dropdown = Dropdown, FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, DialogHeader = DialogHeader, Marble = Marble, VanillaScroll = VanillaScroll, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
   Position = Position, CapBar = CapBar, NewView = NewView, StatOf = StatOf, Online = Online, Safe = Safe, ClassHex = ClassHex }
 function UI.IsShown(key) return f and f:IsShown() and current == key end
 

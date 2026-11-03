@@ -14,7 +14,11 @@ Use (the game's own files, drawn through the helpers in UI.lua):
   never repeat small noisy pieces (a few pixels repeated show as notches)
 - panels: `H.Box` (the slot frame with rivets round dark marble), titles in GameFontNormal, data in the Small fonts
 - popups: `H.Chrome` (UI-DialogBox border and background) with `H.DialogHeader` for the title plate
-- buttons: UIPanelButtonTemplate; inputs: InputBoxTemplate; checks: UICheckButtonTemplate; radios: UI-RadioButton
+- buttons: `H.Btn` / `H.RedButton`, the red 1.12 button drawn from UI-Panel-Button-Up/Down/Disabled/Highlight;
+  never UIPanelButtonTemplate or UIPanelCloseButton (the client draws them as the new dark/round ones); close: `H.CloseX`
+- dropdowns: `H.Dropdown` (the 1.12 UIDropDownMenu: CharacterCreate-LabelFrame, text on the right, round arrow) with
+  the list in a dialog box (`Sfide.Choose`); never a button that opens a list
+- inputs: InputBoxTemplate; checks: UICheckButtonTemplate; radios: UI-RadioButton
 - lists: hover `Interface\Buttons\UI-Listbox-Highlight2`, selection `UI-FriendsFrame-HighlightBar-Blue`
 - tabs: bottom tabs and `H.TopTab`; no glow on mouseover (the user removed it), only the label turns white
 - scroll: only through `H.VanillaScroll` (old arrows, knob, rail); better no scroll at all when the content fits
@@ -31,9 +35,17 @@ Never:
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)
 - Large/Huge fonts for headings (only the cap number may be GameFontNormalLarge)
 - card grids with big empty boxes, modern scroll bars, emblems or logos
-- explanatory text: no "passa er mouse", "clicca qui", descriptions of what a page is; put details in tooltips
+- explanatory text: no "passa er mouse", "clicca qui", descriptions of what a page is; put details in tooltips.
+  A dialog says what happens and, in one line, what is at stake (e.g. the punishment), never a tutorial
+- frame fields that clash with widget internals in the test stub (`w`, `h`, `kind`, `points`): name them otherwise
 
 The Diario page (Progress.lua) is the reference: boxes with a GameFontNormal title and small lines of text.
+
+## Features that must stay apart
+- Er duello a la gogna (right click menu): honour only, no piotte. Duel, rivincita, bella; then the winner picks er
+  pegno. Its list lives in Progresso, Cimitero ("A la gogna"); its rules in the "i" of Progresso.
+- Er Botteghino is everything with piotte: tombola, schedina, sfide (weekly, piotte only, no pegno), taje, gufate,
+  bets on duels.
 
 ## Text
 Addon text in Romanesco; game names (zones, items, professions) in English as the client writes them.

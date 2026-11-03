@@ -365,7 +365,8 @@ end)
 local frame
 
 local function MakeButton(parent, text, width, onClick)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  local H = ns.UI and ns.UI.H
+  local b = H and H.RedButton and H.RedButton(parent, width or 150, 22) or CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetSize(width or 150, 22)
   b:SetText(text)
   b:SetScript("OnClick", onClick)
@@ -411,7 +412,7 @@ local function BuildWindow()
   title:SetText("Er Patto, diagnosi " .. VERSION)
   frame:SetFrameLevel(50)
 
-  local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+  local close = (ns.UI and ns.UI.H and ns.UI.H.CloseX) and ns.UI.H.CloseX(frame) or CreateFrame("Button", nil, frame, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
 
   local intro = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
