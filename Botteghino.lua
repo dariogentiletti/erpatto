@@ -303,6 +303,8 @@ local function BuildRicchi(v)
       else Say(false, msg) end
     end, 18)
     r.btn:SetPoint("TOPRIGHT", -14, y + 3)
+    r.dare = H.Btn(p, "Sfida", 60, function(self) ns.Sfide.Prefill(self.guid) end, 18)
+    r.dare:SetPoint("RIGHT", r.btn, "LEFT", -4, 0)
     r.btn:SetScript("OnEnter", function(self) H.Tip(self, { "Sfotti", TB.Piotte(TB.SFOTTO) }) end)
     r.btn:SetScript("OnLeave", H.HideTip)
     v.rich[i] = r
@@ -317,6 +319,8 @@ local function Build()
   v.tabSch:SetPoint("LEFT", v.tabTomb, "RIGHT", 2, 0)
   v.tabRich = H.TopTab(v, "Li ricchi", function() page = "ricchi" end)
   v.tabRich:SetPoint("LEFT", v.tabSch, "RIGHT", 2, 0)
+  v.tabSfide = H.TopTab(v, "Sfide", function() page = "sfide" end)
+  v.tabSfide:SetPoint("LEFT", v.tabRich, "RIGHT", 2, 0)
   -- my piotte, top right
   local purse = CreateFrame("Frame", nil, v)
   purse:SetSize(200, 24)
@@ -330,6 +334,7 @@ local function Build()
   BuildTombola(v)
   BuildSchedina(v)
   BuildRicchi(v)
+  ns.Sfide.BuildPage(v)
 end
 
 ----------------------------------------------------------------------
@@ -474,8 +479,10 @@ local function RefreshRicchi(v, wk, list)
       r.sch:SetText(n > 0 and (n .. "/3 giocate") or (GREY .. "-|r"))
       r.btn.guid, r.btn.who = m.guid, Short(m)
       r.btn:SetShown(m.guid ~= ns.recordGuid and not m.fake)
+      r.dare.guid = m.guid
+      r.dare:SetShown(m.guid ~= ns.recordGuid and not m.fake)
     else
-      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.btn:Hide()
+      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.btn:Hide() r.dare:Hide()
     end
   end
 end
@@ -491,17 +498,20 @@ local function Refresh(v)
   v.tabTomb:SetSelected(page == "tombola")
   v.tabSch:SetSelected(page == "schedina")
   v.tabRich:SetSelected(page == "ricchi")
+  v.tabSfide:SetSelected(page == "sfide")
   v.tomb:SetShown(page == "tombola")
   v.sch:SetShown(page == "schedina")
   v.ricchi:SetShown(page == "ricchi")
+  v.sfide:SetShown(page == "sfide")
   if page == "tombola" then RefreshTombola(v, wk, me, list, testing)
   elseif page == "schedina" then RefreshSchedina(v, wk, me, list, testing, byGuid)
+  elseif page == "sfide" then ns.Sfide.RefreshPage(v)
   else RefreshRicchi(v, wk, list) end
 end
 
 UI.AddView("botteghino", "Botteghino", Build, Refresh, false)
 
--- open the Botteghino on a page ("tombola", "schedina", "ricchi")
+-- open the Botteghino on a page ("tombola", "schedina", "ricchi", "sfide")
 function ns.Botteghino.Show(which)
   page = which or page
   UI.Show("botteghino")

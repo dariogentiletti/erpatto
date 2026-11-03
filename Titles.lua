@@ -157,7 +157,11 @@ local function Refresh(force)
   cache.byName = {}
   for _, m in ipairs(list) do
     local t = m.ti and Ti.BY_ID[m.ti]
-    if t and cache.earned[m.guid] and cache.earned[m.guid][t.id] and type(m.name) == "string" then
+    if not (t and cache.earned[m.guid] and cache.earned[m.guid][t.id]) then t = nil end
+    -- the gogna wins over the title for its week
+    local g = ns.Sfide and ns.Sfide.GognaOf(m)
+    if g then t = { id = "gogna", name = g.name, icon = g.icon, desc = g.say } end
+    if t and type(m.name) == "string" then
       cache.byName[m.name] = t
       local short = m.name:match("^(%S+)")
       if short then cache.byName[short] = t end
@@ -167,6 +171,9 @@ end
 
 function Ti.Of(rec)
   if not rec then return nil end
+  -- the gogna wins over any title for its week
+  local g = ns.Sfide and ns.Sfide.GognaOf(rec)
+  if g then return g.name end
   Refresh()
   local t = rec.ti and Ti.BY_ID[rec.ti]
   if t and cache.earned[rec.guid] and cache.earned[rec.guid][t.id] then return t.name end
@@ -249,6 +256,9 @@ local function ChatFilter(_, _, msg, author, ...)
   local t = cache.byName[short] or cache.byName[author]
   if not t then return false end
   -- a link: clicking it explains the title
+  if t.icon then
+    return false, "|T" .. t.icon .. ":0|t |cffff8040|Haddon:ErPatto:title:gogna|h[" .. t.name .. "]|h|r " .. msg, author, ...
+  end
   return false, "|cffffd100|Haddon:ErPatto:title:" .. t.id .. "|h[" .. t.name .. "]|h|r " .. msg, author, ...
 end
 
@@ -256,6 +266,15 @@ end
 function Ti.ShowLink(id)
   local t = Ti.BY_ID[id]
   local tip = ItemRefTooltip or GameTooltip
+  if id == "gogna" and tip then
+    if tip.SetOwner then tip:SetOwner(UIParent, "ANCHOR_PRESERVE") end
+    tip:ClearLines()
+    tip:AddLine("La gogna", 1, 0.5, 0.25)
+    tip:AddLine("Ha perso 'na sfida der patto: se la porta pe' 'na settimana.", 1, 1, 1, true)
+    tip:AddLine("Er Patto", 0.6, 0.6, 0.6)
+    tip:Show()
+    return
+  end
   if not (t and tip) then return end
   if tip.SetOwner then tip:SetOwner(UIParent, "ANCHOR_PRESERVE") end
   tip:ClearLines()

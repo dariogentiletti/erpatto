@@ -192,45 +192,31 @@ local function TextDialog(name, w, h, editable)
 end
 
 ----------------------------------------------------------------------
--- Come funziona
+-- what each tab is for: the tooltip of the "i" at the top right of the window
 ----------------------------------------------------------------------
-X.GUIDE = table.concat({
-  "|cffffd100Er cap|r",
-  "Ogni settimana c'è 'n livello massimo, diverso pe' ogni squadra (dipende da quante ore a settimana gioca). Nun lo superà: la barretta sotto lo schermo è blu se stai indietro, verde ar cap, rossa se sei scappato avanti. Si 'na quest te farebbe passà er cap, l'addon t'avvisa prima de consegnalla.",
-  "",
-  "|cffffd100Er Muretto|r",
-  "Quello che te serve subito: er cap tuo e che fà mo', chi è online, le notizie (ding, epici, rari, titoli, tombole) e chi guida la settimana. Ar primo login dopo er reset esce Er Bollettino co' la settimana passata.",
-  "",
-  "|cffffd100Personaggio e Progresso|r",
-  "Er personaggio tuo (o de 'n amico) co' l'equipaggiamento e li piazzamenti. In Progresso: La Corsa (livelli, quest, sordi...), Le Chicche (fortuna, pesca, morti ridicole, nemesi...), li Titoli, er Diario de ognuno e er Confronto testa a testa.",
-  "",
-  "|cffffd100Er Botteghino: Tombola, Schedina e piotte|r",
-  "Se gioca a piotte (li sordi finti der patto, nun c'entrano co' l'oro): se parte co' 20. La Tombola: ogni settimana 'na cartella 3x3 de sfide, uguale pe' tutti (la tira er sacchetto), che se spunta da sola: 1 piotta a casella, +2 a riga, +10 tutta. La Schedina: nei primi 2 giorni de la settimana scegli chi sale de più, chi fa più quest e chi more de più, e ce metti quante piotte voi. Ogni giocatore c'ha 'na quota: più piotte ce stanno sopra, meno paga. Si vince, pij la posta per la quota che c'era quanno hai puntato. Quanno chiude la settimana te compare 'na finestra co' li conti. Co' le piotte poi sfotte l'amichi: je compare 'na scritta sullo schermo.",
-  "",
-  "|cffffd100Titoli|r",
-  "Chi è er primo in quarcosa vince 'n titolo (A Pariolino, A Topo de Fogna...). Lo scegli ner Personaggio, in arto a destra, e compare in chat davanti ar nome. Er titolo se perde si quarcuno te supera. La lista completa sta in Progresso, Titoli.",
-  "",
-  "|cffffd100Amichi|r",
-  "/patto invita Nome: all'amico je compare 'na finestra pe' entrà co' 'n clic. Oppure daje er codice (in Impostazioni). L'addon passa li dati da 'n amico all'artro, quindi basta che uno sia online.",
-  "",
-  "|cffffd100Comandi|r",
-  "/patto apre la finestra, /patto stato er cap in chat, /patto prova (solo er capo) pe' provà tutto co' membri finti, /patto bollettino, /patto condividi (testo pe' Discord), /patto bug (rapporto pe' segnalà 'n problema), /patto hud la barretta.",
-}, "\n")
-
-local guide
-function X.ShowGuide()
-  if not guide then guide = TextDialog("ErPattoGuide", 560, 440, false) end
-  guide.title:SetText("Come funziona Er Patto")
-  guide.sub:SetText("")
-  guide.body:SetText(X.GUIDE)
-  local h = (guide.body.GetStringHeight and guide.body:GetStringHeight()) or 600
-  guide.bodyFrame:SetHeight(math.max(10, h))
-  if ns.db then ns.db.guideSeen = true end
-  guide:Show()
-end
-ns.On("PattoChanged", function(state)
-  if state and ns.db and not ns.db.guideSeen and C_Timer then C_Timer.After(3, X.ShowGuide) end
-end)
+X.INFO = {
+  casa = { "Er Muretto", "Er cap tuo e che fà mo', chi è online, le notizie der patto e chi guida la settimana.",
+    "Ar primo login dopo er reset esce Er Bollettino co' la settimana passata." },
+  pg = { "Personaggio", "Er personaggio tuo o de 'n amico (lo scegli a destra): equipaggiamento e piazzamenti ner patto.",
+    "Er bottone Titolo sceje er titolo che mostri in chat davanti ar nome." },
+  cap = { "Cap", "Ogni settimana c'è 'n livello massimo pe' squadra, che dipende da quante ore gioca. Nun lo superà.",
+    "La barretta sotto lo schermo è blu si stai indietro, verde ar cap, rossa sopra. Si 'na quest te fa passà er cap, l'addon t'avvisa prima.",
+    "Sotto: er calendario de li cap de tutte le squadre." },
+  gruppi = { "Squadre", "Le squadre der patto, chi c'è e a che livello sta. \"Passa qui\" pe' cambià squadra." },
+  progresso = { "Progresso", "La Corsa: chi va più forte (livelli, ore, quest, dungeon, sordi, rari, PvP).",
+    "Le Chicche: fortuna, pesca, raccolta, strada, morti ridicole, boss, nemesi.",
+    "Titoli: chi è er primo in quarcosa vince 'n titolo, che compare in chat davanti ar nome.",
+    "Diario: la settimana de ognuno. Confronto: tu contro 'n amico.",
+    "'Sta settimana e Da sempre cambiano er periodo contato." },
+  botteghino = { "Er Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20.",
+    "Tombola: 'na cartella de 9 imprese a settimana, uguale pe' tutti. 1 piotta a casella, +2 a terno, +10 tombola.",
+    "Schedina: nei primi du' giorni punti su chi sale de più, chi fa più quest e chi more de più. Più piotte ce stanno sopra a uno, meno paga; si vince pij la posta per la quota de quanno hai puntato.",
+    "Li ricchi: chi c'ha più piotte. Sfotti: 3 piotte, all'amico je compare 'na scritta.",
+    "Sfide: sfidi 'n amico a duello, a chi arriva prima ar livello o a chi fa più quest, co' le piotte in palio. Chi perde va a la gogna pe' 'na settimana: er nome de la gogna davanti ar suo in chat e la figura sur suo schermo.",
+    "La taja: piotte su la testa de quarcuno. Se le pija chi lo batte a duello, e lui va a la gogna pe' du' giorni." },
+  imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni." },
+  capo = { "Capo", "Solo pe' er capo: squadre, ore, partenza, annunci e vice." },
+}
 
 ----------------------------------------------------------------------
 -- Condividi: plain text for Discord

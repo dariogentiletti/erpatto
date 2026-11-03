@@ -8,7 +8,7 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - the window: UI-Character-General art (UI.lua Build); the round portrait shows the vanilla Social window icon
   (FriendsFrameScrollIcon), as the user chose
 - never stretch a textured area: rails are a one pixel cut drawn along their length (smooth, as 9-slices in the
-  game), areas of stone use Media\marble.tga (seamless, made to match the vanilla marble) repeated at its own size;
+  game), areas of stone use the game's FrameGeneral\UI-Background-Marble (seamless) repeated at its own size;
   no mirrored copies of noisy art (they show as repeating notches or symmetric blotches)
 - panels: `H.Box` (the slot frame with rivets round dark marble), titles in GameFontNormal, data in the Small fonts
 - popups: `H.Chrome` (UI-DialogBox border and background) with `H.DialogHeader` for the title plate
@@ -17,8 +17,12 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - tabs: bottom tabs and `H.TopTab`, with UI-Character-Tab-RealHighlight
 - scroll: only through `H.VanillaScroll` (old arrows, knob, rail); better no scroll at all when the content fits
 - announcements: plain big Friz Quadrata text with a shadow (like the zone text), nothing behind it
+- backgrounds: the dark marble (the user chose it over the lighter header stone)
+- explanations: only in the tooltip of the "i" (FriendsFrame\InformationIcon) at the top right of the window,
+  one text per tab in Extras.INFO; no guide window
 
 Never:
+- textures made by us: only the game's own files (Media holds only the close button)
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)
 - Large/Huge fonts for headings (only the cap number may be GameFontNormalLarge)
 - card grids with big empty boxes, modern scroll bars, emblems or logos

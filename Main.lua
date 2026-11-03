@@ -235,7 +235,6 @@ local function Help()
   U.Say("  /patto invita Nome - invita 'n amico ner patto")
   U.Say("  /patto bollettino - er riassunto de la settimana scorsa")
   U.Say("  /patto condividi - la settimana in testo, da incollà su Discord")
-  U.Say("  /patto aiuto - come funziona")
   U.Say("  /patto bug - rapporto pe' segnalà 'n problema")
   U.Say("  /patto prova - modalità de prova, solo pe' er capo (membri finti, li vedi solo te)")
   U.Say("  /patto diag - diagnosi (pe' segnalà problemi)")
@@ -272,8 +271,6 @@ SlashCmdList.ERPATTO = function(raw)
     if ns.Home then ns.Home.ShowBulletin(true) end
   elseif msg == "condividi" or msg == "discord" then
     if ns.Extras then ns.Extras.ShowShare() end
-  elseif msg == "aiuto" or msg == "guida" or msg == "help" then
-    if ns.Extras then ns.Extras.ShowGuide() end
   elseif msg == "bug" then
     if ns.Extras then ns.Extras.BugReport() end
   elseif msg == "minimappa" then

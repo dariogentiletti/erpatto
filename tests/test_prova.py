@@ -15,7 +15,7 @@ A.ns.db.opts.testMode = True
 check(TB.Testing() is True and TB.Week() == 1 and TB.Card() is not None, 'test mode: week 1 card before the start')
 A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
 bv = A.ns.UI._views.botteghino
-check(A.has('(prova') and bv.testBtn.shown and A.has('La Schedina'), 'Botteghino in test mode, with the close button')
+check(A.has('(prova') and bv.testBtn.shown and A.has('Schedina'), 'Botteghino in test mode, with the close button')
 # what I do now counts: a duel lost, two quests
 A.ns.T.Bump('dl'); A.ns.T.Bump('q', 80); A.ns.T.Bump('dg', 6); A.ns.T.Bump('fl', 10); A.ns.T.Bump('dw', 5); A.ns.T.Bump('fi', 50)
 sc = TB.Score(A.rec())

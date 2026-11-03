@@ -684,6 +684,19 @@ local function Duel(winner, loser)
     rec.h2h[name] = rec.h2h[name] or { w = 0, l = 0 }
     return rec.h2h[name]
   end
+  -- the duel log for le sfide: only duels with patto members, by guid
+  local function Log(name, won)
+    for guid, r in pairs(state.members) do
+      if guid ~= me and (r.name == name or (type(r.name) == "string" and r.name:match("^(%S+)") == name)) then
+        local dd = {}
+        table.insert(dd, { o = guid, w = won and 1 or 0, at = U.Now() })
+        for i = 1, 7 do if rec.dd and rec.dd[i] then dd[#dd + 1] = rec.dd[i] end end
+        rec.dd = dd
+        return
+      end
+    end
+  end
+  if IsMe(winner) then Log(loser, true) elseif IsMe(loser) then Log(winner, false) end
   if IsMe(winner) then
     local e = h(loser)
     if e then e.w = e.w + 1 end

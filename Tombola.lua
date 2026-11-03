@@ -243,6 +243,8 @@ function TB.Balance()
   total = total + (now and now.points or 0)
   -- stakes are paid when placed (this week's and the open ones)
   for w, s in pairs(b.stakes or {}) do total = total - s end
+  -- le sfide and le taje (Sfide.lua)
+  if ns.Sfide then total = total + ns.Sfide.Delta() end
   if TB.Testing() then
     local t = ns.db.testVotes
     if t and t.wk == wk then for _, q in ipairs(TB.QUESTIONS) do total = total - StakeOf(t, q.key) end end

@@ -125,8 +125,6 @@ local function Build()
   v.bullBtn:SetPoint("LEFT", v.tombBtn, "RIGHT", 6, 0)
   v.shareBtn = H.Btn(d, "Condividi", 84, function() if ns.Extras then ns.Extras.ShowShare() end end, 20)
   v.shareBtn:SetPoint("LEFT", v.bullBtn, "RIGHT", 6, 0)
-  v.helpBtn = H.Btn(d, "Aiuto", 56, function() if ns.Extras then ns.Extras.ShowGuide() end end, 20)
-  v.helpBtn:SetPoint("LEFT", v.shareBtn, "RIGHT", 6, 0)
 end
 
 ----------------------------------------------------------------------

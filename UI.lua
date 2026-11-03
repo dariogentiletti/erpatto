@@ -25,10 +25,10 @@ end
 -- The frame art:
 --   borders  the game's own vanilla stat-box art (UI-Character-StatBackground): its thin metal rail, cut in nine
 --            pieces (four corners, four edges) of 6 px, so every border here is the one of the vanilla character frame
---   marble   Media\\marble.tga, a 512x512 seamless tile made to match the vanilla frame's dark marble (same colour,
---            same grain), repeated at its own size: the inside of the window and of every panel
+--   marble   the game's own seamless marble (FrameGeneral\\UI-Background-Marble, 256x256, the same dark marble as the
+--            vanilla frames), repeated at its own size: the inside of the window and of every panel
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
-local TILE = 512
+local TILE = 256
 local RAIL_FILE = "Interface\\PaperDollInfoFrame\\UI-Character-StatBackground"
 local RS = 6 -- piece size: outer glow, the rail (2 px in), the shadow on the stone
 local P_TL, P_TR, P_BL, P_BR, P_T, P_B, P_L, P_R = 0, 1, 2, 3, 4, 5, 6, 7
@@ -43,8 +43,8 @@ local PIECES = {
 -- (x, y from the frame's top left) keeping the pattern fixed to the frame, so pieces of it join without seams
 local function Stone(frame, ox, oy, dark)
   local t = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
-  t:SetTexture(MEDIA .. "marble.tga", "REPEAT", "REPEAT")
-  local k = dark and 0.75 or 1
+  t:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT")
+  local k = 1
   t:SetVertexColor(k, k, k)
   local st = { tex = t, u0 = math.random(0, TILE - 1), v0 = math.random(0, TILE - 1) }
   function st:Fit(w, h, x, y)
@@ -398,8 +398,10 @@ local function ClassHex(cls)
   return "ffffffff"
 end
 
+-- the name in its class colour; at the gogna, its icon in front
 local function Colored(rec)
-  return "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
+  local g = ns.Sfide and ns.Sfide.GognaOf(rec)
+  return (g and ("|T" .. g.icon .. ":0|t ") or "") .. "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
 end
 
 local function StateText(lv, cap)
@@ -1743,6 +1745,19 @@ local function Build()
   if close.SetHitRectInsets then close:SetHitRectInsets(5, 5, 5, 5) end
   close:SetScript("OnClick", function() f:Hide() end)
   f.close = close
+  -- the "i": what this tab is for, in its tooltip (Extras.INFO)
+  local help = CreateFrame("Button", nil, f)
+  help:SetSize(16, 16)
+  help:SetPoint("TOPRIGHT", -22, -38)
+  help:SetFrameLevel(f:GetFrameLevel() + 25)
+  help:SetNormalTexture("Interface\\FriendsFrame\\InformationIcon")
+  help:SetHighlightTexture("Interface\\FriendsFrame\\InformationIcon-Highlight", "ADD")
+  help:SetScript("OnEnter", function(self)
+    local lines = ns.Extras and ns.Extras.INFO and ns.Extras.INFO[current]
+    if lines then Tip(self, lines) end
+  end)
+  help:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  f.help = help
   f.info = Text(f, "GameFontHighlightSmall", "", 300)
   f.info:SetPoint("TOPLEFT", 72, -34)
   f.alert = Text(f, "GameFontRedSmall", "", 260, "CENTER")

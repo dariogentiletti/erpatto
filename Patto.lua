@@ -203,6 +203,35 @@ function P.CleanMember(r)
     return out
   end
   c.vt, c.vp = Bets(r.vt), Bets(r.vp)
+  -- le sfide: the ones I threw (sf), my answers to the ones thrown at me (sk), the bounties I put (tg), my last
+  -- duels with patto members (dd: opponent guid, won or not, when)
+  local function List(t, max, fn)
+    local out = {}
+    if type(t) ~= "table" then return out end
+    for i = 1, max do
+      local x = t[i]
+      if type(x) == "table" then local y = fn(x) if y then out[#out + 1] = y end end
+    end
+    return out
+  end
+  c.sf = List(r.sf, 6, function(x)
+    local k = Str(x.k, 1)
+    if not (Str(x.id, 40) and Str(x.to, 60) and (k == "d" or k == "l" or k == "q")) then return nil end
+    return { id = Str(x.id, 40), to = Str(x.to, 60), k = k, n = Num(x.n, 2, 60), s = math.floor(Num(x.s, 0, 1e5) or 0),
+      g = math.floor(Num(x.g, 0, 8) or 0), at = Num(x.at, 0, 4e9) }
+  end)
+  c.sk = List(r.sk, 10, function(x)
+    if not Str(x.id, 40) then return nil end
+    return { id = Str(x.id, 40), a = (Num(x.a, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9) }
+  end)
+  c.tg = List(r.tg, 4, function(x)
+    if not (Str(x.id, 40) and Str(x.on, 60)) then return nil end
+    return { id = Str(x.id, 40), on = Str(x.on, 60), s = math.floor(Num(x.s, 0, 1e5) or 0), g = math.floor(Num(x.g, 0, 8) or 0), at = Num(x.at, 0, 4e9) }
+  end)
+  c.dd = List(r.dd, 8, function(x)
+    if not (Str(x.o, 60) and Num(x.at, 0, 4e9)) then return nil end
+    return { o = Str(x.o, 60), w = (Num(x.w, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9) }
+  end)
   if type(r.lq) == "table" then
     for i = 1, 3 do
       local q = r.lq[i]

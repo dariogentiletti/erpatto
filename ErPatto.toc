@@ -23,6 +23,7 @@ Titles.lua
 Tombola.lua
 Progress.lua
 Botteghino.lua
+Sfide.lua
 News.lua
 Extras.lua
 Diag.lua
