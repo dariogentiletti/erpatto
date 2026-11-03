@@ -1,5 +1,5 @@
 -- Er Patto: the logic of Er Botteghino (the betting shop of the patto). The money is the piotta: play money of the
--- patto, never the game's gold (its own icon, a Darkmoon Faire ticket, and its own green colour).
+-- patto, never the game's gold (its own icon, a red sack).
 --
 -- La Tombola: every week one 3x3 card of nine challenges, the same for everybody. Nobody picks it: it comes out of
 -- the "sacchetto", a draw seeded with the patto code and the week number, so every computer gets the same card
@@ -8,8 +8,10 @@
 --   1 piotta a square, +2 a full line ("terno"), +10 the whole card ("tombola").
 --
 -- La Schedina: three questions each week (who levels most, who quests most, who dies most). In the first two days you
--- pick a member and stake as many piotte as you like. At the end of the week the stakes of each question make the pot,
--- shared among those who guessed right, in proportion to what they staked. If nobody guessed right, stakes go back.
+-- pick a member and stake as many piotte as you like, at the odds ("quota") shown at that moment, which stay yours:
+-- if your pick wins you get stake x quota. The odds come from how the patto is betting (the more piotte on someone,
+-- the less they pay) mixed with the form (what each did this week so far and last week), with a small house edge.
+-- Ties all win. If nobody did anything (all zero), stakes go back.
 -- The closed week is shown in its own window (Botteghino.lua), not in the chat.
 --
 -- Everybody starts with 20 piotte. Piotte buy "sfottò" (a banner on a friend's screen) and make the ranking of
@@ -23,8 +25,8 @@ ns.Tombola = TB
 
 TB.START = 20          -- piotte everyone starts with
 TB.SFOTTO = 3          -- the price of a sfottò
-TB.ICON = "Interface\\Icons\\INV_Misc_Ticket_Darkmoon_01"
-TB.HEX = "|cff8fe08f"   -- the colour of piotte, never gold yellow
+TB.ICON = "Interface\\Icons\\INV_Misc_Bag_10_Red"
+TB.HEX = "|cffffffff"   -- piotte are white, as the vanilla counters; the red sack tells them from gold
 
 -- "1 piotta", "20 piotte"; Money adds the colour, Coin the little icon in front
 function TB.Piotte(n) n = n or 0 return (n == 1 or n == -1) and (n .. " piotta") or (n .. " piotte") end
@@ -41,7 +43,7 @@ TB.POOL = {
   { id = "ding5", t = "Sali 5 livelli", k = "ding", n = 5 },
   { id = "dw5", t = "Vinci 5 duelli", k = "dw", n = 5 },
   { id = "rk2", t = "Ammazza 2 rari", k = "rk", n = 2 },
-  { id = "nk8", t = "Ammazza 8 boss o famosi", k = "nk", n = 8 },
+  { id = "nk8", t = "Ammazza 8 boss", k = "nk", n = 8 },
   { id = "fi50", t = "Pesca 50 pesci", k = "fi", n = 50 },
   { id = "ga80", t = "Raccoji 80 erbe, minerali o pelli", k = { "he", "mi", "sk" }, n = 80 },
   { id = "lb3", t = "Trova 3 blu o viola", k = { "lb", "le" }, n = 3 },
@@ -274,7 +276,7 @@ function TB.Bet(qkey, guid, stake)
   if not rec then return false end
   local cur = TB.VotesOf(rec, wk) or { wk = wk }
   local new = { wk = wk }
-  for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key] = cur[q.key], cur["s" .. q.key] end
+  for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key], new["q" .. q.key] = cur[q.key], cur["s" .. q.key], cur["q" .. q.key] end
   if guid then new[qkey] = guid end
   if not new[qkey] then return false, "Prima scegli su chi giocà." end
   local old = new["s" .. qkey] or 0
@@ -288,6 +290,9 @@ function TB.Bet(qkey, guid, stake)
   if stake < 1 then return false, "Nun c'hai manco 'na piotta." end
   if stake > available then return false, "Nun c'hai abbastanza piotte (" .. available .. ")." end
   new["s" .. qkey] = stake
+  -- the odds of this moment are yours (counted without your own old bet)
+  local odds = TB.Odds(wk, UI.Members(), qkey, ns.recordGuid)
+  new["q" .. qkey] = odds[new[qkey]] and odds[new[qkey]].q or 10
   if TB.Testing() then
     ns.db.testVotes = new
     ns.Fire("Refresh")
@@ -320,49 +325,59 @@ function TB.Winners(wk, list)
   return out
 end
 
--- a question's market: pot, stakes per pick, the top picks with their payout
-function TB.Market(wk, list, qkey)
-  local pot, per, count = 0, {}, {}
+-- the odds of a question: for every member, what a piotta on them pays (x10, an integer), with the piotte already
+-- on them and how many played them. The patto's bets weigh as much as the form once there are HOUSE piotte down.
+local HOUSE, EDGE, MINQ, MAXQ = 30, 0.85, 11, 150
+function TB.Odds(wk, list, qkey, without)
+  local q
+  for _, x in ipairs(TB.QUESTIONS) do if x.key == qkey then q = x end end
+  local form, sumForm, staked, count, total = {}, 0, {}, {}, 0
   for _, m in ipairs(list) do
-    local v = TB.VotesOf(m, wk)
+    local f = 1 + (Weekly(m, wk)[q.stat] or 0) + (wk and wk > 1 and (Weekly(m, wk - 1)[q.stat] or 0) or 0)
+    form[m.guid] = f
+    sumForm = sumForm + f
+    local v = m.guid ~= without and TB.VotesOf(m, wk)
     local g = v and v[qkey]
     if g then
-      local s = StakeOf(v, qkey)
-      pot = pot + s
-      per[g] = (per[g] or 0) + s
+      local st = StakeOf(v, qkey)
+      staked[g] = (staked[g] or 0) + st
       count[g] = (count[g] or 0) + 1
+      total = total + st
     end
   end
-  local top = {}
-  for g, n in pairs(count) do top[#top + 1] = { guid = g, n = n, stake = per[g], pays = per[g] > 0 and pot / per[g] or 0 } end
-  table.sort(top, function(a, b) return a.n > b.n or (a.n == b.n and a.stake > b.stake) end)
-  return pot, top
+  local out = {}
+  for _, m in ipairs(list) do
+    local p = ((staked[m.guid] or 0) + HOUSE * form[m.guid] / sumForm) / (total + HOUSE)
+    local x10 = math.floor(10 * EDGE / p + 0.5)
+    out[m.guid] = { q = math.max(MINQ, math.min(MAXQ, x10)), staked = staked[m.guid] or 0, n = count[m.guid] or 0 }
+  end
+  return out, total
 end
 
--- what a week paid me: winnings (and refunds when nobody guessed), right answers, lines to tell
+-- "2,5"
+function TB.Quota(x10) return (string.format("%.1f", (x10 or 10) / 10):gsub("%.", ",")) end
+
+-- what a week paid me: per question the payout at my odds (stakes back when nobody did anything)
 function TB.Payout(wk, list, myVotes)
   local win = TB.Winners(wk, list)
   local total, right, lines = 0, 0, {}
+  myVotes = myVotes or {}
   for _, q in ipairs(TB.QUESTIONS) do
-    local pot, good = 0, 0
-    for _, m in ipairs(list) do
-      local v = TB.VotesOf(m, wk)
-      if m.guid == ns.recordGuid then v = myVotes end
-      local s = StakeOf(v, q.key)
-      pot = pot + s
-      if v and v[q.key] and win[q.key][v[q.key]] then good = good + s end
-    end
     local mine = StakeOf(myVotes, q.key)
+    local pick = myVotes[q.key]
+    local nobody = next(win[q.key]) == nil
+    local x10 = myVotes["q" .. q.key]
+    if pick and not x10 then local o = TB.Odds(wk, list, q.key) x10 = o[pick] and o[pick].q or 10 end
     local got = 0
     if mine > 0 then
-      if good == 0 then got = mine -- nobody guessed: stakes back
-      elseif win[q.key][myVotes[q.key]] then
-        got = math.floor(pot * mine / good)
+      if nobody then got = mine
+      elseif win[q.key][pick] then
+        got = math.floor(mine * x10 / 10)
         right = right + 1
       end
     end
     total = total + got
-    lines[#lines + 1] = { q = q, got = got, mine = mine, pot = pot, nobody = good == 0, winners = win[q.key] }
+    lines[#lines + 1] = { q = q, got = got, mine = mine, nobody = nobody, winners = win[q.key], quota = x10 }
   end
   return total, right, lines
 end
@@ -383,7 +398,7 @@ local function Result(wk, rec, list, mine, sc, test)
     table.sort(names)
     local pick = mine and mine[d.q.key]
     bets[#bets + 1] = { text = d.q.text, winners = names, pick = pick and Name(pick) or nil, stake = d.mine, got = d.got,
-      nobody = d.nobody, pot = d.pot, right = pick ~= nil and d.winners[pick] or false }
+      nobody = d.nobody, quota = d.quota, right = pick ~= nil and d.winners[pick] or false }
   end
   sc = sc or { points = 0, cells = 0, lines = 0 }
   return { wk = wk, test = test, tomb = sc, bets = bets, won = won, right = right, total = sc.points + won, played = mine ~= nil }

@@ -183,7 +183,7 @@ check(A.ns.MyRecord().il == 12.3, 'item level shared in my record (%s)' % A.ns.M
 A.ns.UI.Show('pg')
 pgv = A.ns.UI._views.pg
 L = A.lua
-check(A.g.ErPattoFrame.rail.tL.shown and A.g.ErPattoFrame.title.shown, 'Personaggio stays inside the window (same border, same tabs)')
+check(A.g.ErPattoFrame.selTab.fill.shown and A.g.ErPattoFrame.title.shown, 'Personaggio stays inside the window (same border, same tabs)')
 pt = L.eval('function(v) local p = v.model.points[1] return p[1] .. "," .. tostring(p[2]) .. "," .. tostring(p[3]) .. "," .. v.model.w .. "x" .. v.model.h end')(pgv)
 check(pt == 'TOPLEFT,51,-52,278x180', 'model between the slot columns: ' + pt)
 head = L.eval('function(v) for _, b in ipairs(v.slots) do if b.slotName == "HeadSlot" then local p = b.points[1] return p[2] .. "," .. p[3] end end end')(pgv)
@@ -194,12 +194,12 @@ check(A.has('Membri') and any('Pietro' in t for t in A.texts()), 'member picker 
 PgTab = lambda: [b for b in A.ns.UI._tabs.values() if str(b.key) == 'pg'][0]
 ErTabArt1 = lambda: bool(PgTab().off.fill.shown)
 tab1 = L.eval('function() local p = ErPattoFrameTab1.points[1] return p[1] .. "," .. p[3] .. "," .. p[4] .. "," .. p[5] .. "," .. ErPattoFrameTab1.w end')()
-check(tab1.startswith('TOPLEFT,TOPLEFT,20,-449'), 'first tab under the window, 20 px in: ' + tab1)
-check(A.g.ErPattoFrame.rail.tL.shown and A.g.ErPattoFrame.rail.tB.shown and not ErTabArt1(), 'border opens round the selected tab')
+check(tab1.startswith('TOPLEFT,TOPLEFT,20,-457'), 'first tab under the window, 20 px in: ' + tab1)
+check(A.g.ErPattoFrame.selTab.fill.shown and A.g.ErPattoFrame.selTab[5].shown and not ErTabArt1(), 'the selected tab stands over the border')
 myEq = str(A.ns.MyRecord().eq)
 check(myEq.startswith('2/') and '1.12345.3.24' in myEq and '5.6789.2.21.0.567' in myEq, 'my gear shared with item levels: ' + myEq)
 A.ns.UI.Show('cap')
-check(A.g.ErPattoFrame.rail.tL.shown and ErTabArt1(), 'Personaggio unselected: its black tab art shows, the border opens elsewhere')
+check(A.g.ErPattoFrame.selTab.fill.shown and ErTabArt1(), 'Personaggio unselected: its black tab art shows, the border opens elsewhere')
 # Pietro's pane, seen by Dario: from his record (he is far away)
 secs(70)
 B.g.FIRE('PLAYER_EQUIPMENT_CHANGED'); secs(70)
@@ -391,7 +391,7 @@ A.ns.db.opts.testMode = True
 A.ns.UI.Show('progresso')
 check(A.has('Aldo (prova)') or any('Aldo (prova)' in t for t in A.texts()), 'test mode adds fake members')
 pv = A.ns.UI._views.progresso
-check(A.has('Classifiche') and A.has('Ore giocate') and A.has('Rari ammazzati') and A.has('Duelli vinti') and not A.has('perse'), 'leaderboard cards, wins only')
+check(A.has('La Corsa') and A.has('Ore giocate') and A.has('Rari ammazzati') and A.has('Duelli vinti') and not A.has('perse'), 'leaderboard cards, wins only')
 top5 = [str(r.pos.text) for r in pv.rank.cards[1].rows.values() if r.shown]
 check(top5 == ['1º', '2º', '3º', '4º', '5º'], 'each card shows the top five: ' + str(top5))
 wk2 = pv.weekBtn; wk2.Click(wk2)
@@ -413,9 +413,13 @@ meRow = [b for b in pv.diary.list.rows.values() if b.shown and b.guid == A.g.P_G
 meRow.Click(meRow)
 tl = pv.diary.titles
 held = [str(x) for x in (tl.countBtn.list or L.table()).values()]
-check(A.has('Titoli') and 'A Sor Capo' in str(tl.main.text) and 'A Sor Capo' in held and tl.all.shown, 'diary: the title shown, how many (hover), a button to all titles: ' + str(held))
-tl.all.Click(tl.all)
-check(pv.titles.shown and A.has('Li primi der patto') and A.has('Come se vince') and A.has('A Pescivendolo') and A.has('Er capo der patto.'), 'titles page: every title, who holds it, how it is won')
+check(A.has('Titoli') and 'A Sor Capo' in str(tl.main.text) and 'A Sor Capo' in held and tl.all is None and not A.has('passa er mouse'), 'diary: the title shown, how many (hover), no extra button: ' + str(held))
+pv.tabTitles.Click(pv.tabTitles)
+cols = pv.titles.cols
+check(pv.titles.shown and A.has('Li primi der patto') and A.has('Traguardi') and A.has('Mestieri') and A.has('A Pescivendolo') and not A.has('Come se vince'), 'titles page: one box per kind, who holds it')
+row = [r for r in cols[2].rows.values() if r.shown and str(r.t.id) == 'sorcapo'][0]
+row.GetScript(row, 'OnEnter')(row)
+check(any('Er capo der patto' in str(x) for x in A.g.TT.values()), 'hovering a title: how it is won and all who hold it')
 pv.tabDiary.Click(pv.tabDiary)
 fakeRow.Click(fakeRow)
 earned = A.ns.Titles.Earned(A.ns.UI.Members())

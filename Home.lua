@@ -213,7 +213,7 @@ local function Refresh(v)
       r.when:SetText(U.Ago(U.Now() - (n.at or 0)))
       r.full = n.t
     else
-      r.text:SetText(i == 1 and (GREY .. "Ancora gnente. Qui escheno ding, epici, rari, titoli e tombole.|r") or "")
+      r.text:SetText(i == 1 and (GREY .. "Ancora gnente.|r") or "")
       r.when:SetText("")
       r.full = nil
     end
@@ -246,7 +246,7 @@ local function Refresh(v)
   v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
 
-UI.AddView("casa", "Casa", Build, Refresh, true)
+UI.AddView("casa", "Er Muretto", Build, Refresh, true)
 
 ----------------------------------------------------------------------
 -- Er Bollettino: last week, told

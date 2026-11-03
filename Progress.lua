@@ -1,6 +1,6 @@
 -- Er Patto: the "Progresso" tab. Five pages:
---   Classifiche: one card per thing worth doing well (level, time played, quests, dungeons, gold, gear, duels, BGs)
---   Avventure: the fun boards (luck, epics, fish, gathering, road, silly deaths, famous kills, duel ladder, nemesis)
+--   La Corsa: one card per thing worth doing well (level, time played, quests, dungeons, gold, gear, duels, BGs)
+--   Le Chicche: the fun boards (luck, epics, fish, gathering, road, silly deaths, famous kills, duel ladder, nemesis)
 --   Titoli: every title, who holds it and how it's won
 --   Diario: one member's adventure (time against the plan, milestones, quests and zones, dungeons, professions)
 --   Confronto: you against another member, side by side, with your duels against each other
@@ -306,7 +306,7 @@ local ADV = {
   { key = "tr", title = "Strada fatta", tip = "Chilometri a piedi o a cavallo (i voli nun contano).",
     text = function(m, md) return Km(H.StatOf(m, "tr", md)) end },
   { key = "em", title = "Morti ridicole", tip = "Cascato da 'n dirupo, affogato, o ammazzato da 'n mostro de 5 livelli più basso (o da 'n animaletto)." },
-  { key = "nk", title = "Teste famose", tip = "Rari, boss de dungeon e mostri famosi (tipo Hogger) ammazzati." },
+  { key = "nk", title = "Boss e rari", tip = "Boss de dungeon, rari e mostri co' 'n nome (tipo Hogger)." },
   { key = "ladder", title = "Re der duello", fixed = true, tip = "Duelli tra voi der patto: vinti meno persi. Vale da sempre.",
     value = function(m) local w, l = LadderOf(m) return (w + l > 0) and (w - l + 1000) or 0 end,
     text = function(m) local w, l = LadderOf(m) return w .. "-" .. l end },
@@ -340,56 +340,69 @@ local ADV = {
 -- Titoli: every title, who holds it, how it's won
 ----------------------------------------------------------------------
 local GROUPS = { { "primi", "Li primi der patto" }, { "traguardi", "Traguardi" }, { "mestieri", "Mestieri" } }
-local TROW = 26
+local TROW = 30
 
+-- one box per kind of title, side by side; each title shows who holds it, the tooltip has how it's won and all holders
 local function BuildTitles(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
   f:SetSize(744, 347)
   v.titles = f
-  local box = H.Box(f, 744, 347)
-  box:SetPoint("TOPLEFT")
-  f.head = H.Text(box, "GameFontHighlightSmall", "", 700)
-  f.head:SetPoint("TOPLEFT", 14, -10)
-  local hs = { { "Titolo", 14 }, { "Ce l'ha", 214 }, { "Come se vince", 364 } }
-  for _, h in ipairs(hs) do
-    local t = H.Text(box, "GameFontNormalSmall", h[1])
-    t:SetPoint("TOPLEFT", h[2], -28)
+  f.cols = {}
+  for i, g in ipairs(GROUPS) do
+    local box = H.Box(f, 244, 347)
+    box:SetPoint("TOPLEFT", (i - 1) * 250, 0)
+    local c = { key = g[1], rows = {} }
+    c.head = H.Text(box, "GameFontNormalLarge", g[2], 170)
+    c.head:SetPoint("TOPLEFT", 12, -10)
+    c.count = H.Text(box, "GameFontHighlightSmall", "", 50, "RIGHT")
+    c.count:SetPoint("TOPRIGHT", -12, -13)
+    local line = box:CreateTexture(nil, "ARTWORK")
+    line:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+    line:SetVertexColor(1, 0.82, 0, 0.7)
+    line:SetBlendMode("ADD")
+    line:SetHeight(2)
+    line:SetPoint("TOPLEFT", 10, -32)
+    line:SetPoint("TOPRIGHT", -10, -32)
+    c.scroll = CreateFrame("ScrollFrame", "ErPattoTitlesScroll" .. i, box, "UIPanelScrollFrameTemplate")
+    c.scroll:SetPoint("TOPLEFT", 6, -38)
+    c.scroll:SetPoint("BOTTOMRIGHT", -26, 6)
+    c.body = CreateFrame("Frame", nil, c.scroll)
+    c.body:SetSize(210, 10)
+    c.scroll:SetScrollChild(c.body)
+    f.cols[i] = c
   end
-  local scroll = CreateFrame("ScrollFrame", "ErPattoTitlesScroll", box, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", 8, -44)
-  scroll:SetPoint("BOTTOMRIGHT", -28, 8)
-  local body = CreateFrame("Frame", nil, scroll)
-  body:SetSize(700, 10)
-  scroll:SetScrollChild(body)
-  f.scroll, f.body, f.rows = scroll, body, {}
 end
 
-local function TitleRow(f, i)
-  local r = f.rows[i]
+local function TitleRow(c, i)
+  local r = c.rows[i]
   if r then return r end
-  r = CreateFrame("Frame", nil, f.body)
-  r:SetSize(700, TROW)
+  r = CreateFrame("Button", nil, c.body)
+  r:SetSize(210, TROW)
+  r:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
   r.bg = r:CreateTexture(nil, "BACKGROUND")
   r.bg:SetAllPoints()
   r.bg:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
   r.bg:SetBlendMode("ADD")
-  r.bg:SetVertexColor(1, 0.82, 0, 0.25)
+  r.bg:SetVertexColor(1, 0.82, 0, 0.3)
   r.mine = r:CreateTexture(nil, "ARTWORK")
   r.mine:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-  r.mine:SetSize(14, 14)
-  r.mine:SetPoint("LEFT", 0, 0)
-  r.name = H.Text(r, "GameFontNormal", "", 180)
-  r.name:SetPoint("LEFT", 18, 0)
+  r.mine:SetSize(16, 16)
+  r.mine:SetPoint("TOPRIGHT", -2, -1)
+  r.name = H.Text(r, "GameFontNormal", "", 186)
+  r.name:SetPoint("TOPLEFT", 4, -2)
   if r.name.SetWordWrap then r.name:SetWordWrap(false) end
-  r.who = H.Text(r, "GameFontHighlightSmall", "", 140)
-  r.who:SetPoint("LEFT", 206, 0)
+  r.who = H.Text(r, "GameFontHighlightSmall", "", 202)
+  r.who:SetPoint("TOPLEFT", 4, -16)
   if r.who.SetWordWrap then r.who:SetWordWrap(false) end
-  r.desc = H.Text(r, "GameFontHighlightSmall", "", 340)
-  r.desc:SetPoint("LEFT", 356, 0)
-  r.desc:SetHeight(TROW)
-  if r.desc.SetJustifyV then r.desc:SetJustifyV("MIDDLE") end
-  f.rows[i] = r
+  r:SetScript("OnEnter", function(self)
+    if not self.t then return end
+    local lines = { self.t.name, self.t.desc or "" }
+    if self.names and #self.names > 0 then lines[#lines + 1] = "Ce l'ha: " .. table.concat(self.names, ", ") end
+    H.Tip(self, lines)
+  end)
+  r:SetScript("OnLeave", H.HideTip)
+  c.rows[i] = r
   return r
 end
 
@@ -398,21 +411,15 @@ local function RefreshTitles(v, list)
   local holders = ns.Titles.Holders()
   local byGuid = {}
   for _, m in ipairs(list) do byGuid[m.guid] = m end
-  local mineN = 0
-  for _, r in ipairs(f.rows) do r:Hide() end
-  local i, y = 0, 0
-  for _, g in ipairs(GROUPS) do
-    i = i + 1
-    local h = TitleRow(f, i)
-    h:ClearAllPoints() h:SetPoint("TOPLEFT", 0, -y)
-    h.name:SetText("|cffffffff" .. g[2] .. "|r") h.who:SetText("") h.desc:SetText("")
-    h.mine:Hide() h.bg:Hide() h:Show()
-    y = y + TROW
+  for _, c in ipairs(f.cols) do
+    for _, r in ipairs(c.rows) do r:Hide() end
+    local i, y, mine, all = 0, 0, 0, 0
     for _, t in ipairs(ns.Titles.LIST) do
-      if t.group == g[1] then
-        i = i + 1
-        local r = TitleRow(f, i)
-        r:ClearAllPoints() r:SetPoint("TOPLEFT", 0, -y)
+      if t.group == c.key then
+        i, all = i + 1, all + 1
+        local r = TitleRow(c, i)
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 0, -y)
         local set = holders[t.id] or {}
         local names = {}
         for guid in pairs(set) do
@@ -420,22 +427,21 @@ local function RefreshTitles(v, list)
           if m then names[#names + 1] = H.Colored(m) end
         end
         table.sort(names)
-        local mine = set[ns.recordGuid] and true or false
-        if mine then mineN = mineN + 1 end
-        r.mine:SetShown(mine)
-        r.bg:SetShown(mine)
+        local isMine = set[ns.recordGuid] and true or false
+        if isMine then mine = mine + 1 end
+        r.t, r.names = t, names
+        r.mine:SetShown(isMine)
+        r.bg:SetShown(isMine)
         r.name:SetText(#names > 0 and t.name or (GREY .. t.name .. "|r"))
         r.who:SetText(#names > 0 and table.concat(names, ", ") or (GREY .. "nessuno|r"))
-        r.desc:SetText(t.desc or "")
         r:Show()
         y = y + TROW
       end
     end
+    c.count:SetText(mine > 0 and ("|cffffd100" .. mine .. "|r/" .. all) or (GREY .. "0/" .. all .. "|r"))
+    c.body:SetHeight(math.max(10, y))
+    H.FitScroll(c.scroll, y, 347 - 44)
   end
-  f.body:SetHeight(math.max(10, y))
-  H.FitScroll(f.scroll, y, 347 - 52)
-  f.head:SetText("Titoli tua: |cffffffff" .. mineN .. "|r su " .. #ns.Titles.LIST ..
-    GREY .. ". Quello da mostrà lo scegli ner Personaggio (\"Titolo\"); compare in chat davanti ar nome.|r")
 end
 
 ----------------------------------------------------------------------
@@ -529,8 +535,6 @@ local function BuildDiary(v)
     if self.list and #self.list > 0 then H.Tip(self, { "Titoli", table.concat(self.list, ", ") }) end
   end)
   f.titles.countBtn:SetScript("OnLeave", H.HideTip)
-  f.titles.all = H.Btn(f.titles, "Tutti", 64, function() page = "titles" end, 20)
-  f.titles.all:SetPoint("TOPRIGHT", -8, -30)
 
   f.dung = Section(f, colW, 143, "Dungeon")
   f.dung:SetPoint("TOPLEFT", x1, -204)
@@ -652,7 +656,7 @@ local function RefreshDiary(v, list)
   end
   local names = {}
   for _, t in ipairs(held) do names[#names + 1] = t.name end
-  f.titles.count:SetText(#held == 0 and "" or ((#held == 1 and "1 titolo" or (#held .. " titoli")) .. GREY .. " (passa er mouse)|r"))
+  f.titles.count:SetText(#held == 0 and "" or (#held == 1 and "1 titolo" or (#held .. " titoli")))
   f.titles.countBtn.list = names
   -- milestones, with who got there first
   local first = {}
@@ -696,7 +700,7 @@ local function RefreshDiary(v, list)
   local qt, qw = H.StatOf(rec, "q", "t"), H.StatOf(rec, "q", "w")
   f.quest.title:SetText("Quest " .. GREY .. (mode == "w" and "'sta settimana" or "da sempre") .. "|r")
   f.quest.sub:SetText((mode == "w" and ("Fatte 'sta settimana: " .. qw) or ("Fatte da sempre: " .. qt)) ..
-    ((not you or ns.alt) and (GREY .. "  (pe' zona, più l'urtime 3)|r") or ""))
+    "")
   local items = QuestLines(rec, you)
   if you and not ns.alt and mode == "t" then
     local before = qt - #T.QuestLog()
@@ -854,9 +858,9 @@ end
 ----------------------------------------------------------------------
 local function Build()
   local v = H.NewView("progresso")
-  v.tabRank = H.TopTab(v, "Classifiche", function() page = "rank" end)
+  v.tabRank = H.TopTab(v, "La Corsa", function() page = "rank" end)
   v.tabRank:SetPoint("TOPLEFT", 0, 0)
-  v.tabAdv = H.TopTab(v, "Avventure", function() page = "adv" end)
+  v.tabAdv = H.TopTab(v, "Le Chicche", function() page = "adv" end)
   v.tabAdv:SetPoint("LEFT", v.tabRank, "RIGHT", 2, 0)
   v.tabTitles = H.TopTab(v, "Titoli", function() page = "titles" end)
   v.tabTitles:SetPoint("LEFT", v.tabAdv, "RIGHT", 2, 0)

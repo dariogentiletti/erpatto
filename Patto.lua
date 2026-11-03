@@ -198,6 +198,7 @@ function P.CleanMember(r)
     for _, k in ipairs({ "a", "b", "c" }) do
       out[k] = Str(v[k], 60)
       out["s" .. k] = out[k] and math.floor(Num(v["s" .. k], 0, 1e5) or 0) or nil
+      out["q" .. k] = out[k] and Num(v["q" .. k], 10, 1000) and math.floor(Num(v["q" .. k], 10, 1000)) or nil -- the odds taken, x10
     end
     return out
   end

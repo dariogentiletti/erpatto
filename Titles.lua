@@ -58,7 +58,7 @@ Ti.LIST = {
   { id = "fruttarolo", name = "A Fruttarolo", kind = "top", desc = "Chi ha raccorto più erbe, minerali e pelli.",
     value = function(m) return Stat(m, "he") + Stat(m, "mi") + Stat(m, "sk") end },
   { id = "pellegrino", name = "A Pellegrino", kind = "top", desc = "Chi ha camminato de più: le scarpe so' finite.", value = function(m) return Stat(m, "tr") end },
-  { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più mostri famosi, rari e boss.", value = function(m) return Stat(m, "nk") end },
+  { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più boss e rari.", value = function(m) return Stat(m, "nk") end },
   { id = "imbranato", name = "A Imbranato", kind = "top", desc = "Chi è morto più vorte in modo ridicolo: cascato, affogato o da 'n pischello.",
     value = function(m) return Stat(m, "em") end },
   { id = "tombolaro", name = "A Strozzino", kind = "top", desc = "Er più ricco der Botteghino: più piotte de tutti.",

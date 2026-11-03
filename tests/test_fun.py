@@ -140,7 +140,12 @@ sc = A.ns.Tombola.Score(A.rec())
 A.ns.Tombola.Update()
 check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my piotte shared: 20 + %s' % sc.points)
 A.ns.UI.Show('botteghino')
-check(A.has('La Tombola, settimana 1') and A.has('La Schedina') and A.has('Li più ricchi') and A.has('piotte'), 'Botteghino: card, schedina, richest, purse')
+check(A.has('Settimana 1') and A.has('Quanto paga') and A.has('A che stanno') and A.has('piotte'), 'Botteghino, Tombola page: card, payouts, everybody on the card, purse')
+check(not A.has('se gioca a piotte'), 'no explanation under the header')
+A.ns.Botteghino.Show('ricchi')
+check(A.has('Li ricchi') and A.has('Sfotti') and A.has('Piotte'), 'Li ricchi page')
+A.ns.Botteghino.Show('schedina')
+check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Puntate'), 'Schedina page: the three questions with odds')
 
 # ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
 TB = A.ns.Tombola
@@ -148,29 +153,49 @@ bal0 = TB.Balance()
 ok = TB.Bet('a', 'Player-1-BBB')
 ok2 = TB.Bet('a', None, 10)
 check(ok and ok2 and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 piotte on Pietro')
+check(A.rec().vt.qa and A.rec().vt.qa > 10, 'the odds are taken with the bet: %s' % A.rec().vt.qa)
 bad = TB.Bet('a', None, 'boh')
 check((bad[0] if isinstance(bad, tuple) else bad) is False, 'a stake must be a number')
 ok7 = TB.Bet('a', None, 7)
 check(ok7 and A.rec().vt.sa == 7 and TB.Balance() == bal0 - 7, 'any stake, not just 1/5/10: 7')
 # typed in the box and Punta
-A.ns.UI.Show('botteghino')
-r1 = A.ns.UI._views.botteghino.q[1]
+A.ns.Botteghino.Show('schedina')
+bv = A.ns.UI._views.botteghino
+r1 = bv.q[1]
 r1.stake.SetText(r1.stake, '10'); r1.place.Click(r1.place)
 check(A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'typed 10 in the box and Punta')
-res = TB.Bet('b', None, 5)
+check('Giocata!' in str(r1.mineLine.text) and '10 su Pietro a ' in str(r1.mineLine.text) and 'Si vince' in str(r1.winLine.text), 'the bet is confirmed and says what it pays: ' + str(r1.mineLine.text) + ' / ' + str(r1.winLine.text))
+check(r1.place.text == 'Cambia', 'the button now changes the bet')
+# click a member in the list, write the stake, Punta
+r2 = bv.q[2]
+row = [b for b in r2.rows.values() if b.shown and str(b.guid) == 'Player-1-AAA'][0]
+row.Click(row)
+check(row.selTex.shown and 'Su Dario a ' in str(r2.mineLine.text), 'clicking a member picks them: ' + str(r2.mineLine.text))
+r2.stake.SetText(r2.stake, '3'); r2.stake.GetScript(r2.stake, 'OnTextChanged')(r2.stake)
+check('Si vince' in str(r2.winLine.text), 'the payout shows while you write the stake: ' + str(r2.winLine.text))
+r2.place.Click(r2.place)
+check(str(A.rec().vt.b) == 'Player-1-AAA' and A.rec().vt.sb == 3, 'Punta places it')
+res = TB.Bet('c', None, 5)
 check(res[0] is False if isinstance(res, tuple) else res is False, 'no stake without a pick')
 big = TB.Bet('c', 'Player-1-AAA', 10000)
 check((big[0] if isinstance(big, tuple) else big) is False, 'cannot stake more than you have')
+qBefore = TB.Odds(1, A.ns.UI.Members(), 'a')[0]['Player-1-BBB'].q
 B.ns.Tombola.Bet('a', 'Player-1-BBB'); B.ns.Tombola.Bet('a', None, 5)
 secs(10)
 check(str(B.ns.state.members['Player-1-AAA'].vt.a) == 'Player-1-BBB', 'the others see the bet')
-A.ns.UI.Show('botteghino')
-check(A.has('Montepremi 15: Pietro 2 (paga 1,0)'), 'pot and the top pick with its payout')
+odds = TB.Odds(1, A.ns.UI.Members(), 'a')[0]
+check(odds['Player-1-BBB'].q <= qBefore and odds['Player-1-BBB'].staked == 15 and odds['Player-1-AAA'].q > odds['Player-1-BBB'].q,
+  'more piotte on Pietro, he pays less; who nobody plays pays more: %s -> %s, Dario %s' % (qBefore, odds['Player-1-BBB'].q, odds['Player-1-AAA'].q))
+A.ns.Botteghino.Show('schedina')
+prow = [b for b in bv.q[1].rows.values() if b.shown and str(b.guid) == 'Player-1-BBB'][0]
+check(str(prow.staked.text) == '15' and prow.mine.shown, 'Pietro: 15 piotte on him, my check on him')
+mineQ = A.rec().vt.qa
 T[0] = START + WEEK + 3600; secs(130)
 book = A.g.ErPattoDB.points[code]
-check(book.weeks[1] is not None and book.right == 1 and book.weeks[1].w == 10, 'week 1 paid: pot 15 shared 10/5 -> Dario gets 10: %s' % (book.weeks[1].w,))
+expect = 10 * mineQ // 10
+check(book.weeks[1] is not None and book.right >= 1 and book.weeks[1].w >= expect, 'week 1 paid at my odds: 10 x %s = %s, got %s' % (mineQ, expect, book.weeks[1].w))
 ch = A.g.ErPattoChiusura
-check(ch and ch.shown and 'Settimana 1 chiusa' in str(ch.title.text) and '+10' in str(ch.schMoney.text) and 'Pietro' in str(ch.rows[1].detail.text), 'closed week shown in its own window, not the chat: ' + str(ch and ch.title.text))
+check(ch and ch.shown and 'Settimana 1 chiusa' in str(ch.title.text) and ('+%d' % expect) in str(ch.rows[1].res.text) and 'Pietro' in str(ch.rows[1].detail.text), 'closed week shown in its own window, not the chat: ' + str(ch and ch.title.text) + ' ' + str(ch.rows[1].res.text))
 check(not any('Schedina de la settimana' in str(x) for x in A.g.CHAT.values()), 'nothing in the chat')
 check(any('Settimana 1 chiusa' in n for n in A.news()), 'and a line in the news')
 ch.ok.Click(ch.ok)

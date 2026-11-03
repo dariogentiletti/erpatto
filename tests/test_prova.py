@@ -22,15 +22,14 @@ sc = TB.Score(A.rec())
 check(sc.cells >= 1, 'my pre-start actions tick the card: %d cells' % sc.cells)
 ok = TB.Bet('a', 'FAKE-3')
 check(ok and A.g.ErPattoDB.testVotes.a == 'FAKE-3' and A.g.ErPattoDB.testVotes.sa == 5 and A.rec().vt is None, 'test bet (5 by default) kept on this computer only')
-A.ns.UI.Show('botteghino')
-check(A.has('Montepremi'), 'pots shown, test members included')
-# the picker list opens and picks
+A.ns.Botteghino.Show('schedina')
+check(A.has('Aldo') and A.has('Quota'), 'odds shown, test members included')
+# click a member, write the stake, Punta
 r = bv.q[2]
-r.pick.Click(r.pick)
-pk = A.g.ErPattoPickMember
-row = [x for x in pk.rows.values() if x.shown][1]
+row = [x for x in r.rows.values() if x.shown and str(x.guid).startswith('FAKE')][0]
 row.Click(row)
-check(A.g.ErPattoDB.testVotes.b == row.guid, 'picking from the list places the bet: ' + str(row.guid))
+r.stake.SetText(r.stake, '4'); r.place.Click(r.place)
+check(A.g.ErPattoDB.testVotes.b == row.guid and A.g.ErPattoDB.testVotes.sb == 4 and 'Giocata!' in str(r.mineLine.text), 'click, stake, Punta: placed and confirmed: ' + str(r.mineLine.text))
 # the bulletin can be tried in test mode
 A.ns.Home.ShowBulletin(True)
 check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.text), 'test bulletin')
@@ -39,6 +38,7 @@ check(total is not None and total >= sc2.points, 'simulated close: %s points, %s
 btn = bv.testBtn; btn.Click(btn)
 ch = A.g.ErPattoChiusura
 check(ch and ch.shown and '(prova)' in str(ch.title.text) and "C'avresti" in str(ch.balance.text), 'close button: the closing window, in test mode')
+check(any('chiusa (prova)' in str(n.t) for n in A.ns.News.List().values()), 'and a line in the news')
 TB.Update()
 check(A.rec().pts is None, 'no real piotte written in test mode')
 A.ns.db.opts.testMode = False

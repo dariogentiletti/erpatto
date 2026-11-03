@@ -7,7 +7,7 @@ ns.UI = UI
 local BD = BackdropTemplateMixin and "BackdropTemplate" or nil
 local BAR = "Interface\\TargetingFrame\\UI-StatusBar"
 
-local W, H = 780, 449
+local W, H = 780, 457
 local TAB_H = 30 -- how far the bottom tabs hang under the window
 local f, content
 local views, tabs = {}, {}
@@ -390,10 +390,10 @@ local function MakeTab(i, key, label)
   local tw = math.floor((b.text.GetStringWidth and b.text:GetStringWidth() or 60) + 0.5)
   b:SetSize(math.max(64, tw + 30), TAB_H)
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetColorTexture(1, 0.82, 0, 0.1)
+  hl:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-Tab-RealHighlight")
   hl:SetBlendMode("ADD")
-  hl:SetPoint("TOPLEFT", 4, -2)
-  hl:SetPoint("BOTTOMRIGHT", -4, 6)
+  hl:SetPoint("TOPLEFT", 3, -2)
+  hl:SetPoint("BOTTOMRIGHT", -3, 6)
   b.hl = hl
   -- the unselected look, owned by the window so its border covers the top
   b.off = { fill = f:CreateTexture(nil, "BACKGROUND", nil, -6) }
@@ -427,28 +427,20 @@ local function MakeTab(i, key, label)
   return b
 end
 
--- the window border, opened under the selected tab (a, b: its left and right edge) and run round it: the bottom
--- rail stops where the tab's side rails start, so the two meet in a corner, as in the vanilla frame
+-- the selected tab stands over the window's bottom border (a, b: its left and right edge), its inside the same
+-- marble as the window, so the window opens into it, as in the vanilla frame
 local function LayoutChrome(a, b)
-  local r, s = f.rail, RS
-  Put(r[P_TL], f, 0, 0, s, s) Put(r[P_TR], f, W - s, 0, s, s) Put(r[P_T], f, s, 0, W - 2 * s, s)
-  Put(r[P_L], f, 0, s, s, H - 2 * s) Put(r[P_R], f, W - s, s, s, H - 2 * s)
-  Put(r[P_BL], f, 0, H - s, s, s) Put(r[P_BR], f, W - s, H - s, s, s)
-  if a and b and a >= 2 * s and b - a >= 3 * s and b <= W - 2 * s then
-    -- the rail runs 2 px in from a piece's outer side (3 px from the bottom/right one)
-    Put(r[P_B], f, s, H - s, a + 3 - s, s)
-    Put(r.b2, f, b - 3, H - s, W - s - (b - 3), s)
-    Put(r.tL, f, a, H - 3, s, TAB_H + 3 - s)
-    Put(r.tR, f, b - s, H - 3, s, TAB_H + 3 - s)
-    Put(r.tBL, f, a, H + TAB_H - s, s, s)
-    Put(r.tBR, f, b - s, H + TAB_H - s, s, s)
-    Put(r.tB, f, a + s, H + TAB_H - s, b - a - 2 * s, s)
-    f.tabStone:Fit(b - a - 6, TAB_H + 1, a + 3, H - 4)
-    f.tabStone.tex:Show()
+  local t, s = f.selTab, RS
+  if a and b then
+    local top, bottom = H - 9, H + TAB_H
+    Put(t.fill, f, a + 3, top, b - a - 6, bottom - top - 3)
+    Put(t[P_L], f, a, top, s, bottom - top - s)
+    Put(t[P_R], f, b - s, top, s, bottom - top - s)
+    Put(t[P_BL], f, a, bottom - s, s, s)
+    Put(t[P_BR], f, b - s, bottom - s, s, s)
+    Put(t[P_B], f, a + s, bottom - s, b - a - 2 * s, s)
   else
-    Put(r[P_B], f, s, H - s, W - 2 * s, s)
-    for _, k in ipairs({ "b2", "tL", "tR", "tBL", "tBR", "tB" }) do r[k]:Hide() end
-    f.tabStone.tex:Hide()
+    for _, x in pairs(t) do x:Hide() end
   end
 end
 
@@ -496,10 +488,11 @@ local function TopTab(parent, label, onClick)
   b.stone = FitStone(b, 2)
   Border(b, nil, "BORDER", 0, "bottom")
   local hl = b:CreateTexture(nil, "HIGHLIGHT")
-  hl:SetColorTexture(1, 0.82, 0, 0.1)
+  hl:SetTexture("Interface\\PaperDollInfoFrame\\UI-Character-Tab-RealHighlight")
+  hl:SetTexCoord(0, 1, 1, 0) -- glow on the top edge
   hl:SetBlendMode("ADD")
-  hl:SetPoint("TOPLEFT", 4, -4)
-  hl:SetPoint("BOTTOMRIGHT", -4, 0)
+  hl:SetPoint("TOPLEFT", 3, -2)
+  hl:SetPoint("BOTTOMRIGHT", -3, 0)
   b.hl = hl
   b:SetScript("OnClick", function(self)
     if self.selected then return end
@@ -1035,7 +1028,6 @@ local function MemberRow(parent, w)
     end
     if rec.ver then lines[#lines + 1] = "|cff9d9d9dAddon " .. rec.ver .. "|r" end
     lines[#lines + 1] = "|cff9d9d9dBarra: livello da 1 a 60. Linea bianca: er cap de 'sta settimana.|r"
-    lines[#lines + 1] = "|cff20ff20Clicca pe' vedé er personaggio|r"
     Tip(self, lines)
   end)
   r:SetScript("OnLeave", HideTip)
@@ -1055,6 +1047,8 @@ local function GruppiColumn(v, i, w)
     if col.teamId and ns.state and not ns.alt then
       P.ChooseTeam(ns.state, ns.recordGuid, col.teamId)
       T.RefreshSelf("team")
+      -- the vanilla "joined a group" chime
+      if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
     end
   end)
   col.btn:SetPoint("TOP", col.info, "BOTTOM", 0, -6)
@@ -1503,37 +1497,58 @@ local function Build()
     local p, _, rp, x, y = self:GetPoint()
     if ns.db then ns.db.ui.main = { p, rp, x, y } end
   end)
-  -- the window: dark stone inside the metal border; the border is laid out round the selected tab (LayoutChrome)
+  -- the window: the vanilla character frame (UI-Character-General), cut so it stretches to this size: the top with
+  -- the round portrait, the title strip and the close box as they are; the borders and the marble stretched
   local fill = f:CreateTexture(nil, "BACKGROUND", nil, -8)
-  fill:SetColorTexture(0.07, 0.068, 0.065, 1)
-  fill:SetPoint("TOPLEFT", 4, -4)
-  fill:SetPoint("BOTTOMRIGHT", -4, 4)
-  f.stone = Stone(f, 4, 4, true)
-  f.stone:Fit(W - 8, H - 8)
-  f.tabStone = Stone(f, 0, 0, true) -- the inside of the selected tab: same pattern, it joins the window's
-  f.tabStone.u0, f.tabStone.v0 = f.stone.u0, f.stone.v0
-  f.rail = {}
-  for i = 0, 7 do f.rail[i] = RailTex(f, nil, i) end
-  for k, i in pairs({ b2 = P_B, tL = P_L, tR = P_R, tBL = P_BL, tBR = P_BR, tB = P_B }) do f.rail[k] = RailTex(f, nil, i) end
+  fill:SetColorTexture(0.05, 0.05, 0.05, 1)
+  fill:SetPoint("TOPLEFT", 2, -2)
+  fill:SetPoint("BOTTOMRIGHT", -2, 2)
+  local ART = "Interface\\PaperDollInfoFrame\\UI-Character-General-"
+  -- x0, x1, y0, y1 in the 384x512 picture the four files make (left files 256 wide, right ones 128)
+  local function Art(x0, x1, y0, y1, x, y, w, h)
+    local right, bottom = x0 >= 256, y0 >= 256
+    local t = f:CreateTexture(nil, "BACKGROUND", nil, 0)
+    t:SetTexture(ART .. (bottom and "Bottom" or "Top") .. (right and "Right" or "Left"))
+    local ox, oy, fw = right and 256 or 0, bottom and 256 or 0, right and 128 or 256
+    t:SetTexCoord((x0 - ox) / fw, (x1 - ox) / fw, (y0 - oy) / 256, (y1 - oy) / 256)
+    Put(t, f, x, y, w, h)
+    return t
+  end
+  -- the picture's frame runs from x 10 to 348 and from y 13 to 436
+  Art(0, 100, 0, 80, -10, -13, 100, 80)
+  Art(100, 250, 0, 80, 90, -13, W - 138, 80)
+  Art(300, 352, 0, 80, W - 48, -13, 52, 80)
+  Art(0, 24, 80, 250, -10, 67, 24, H - 83)
+  Art(24, 250, 80, 250, 14, 67, W - 28, H - 83)
+  Art(334, 352, 80, 250, W - 14, 67, 18, H - 83)
+  Art(0, 24, 420, 440, -10, H - 16, 24, 20)
+  Art(24, 250, 420, 440, 14, H - 16, W - 28, 20)
+  Art(334, 352, 420, 440, W - 14, H - 16, 18, 20)
+  -- the round portrait: the lupa, emblem of the patto
+  local portrait = f:CreateTexture(nil, "BACKGROUND", nil, -1)
+  Put(portrait, f, -4, -10, 61, 61)
+  local EMBLEM = "Interface\\Icons\\Ability_Hunter_Pet_Wolf"
+  if not (SetPortraitToTexture and pcall(SetPortraitToTexture, portrait, EMBLEM)) then
+    portrait:SetTexture(EMBLEM)
+    if portrait.SetMask then pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
+  end
+  f.portrait = portrait
+  -- the selected tab, over the bottom border
+  f.selTab = { fill = Art(30, 230, 300, 410, 0, 0, 1, 1) }
+  f.selTab.fill:SetDrawLayer("ARTWORK", 0)
+  for _, k in ipairs({ P_L, P_R, P_BL, P_BR, P_B }) do f.selTab[k] = RailTex(f, nil, k, "ARTWORK", 1) end
   if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoFrame") end
   f:Hide()
 
-  -- the name of the patto on a small framed plate standing on the top border
-  local plate = Box(f, 220, 26)
-  plate:SetPoint("TOP", f, "TOP", 0, 12)
-  plate:SetFrameLevel(f:GetFrameLevel() + 25)
-  f.plate = plate
-  local title = Text(plate, "GameFontNormal", "Er Patto", nil, "CENTER")
-  title:SetPoint("CENTER", 0, 0)
+  -- the name of the patto in the title strip, the close button in its box
+  local title = Text(f, "GameFontNormal", "Er Patto", W - 160, "CENTER")
+  title:SetPoint("CENTER", f, "TOPLEFT", W / 2 + 18, -10)
+  if title.SetWordWrap then title:SetWordWrap(false) end
   f.title = title
-  function f.SetTitle(text)
-    title:SetText(text)
-    local tw = (title.GetStringWidth and title:GetStringWidth()) or 120
-    plate:SetWidth(math.max(160, math.min(460, math.floor(tw + 0.5) + 48)))
-  end
+  function f.SetTitle(text) title:SetText(text) end
   local close = CreateFrame("Button", nil, f)
   close:SetSize(32, 32)
-  close:SetPoint("TOPRIGHT", 2, 2)
+  close:SetPoint("CENTER", f, "TOPRIGHT", -12, -10)
   close:SetFrameLevel(f:GetFrameLevel() + 25)
   close:SetNormalTexture(MEDIA .. "close-up.tga")
   close:SetPushedTexture(MEDIA .. "close-down.tga")
@@ -1541,14 +1556,14 @@ local function Build()
   if close.SetHitRectInsets then close:SetHitRectInsets(5, 5, 5, 5) end
   close:SetScript("OnClick", function() f:Hide() end)
   f.close = close
-  f.info = Text(f, "GameFontHighlightSmall", "", 340)
-  f.info:SetPoint("TOPLEFT", 20, -32)
+  f.info = Text(f, "GameFontHighlightSmall", "", 300)
+  f.info:SetPoint("TOPLEFT", 72, -34)
   f.alert = Text(f, "GameFontRedSmall", "", 260, "CENTER")
-  f.alert:SetPoint("TOP", 0, -32)
+  f.alert:SetPoint("TOP", 0, -34)
   LayoutChrome()
 
   content = CreateFrame("Frame", nil, f)
-  content:SetPoint("TOPLEFT", 18, -58)
+  content:SetPoint("TOPLEFT", 18, -66)
   content:SetPoint("BOTTOMRIGHT", -18, 16)
 
   BuildWelcome()
@@ -1786,7 +1801,6 @@ function UI.RefreshHUD()
     if not st.started then tip[#tip + 1] = "Se parte tra " .. U.Until(ns.state.settings.start - now) .. "." end
     if st.nextCap > st.cap then tip[#tip + 1] = "Prossimo cap " .. st.nextCap .. ", tra " .. U.Until(st.unlockAt - now) .. "." end
   end
-  tip[#tip + 1] = "|cff9d9d9dClicca pe' aprì, trascina pe' spostà. /patto hud la nasconde.|r"
   hud.tip = tip
   hud:SetValue(fill)
   hud.text:SetText(text)
