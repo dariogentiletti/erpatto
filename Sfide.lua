@@ -32,10 +32,10 @@ ns.Sfide = S
 
 local DAY = 86400
 S.PENDING = DAY           -- a sfida waits a day for the answer
-S.ASK = 600               -- a duello a la gogna waits ten minutes for the yes
-S.DUEL_WINDOW = 1800      -- and is fought within half an hour of it
-S.RV_ASK = 600            -- the loser has ten minutes to ask for la rivincita (or la bella), the other ten to answer
-S.RV_FIGHT = 1800         -- and it's fought within half an hour
+-- the yes is the game's own: the challenge sends the duel request, accepting it is accepting the gogna
+S.DUEL_WINDOW = 600       -- the duel after the request counts if it ends within ten minutes
+S.RV_ASK = 600            -- the loser has ten minutes to ask for la rivincita (or la bella)
+S.RV_FIGHT = 600          -- and it's fought within ten minutes
 S.PICK = 900              -- the winner has a quarter of an hour to choose er pegno
 S.SHORT, S.LONG = 1, 7    -- days a la gogna
 S.TAJA_WINDOW = 7 * DAY
@@ -340,7 +340,7 @@ local function PickOf(s, all)
   return nil
 end
 
--- states: "aspetta" (a yes is awaited: s.cur), "incorso" (accepted, to be fought: s.cur), "rivincita" (the loser of
+-- states: "incorso" (the duel request is out, the duel to be fought: s.cur), "rivincita" (the loser of
 -- s.last may ask), "chiusa" (s.w, s.l, s.te: when it closed, s.til: end of the gogna, s.long, s.pena, s.pick),
 -- "rifiutata", "scaduta", "nunfatto" (accepted, never fought). s.duels: the duels fought, s.ids: their challenges.
 function S.Series(all)
@@ -364,34 +364,25 @@ function S.Series(all)
       local cur, n = root, 1
       while cur do
         s.ids[n] = cur.id
-        local ans = Ans(cur, all)
-        local askWin = n == 1 and S.ASK or S.RV_ASK
         local fightWin = n == 1 and S.DUEL_WINDOW or S.RV_FIGHT
-        if not ans then
-          if now - cur.at <= askWin then s.state, s.cur, s.n = "aspetta", cur, n
-          elseif n == 1 then s.state = "scaduta"
-          else Close(cur.at + askWin, "zitto") end
-          break
-        end
-        if ans.a ~= 1 then
-          if n == 1 then s.state = "rifiutata" else Close(ans.at or cur.at, "no") end
-          break
-        end
-        local t0 = ans.at or cur.at
+        local t0 = cur.at
         local prev = s.duels[n - 1]
         local d = FirstDuel(all, cur.from, cur.to, math.max(t0 - SLACK, prev and (prev.at + 1) or 0))
         if d and d.at > t0 + fightWin then d = nil end
         if not d then
-          if now - t0 <= fightWin then s.state, s.cur, s.n = "incorso", cur, n
+          -- the duel request turned down (x = 2, written by either of the two), or never fought
+          local off
+          for _, x in ipairs(nexts[cur.id] or {}) do if x.x == 2 and x.at >= t0 - SLACK then off = x end end
+          if not off and now - t0 <= fightWin then s.state, s.cur, s.n = "incorso", cur, n
           elseif n == 1 then s.state = "nunfatto"
-          else Close(t0 + fightWin, "nunfatto") end
+          else Close(off and off.at or (t0 + fightWin), "no") end
           break
         end
         s.duels[n] = { w = d.w, l = d.l, at = d.at, asker = cur.from }
         if n >= 3 then Close(d.at, "bella") break end
         local nx
         for _, x in ipairs(nexts[cur.id] or {}) do
-          if x.from == d.l and x.at >= d.at - SLACK and x.at <= d.at + S.RV_ASK + SLACK and (not nx or x.at < nx.at) then nx = x end
+          if x.from == d.l and x.x ~= 2 and x.at >= d.at - SLACK and x.at <= d.at + S.RV_ASK + SLACK and (not nx or x.at < nx.at) then nx = x end
         end
         if nx and nx.x then Close(nx.at, "basta") break end
         if nx then
@@ -477,6 +468,28 @@ function S.PegnoText(s, all)
   if pena.key == "servo" then return pena.name .. " de " .. Short((all or Members())[s.w]) end
   return pena.name
 end
+-- er pegno told to whoever has it: what happens to them, in plain words
+function S.PegnoYou(s, all)
+  all = all or Members()
+  local pena = S.PENE[s.pena or 0]
+  if not pena then return nil end
+  local by = Short(all[s.w])
+  if pena.key == "img" then
+    local f = Figure(s.id)
+    return "Porti la maschera: in chat, davanti ar nome tuo, l'amichi der patto leggono [" .. f.name .. "], e la faccia sta accanto ar nome tuo ne le liste."
+  elseif pena.key == "nick" then
+    return "Te chiamano \"" .. tostring(s.t) .. "\": sta accanto ar nome tuo ne le liste der patto, e davanti a quello che scrivi in chat."
+  elseif pena.key == "bee" then
+    return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
+  elseif pena.key == "emote" then
+    return "Ogni vorta che resusciti, er personaggio tuo " .. (S.EMOTES[s.e or 1] or S.EMOTES[1]).name:lower() .. " da solo, davanti a tutti."
+  elseif pena.key == "crier" then
+    return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
+  elseif pena.key == "servo" then
+    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. E ogni vorta che metti " .. by .. " ner mirino, er personaggio tuo je s'inchina da solo."
+  end
+end
+
 -- the face of a pegno: the animal of the mask, the icon of the others, a question mark while it's being chosen
 function S.PegnoIcon(s)
   local pena = S.PENE[s.pena or 0]
@@ -568,6 +581,22 @@ local function UnitFor(name)
   end
 end
 
+-- send the game's duel request to a member (from a click: the game wants a hardware event); hint: a unit token
+local function StartTheDuel(guid, hint)
+  local m = Members()[guid]
+  if not m then return false end
+  if not StartDuel then return false, "Er duello nun pò partì." end
+  local u
+  if hint and UnitName then
+    local ok, n = pcall(UnitName, hint)
+    if ok and n and not U.IsSecret(n) and (n == m.name or n == Short(m)) then u = hint end
+  end
+  u = u or UnitFor(m.name)
+  if not u then return false, Short(m) .. " nun è qui vicino: mettilo ner mirino e riprova." end
+  if not pcall(StartDuel, u) then return false, "Er duello nun è partito: riprova." end
+  return true
+end
+
 local function SaveAnswer(id, yes, extra)
   local a = { id = id, a = yes and 1 or 0, at = Now() }
   for k, v in pairs(extra or {}) do a[k] = v end
@@ -585,15 +614,18 @@ local function SaveGd(c)
 end
 
 -- throw a duello a la gogna
-function S.Gogna(to)
+function S.Gogna(to, unit)
   if not ns.state or ns.alt then return false end
   local all = Members()
   if not all[to] or to == ns.recordGuid then return false, "Scegli chi sfidà." end
   local list = S.Series(all)
   local why = BlockText(ns.recordGuid, list, all) or BlockText(to, list, all)
   if why then return false, why end
+  local ok, e = StartTheDuel(to, unit)
+  if not ok then return false, e end
   local c = { id = NewId(), to = to, at = Now() }
   SaveGd(c)
+  S.Live(ns.recordGuid, to, true)
   S.Update()
   return true, c
 end
@@ -603,34 +635,26 @@ function S.Rematch(sid, basta)
   if not ns.state or ns.alt then return false end
   local s = FindSeries(sid)
   if not (s and s.state == "rivincita" and s.last.l == ns.recordGuid) then return false, "Nun c'è più niente da chiede." end
+  if not basta then
+    local ok, e = StartTheDuel(s.last.w)
+    if not ok then return false, e end
+  end
   local c = { id = NewId(), to = s.last.w, rv = s.ids[s.n], x = basta and 1 or nil, at = Now() }
   SaveGd(c)
+  if not basta then S.Live(ns.recordGuid, s.last.w, true) end
   S.Update()
   return true, c
 end
 
--- yes or no to a duello a la gogna (or a rivincita, a bella)
-function S.AnswerGogna(id, yes)
-  if not ns.state or ns.alt then return false end
-  local all = Members()
-  local c = S.GdAll()[id]
-  if not c or c.to ~= ns.recordGuid or c.x then return false end
-  if Ans(c, all) then return false, "Hai già risposto." end
-  if Now() - c.at > (c.rv and S.RV_ASK or S.ASK) then return false, "È passato troppo tempo." end
-  if yes and not c.rv then
-    local list = S.Series(all)
-    local why = BlockText(ns.recordGuid, list, all, c.id) or BlockText(c.from, list, all, c.id)
-    if why then return false, why end
+-- the duel request was turned down (DUEL_FINISHED with no winner): the gogna isn't on
+local function TurnedDown()
+  local me = ns.recordGuid
+  for _, x in ipairs(S.Series()) do
+    if x.state == "incorso" and (x.cur.from == me or x.cur.to == me) and Now() - x.cur.at > 2 then
+      SaveGd({ id = NewId(), to = x.cur.from == me and x.cur.to or x.cur.from, rv = x.cur.id, x = 2, at = Now() })
+      S.Update()
+    end
   end
-  SaveAnswer(id, yes)
-  if yes then
-    -- the duel at once: everyone near can bet, and the request goes out if the other one is here
-    S.Live(c.from, ns.recordGuid, true)
-    local u = UnitFor(all[c.from] and all[c.from].name)
-    if u and StartDuel then pcall(StartDuel, u) end
-  end
-  S.Update()
-  return true
 end
 
 -- the winner chooses er pegno
@@ -864,18 +888,25 @@ function S.Update()
   -- er duello a la gogna
   for _, s in ipairs(series) do
     if not ns.alt then
-      if s.state == "aspetta" and s.cur.to == me and not shown["a:" .. s.cur.id] then
+      -- one window at a time, under the game's duel request: what's at stake, what to do
+      if s.state == "incorso" and s.cur.to == me and not shown["a:" .. s.cur.id] then
         shown["a:" .. s.cur.id] = true
-        S.AskGogna(s, all)
+        S.Called(s, all)
       elseif s.state == "rivincita" and s.last.l == me and not shown["r:" .. s.ids[s.n]] then
         shown["r:" .. s.ids[s.n]] = true
         S.OfferRematch(s, all)
       elseif s.state == "rivincita" and s.last.w == me and not shown["w:" .. s.ids[s.n]] then
         shown["w:" .. s.ids[s.n]] = true
-        S.ShowPegno(s, true)
+        S.Notice("Hai vinto!", "Hai battuto " .. GOLD .. Name(all, s.last.l) .. "|r.\nSi vole " .. (s.n == 1 and "la rivincita" or "la bella") .. ", te arriva la richiesta de duello.", 15)
       elseif s.state == "chiusa" and s.w == me and not s.pick and Now() <= s.te + S.PICK and not shown["p:" .. s.id] then
         shown["p:" .. s.id] = true
         S.ShowPegno(s)
+      elseif s.state == "chiusa" and s.l == me and not s.pena and not shown["l:" .. s.id] then
+        shown["l:" .. s.id] = true
+        S.Notice("A la gogna", "Hai perso co' " .. GOLD .. Name(all, s.w) .. "|r: stai a la gogna pe' " .. Span(s.long) .. ".\nEr pegno lo sta a sceje lui.", 20)
+      elseif s.state == "chiusa" and s.l == me and s.pena and Now() < s.til and not st.told["y:" .. s.id] then
+        st.told["y:" .. s.id] = true
+        S.ShowPena(s, all)
       end
     end
     if s.state == "chiusa" then
@@ -1013,10 +1044,13 @@ end
 ----------------------------------------------------------------------
 -- dialogs (the vanilla popup: dialog box, white text, red buttons)
 ----------------------------------------------------------------------
-local function Dialog(name, w, h, title)
+-- the gogna windows: one at a time, under the game's own popups (the duel request sits at the top)
+local GOGNA = {}
+local function Only(d) for _, x in ipairs(GOGNA) do if x ~= d and x:IsShown() then x:Hide() end end end
+local function Dialog(name, w, h, title, gogna)
   local d = CreateFrame("Frame", name, UIParent)
   d:SetSize(w, h)
-  d:SetPoint("CENTER", 0, 160)
+  if gogna then d:SetPoint("TOP", UIParent, "TOP", 0, -260) GOGNA[#GOGNA + 1] = d else d:SetPoint("CENTER", 0, 160) end
   d:SetFrameStrata("DIALOG")
   d:SetToplevel(true)
   d:EnableMouse(true)
@@ -1086,43 +1120,38 @@ function S.Ask(c, all)
   if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
 end
 
--- a duello a la gogna (or a rivincita, a bella) for me
-local call
-function S.AskGogna(s, all)
-  all = all or Members()
-  if not call then
-    call = Dialog("ErPattoChiamata", 400, 140, "Duello a la gogna!")
-    call.text = H.Text(call, "GameFontHighlight", "", 360, "CENTER")
-    call.text:SetPoint("TOP", 0, -34)
-    call.yes = H.Btn(call, "Ce sto", 130, function()
-      if call.id == "prova" then call:Hide() return end
-      if Report(call, S.AnswerGogna(call.id, true)) then Done(call, "Ce stai! Er duello parte: fatte valé.") end
-    end)
-    call.no = H.Btn(call, "Me tiro indietro", 130, function()
-      if call.id ~= "prova" then S.AnswerGogna(call.id, false) end
-      call:Hide()
-    end)
-    call.msg = H.Text(call, "GameFontNormal", "", 360, "CENTER")
-    call.msg:SetPoint("BOTTOM", 0, 24)
-    call.controls = { call.yes, call.no }
+-- a window that only tells: a line or two, the X, it closes by itself
+local notice
+function S.Notice(title, body, secs, horn)
+  if not notice then
+    notice = Dialog("ErPattoAvviso", 420, 112, "", true)
+    H.CloseX(notice)
+    notice.text = H.Text(notice, "GameFontHighlight", "", 380, "CENTER")
+    notice.text:SetPoint("TOP", 0, -34)
   end
-  Reset(call)
-  local c = s.cur
-  call.id = c.id
-  local who = GOLD .. Name(all, c.from) .. "|r"
+  notice.title:SetText(title)
+  notice.text:SetText(body)
+  local th = notice.text.GetStringHeight and notice.text:GetStringHeight() or 0
+  if type(th) ~= "number" or th <= 0 then th = 14 * (select(2, tostring(body):gsub("\n", "")) + 2) end
+  notice:SetHeight(math.max(96, 34 + th + 28))
+  Only(notice)
+  notice:Show()
+  if horn then Epic() end
+  local token = {}
+  notice.token = token
+  if C_Timer then C_Timer.After(secs or 12, function() if notice.token == token then notice:Hide() end end) end
+end
+
+-- the duel request of a gogna for me: what's at stake (accepting is in the game's own popup)
+function S.Called(s, all)
+  all = all or Members()
+  local who = GOLD .. Name(all, s.cur.from) .. "|r"
   if s.n == 1 then
-    call.title:SetText("Duello a la gogna!")
-    call.text:SetText(who .. " te sfida a duello a la gogna.\n" .. RULE)
-    TwoButtons(call, "Ce sto", "Me tiro indietro")
+    S.Notice("Duello a la gogna!", who .. " te sfida a duello a la gogna: accetta la richiesta de duello.\n" .. RULE, 60, true)
   else
     local which = s.n == 2 and "la rivincita" or "la bella"
-    call.title:SetText(s.n == 2 and "Rivincita!" or "La bella!")
-    call.text:SetText(who .. " vole " .. which .. ".\nSi la perde lui, sta a la gogna 'na settimana.\nSi la perdi tu, ce stai tu 'n giorno.")
-    TwoButtons(call, "Ce sto", "Nun te la do")
+    S.Notice(s.n == 2 and "Rivincita!" or "La bella!", who .. " vole " .. which .. ": accetta la richiesta de duello.\nSi la riperde, sta a la gogna 'na settimana. Si perdi tu, ce stai tu 'n giorno. Si nun accetti, ce va lui pe' 'n giorno.", 60, true)
   end
-  call:Show()
-  Epic()
-  if C_Timer then C_Timer.After(s.n == 1 and S.ASK or S.RV_ASK, function() if call.id == c.id and call:IsShown() then call:Hide() end end) end
 end
 
 -- I lost: la rivincita (or la bella)?
@@ -1130,16 +1159,15 @@ local offer
 function S.OfferRematch(s, all)
   all = all or Members()
   if not offer then
-    offer = Dialog("ErPattoRivincita", 400, 150, "Hai perso!")
+    offer = Dialog("ErPattoRivincita", 400, 150, "Hai perso!", true)
     offer.text = H.Text(offer, "GameFontHighlight", "", 360, "CENTER")
     offer.text:SetPoint("TOP", 0, -32)
     offer.yes = H.Btn(offer, "Rivincita!", 130, function()
+      if offer.sid == "prova" then Done(offer, "Richiesta de duello mannata (prova).") return end
       local ok, c = S.Rematch(offer.sid)
       if Report(offer, ok, c) then
         offer.sent = c.id
-        Done(offer, (offer.n == 1 and "Rivincita" or "Bella") .. " chiesta a " .. Name(Members(), offer.winner) .. ".\nAspetto che risponne...", nil, true)
-        offer.no:Show()
-        OneButton(offer, "Chiudi")
+        Done(offer, "Richiesta de duello mannata a " .. Name(Members(), offer.winner) .. ".\nSi accetta, è " .. (offer.n == 1 and "la rivincita" or "la bella") .. ".", 6)
       end
     end)
     offer.no = H.Btn(offer, "Basta così", 130, function()
@@ -1160,6 +1188,7 @@ function S.OfferRematch(s, all)
     offer.text:SetText("Si lassi stà, vai a la gogna 'n giorno.\nLa bella co' " .. who .. "? Si la perdi, ce stai 'na settimana.")
     TwoButtons(offer, "La bella!", "Basta così")
   end
+  Only(offer)
   offer:Show()
   local left = S.RV_ASK - (Now() - (s.last.at or Now()))
   if C_Timer then C_Timer.After(math.max(1, left), function() if offer.sid == s.id and not offer.sent then offer:Hide() end end) end
@@ -1205,10 +1234,10 @@ S.PenaPicker = PenaPicker
 
 -- I won: wait for the rivincita, then choose er pegno
 local pegno
-function S.ShowPegno(s, wait)
+function S.ShowPegno(s)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 380, 254, "Hai vinto!")
+    pegno = Dialog("ErPattoPegno", 380, 254, "Hai vinto!", true)
     pegno.form = { p = 1, e = 1 }
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 340, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
@@ -1226,17 +1255,13 @@ function S.ShowPegno(s, wait)
   end
   Reset(pegno)
   pegno.sid = s.id
-  if wait then
-    pegno.l = s.last.l
-    Done(pegno, "Hai battuto " .. GOLD .. Name(all, s.last.l) .. "|r.\nVedemo si vole " .. (s.n == 1 and "la rivincita" or "la bella") .. "...", 30)
-  else
-    pegno.l = s.l
-    pegno.form.p, pegno.form.t, pegno.form.e = 1, nil, 1
-    pegno.text:SetText(GOLD .. Name(all, s.l) .. "|r va a la gogna pe' " .. Span(s.long) .. ".\nChe pegno je dai?")
-    pegno.pena.Refresh()
-  end
+  pegno.l = s.l
+  pegno.form.p, pegno.form.t, pegno.form.e = 1, nil, 1
+  pegno.text:SetText(GOLD .. Name(all, s.l) .. "|r va a la gogna pe' " .. Span(s.long) .. ".\nChe pegno je dai?")
+  pegno.pena.Refresh()
+  Only(pegno)
   pegno:Show()
-  if not wait and C_Timer then
+  if C_Timer then
     local left = S.PICK - (Now() - (s.te or Now()))
     C_Timer.After(math.max(1, left), function() if pegno.sid == s.id then pegno:Hide() end end)
   end
@@ -1289,20 +1314,18 @@ end
 
 -- from the menu: throw a duello a la gogna
 local duel
-function S.OpenDuel(guid)
+function S.OpenDuel(guid, unit)
   local all = Members()
   if not all[guid] or guid == ns.recordGuid then return end
   if not duel then
-    duel = Dialog("ErPattoDuelloGogna", 400, 140, "Duello a la gogna")
+    duel = Dialog("ErPattoDuelloGogna", 400, 140, "Duello a la gogna", true)
     duel.text = H.Text(duel, "GameFontHighlight", "", 360, "CENTER")
     duel.text:SetPoint("TOP", 0, -34)
     duel.yes = H.Btn(duel, "Sfida!", 130, function()
-      local ok, c = S.Gogna(duel.to)
+      local ok, c = S.Gogna(duel.to, duel.unit)
       if Report(duel, ok, c) then
         duel.sent = c.id
-        Done(duel, "Aspetto che " .. Name(Members(), duel.to) .. " risponne...", nil, true)
-        duel.no:Show()
-        OneButton(duel, "Chiudi")
+        Done(duel, "Richiesta de duello mannata a " .. Name(Members(), duel.to) .. ".\nSi accetta, è a la gogna.", 6)
       end
     end)
     duel.no = H.Btn(duel, "Lassa stà", 130, function() duel:Hide() end)
@@ -1313,13 +1336,49 @@ function S.OpenDuel(guid)
   Reset(duel)
   TwoButtons(duel, "Sfida!", "Lassa stà")
   duel.sent = nil
-  duel.to = guid
+  duel.to, duel.unit = guid, unit
   duel.text:SetText("Sfidi " .. H.Colored(all[guid]) .. " a duello a la gogna.\n" .. RULE)
+  Only(duel)
   duel:Show()
   local list = S.Series(all)
   local why = BlockText(ns.recordGuid, list, all) or BlockText(guid, list, all)
   duel.err:SetText(why or "")
   duel.yes:SetEnabled(not why)
+end
+
+-- my pegno, explained: what it does to me, until when, who sent me (once when it lands, and from the debuff)
+local pena
+function S.ShowPena(s, all)
+  all = all or Members()
+  if not pena then
+    pena = Dialog("ErPattoPena", 420, 176, "A la gogna", true)
+    pena.icon = pena:CreateTexture(nil, "ARTWORK")
+    pena.icon:SetSize(36, 36)
+    pena.icon:SetPoint("TOPLEFT", 26, -34)
+    local border = pena:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Buttons\\UI-Debuff-Border")
+    border:SetSize(40, 39)
+    border:SetPoint("CENTER", pena.icon)
+    border:SetVertexColor(0.8, 0, 0)
+    pena.name = H.Text(pena, "GameFontNormal", "", 310)
+    pena.name:SetPoint("TOPLEFT", 74, -34)
+    pena.text = H.Text(pena, "GameFontHighlight", "", 316)
+    pena.text:SetPoint("TOPLEFT", 74, -52)
+    pena.til = H.Text(pena, "GameFontHighlightSmall", "", 316)
+    pena.yes = H.Btn(pena, "Ho capito", 120, function() pena:Hide() end)
+    pena.yes:SetPoint("BOTTOM", 0, 18)
+  end
+  local p = S.PENE[s.pena or 0]
+  pena.icon:SetTexture(S.PegnoIcon(s))
+  pena.name:SetText(p and p.name or "Er pegno")
+  pena.text:SetText(S.PegnoYou(s, all) or "")
+  pena.til:ClearAllPoints()
+  pena.til:SetPoint("TOPLEFT", pena.text, "BOTTOMLEFT", 0, -8)
+  pena.til:SetText(GREY .. "Fino a " .. U.When(s.til) .. ". T'ha mannato " .. Name(all, s.w) .. ".|r")
+  local th = (pena.text.GetStringHeight and pena.text:GetStringHeight()) or 42
+  pena:SetHeight(math.max(150, 52 + th + 30 + 50))
+  Only(pena)
+  pena:Show()
 end
 
 local gufa
@@ -1395,11 +1454,12 @@ function S.ShowMyGogna()
     pic:SetScript("OnEnter", function(self)
       local x = S.AtGogna(ns.recordGuid)
       if not x then return end
-      local what = S.PegnoText(x.s) or "Er pegno lo sta a sceje " .. Short(Members()[x.by])
-      local pena = S.PENE[x.s.pena or 0]
-      H.Tip(self, { "A la gogna", what, pena and pena.tip or nil, "T'ha mannato " .. Short(Members()[x.by]) .. ".", "Ancora " .. Left(x.til) .. "." })
+      local p = S.PENE[x.s.pena or 0]
+      H.Tip(self, { "A la gogna" .. (p and (": " .. p.name) or ""), S.PegnoYou(x.s) or ("Er pegno lo sta a sceje " .. Short(Members()[x.by]) .. "."),
+        "T'ha mannato " .. Short(Members()[x.by]) .. ". Ancora " .. Left(x.til) .. "." })
     end)
     pic:SetScript("OnLeave", H.HideTip)
+    pic:SetScript("OnClick", function() local x = S.AtGogna(ns.recordGuid) if x and x.s.pena then S.ShowPena(x.s) end end)
     if C_Timer then C_Timer.NewTicker(20, function() if pic:IsShown() then S.ShowMyGogna() end end) end
   end
   pic.icon:SetTexture(S.PegnoIcon(g.s))
@@ -1458,6 +1518,7 @@ function S.TestGogna()
   local all = Members()
   if ns.News then ns.News.Banner(Short(ns.MyRecord()) .. " va a la gogna!", S.PegnoText(test.s, all) .. ", pe' du' minuti (prova).", { 1, 0.5, 0.2 }, "evento") end
   if pena.key == "emote" then Emote((S.EMOTES[1]).tok) end
+  S.ShowPena(test.s, all)
   if UI.Refresh then UI.Refresh() end
   if C_Timer then C_Timer.After(121, function() Rebuild() S.ShowMyGogna() UI.Refresh() end) end
   return pena.name
@@ -1465,7 +1526,7 @@ end
 function S.TestAsk()
   local f = Fakes()
   if not f[1] then return end
-  S.AskGogna({ n = 1, cur = { id = "prova", from = f[1], to = ns.recordGuid } })
+  S.Called({ n = 1, cur = { id = "prova", from = f[1], to = ns.recordGuid } })
 end
 function S.TestRematch()
   local f = Fakes()
@@ -1502,7 +1563,7 @@ ns.On("Live", function(from, data)
     end
   elseif data.t == "gd" and type(data.c) == "table" and type(data.c.id) == "string" then
     local c = data.c
-    liveGd[c.id:sub(1, 40)] = { id = c.id:sub(1, 40), from = from, to = Txt(c.to, 60), rv = Txt(c.rv, 40), x = tonumber(c.x) == 1 and 1 or nil, at = tonumber(c.at) or Now() }
+    liveGd[c.id:sub(1, 40)] = { id = c.id:sub(1, 40), from = from, to = Txt(c.to, 60), rv = Txt(c.rv, 40), x = (tonumber(c.x) == 1 or tonumber(c.x) == 2) and tonumber(c.x) or nil, at = tonumber(c.at) or Now() }
     S.Update()
     return
   elseif data.t == "gp" and type(data.x) == "table" and type(data.x.id) == "string" then
@@ -1512,16 +1573,6 @@ ns.On("Live", function(from, data)
     return
   elseif data.t == "ans" and type(data.id) == "string" then
     liveAns[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), a = tonumber(data.a) == 1 and 1 or 0, at = Now(), by = from }
-    for _, d in pairs({ duel = duel, offer = offer }) do
-      if d:IsShown() and d.sent and d.sent == data.id then
-        if tonumber(data.a) == 1 then
-          Done(d, Short(all[from]) .. " ha detto de sì!\nEr duello parte: fatte valé.")
-          Epic()
-        else
-          Done(d, Short(all[from]) .. " s'è tirato indietro.")
-        end
-      end
-    end
     S.Update()
     return
   elseif data.t == "live" and data.a ~= me and data.b ~= me and not ns.alt then
@@ -1557,9 +1608,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
   elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
     if not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then pcall(OnRevive) end
-  elseif event == "PLAYER_TARGET_CHANGED" then pcall(OnTarget) end
+  elseif event == "PLAYER_TARGET_CHANGED" then pcall(OnTarget)
+  elseif event == "DUEL_FINISHED" then
+    -- after a real duel the result is in by then; if not, the request was turned down
+    if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) end) end
+  end
 end)
-for _, e in ipairs({ "DUEL_REQUESTED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
+for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
 
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end
@@ -1569,7 +1624,7 @@ local function AddMenu()
       for guid, m in pairs(ns.state.members) do
         if guid ~= ns.recordGuid and (m.name == data.name or Short(m) == data.name) then
           if root.CreateDivider then root:CreateDivider() end
-          root:CreateButton("Duello a la gogna", function() S.OpenDuel(guid) end)
+          root:CreateButton("Duello a la gogna", function() S.OpenDuel(guid, data.unit) end)
           root:CreateButton("Gufata", function() S.OpenGufa(guid) end)
           return
         end

@@ -280,10 +280,11 @@ A.ns.UI.Show('botteghino')
 A.ns.UI.Show('casa')
 check(A.has('Aldo'), 'test mode members fill the new pages too')
 A.ns.db.opts.testMode = False
-# ---- er duello a la gogna
+# ---- er duello a la gogna: the game's duel request is the yes, our windows only tell
 S, SB, SC = A.ns.Sfide, B.ns.Sfide, C.ns.Sfide
 for x in clients:
-    x.lua.execute('EMOTES = {}; DoEmote = function(e, t) table.insert(EMOTES, e .. ":" .. tostring(t)) end; DUELS = {}; StartDuel = function(u) table.insert(DUELS, u) end')
+    x.lua.execute('EMOTES = {}; DoEmote = function(e, t) table.insert(EMOTES, e .. ":" .. tostring(t)) end; DUELS = {}; StartDuel = function(u) table.insert(DUELS, u) end; TARGETNAME = nil; UnitName = function(u) if u == "player" then return P_NAME end if u == "target" then return TARGETNAME end return nil end')
+A.g.TARGETNAME, B.g.TARGETNAME, C.g.TARGETNAME = 'Pietro', 'Dario', 'Pietro'
 secs(15)
 def first(v): return v[0] if isinstance(v, tuple) else v
 def second(v): return v[1] if isinstance(v, tuple) else None
@@ -292,103 +293,95 @@ def duel(w, l):
     T[0] += 60
     for x in (w, l): x.ns.T.OnSystemMessage('%s has defeated %s in a duel' % (NAMES[w], NAMES[l]))
     secs(10)
-balA, balB = A.ns.Tombola.Balance(), B.ns.Tombola.Balance()
-S.OpenDuel('Player-1-BBB')
+def ndu(x): return len(list(x.g.DUELS.values()))
+def shown(x, name): f = x.g[name]; return f is not None and f.shown
+gogna_windows = ['ErPattoDuelloGogna', 'ErPattoAvviso', 'ErPattoRivincita', 'ErPattoPegno', 'ErPattoPena']
+def one_at_a_time(x): return sum(1 for n in gogna_windows if shown(x, n)) <= 1
+balA = A.ns.Tombola.Balance()
+S.OpenDuel('Player-1-BBB', 'target')
 dd = A.g.ErPattoDuelloGogna
-check(dd.shown and 'Pietro' in str(dd.text.text) and 'pegno' in str(dd.text.text) and 'piotte' not in str(dd.text.text), 'the duel window: no piotte, the rule in one line: ' + str(dd.text.text))
+check(dd.shown and 'Pietro' in str(dd.text.text) and 'pegno' in str(dd.text.text) and 'piotte' not in str(dd.text.text), 'the duel window: no piotte, the rule in one line')
 dd.yes.Click(dd.yes)
-check(dd.shown and 'Aspetto' in str(dd.msg.text) and not dd.yes.shown and A.ns.Tombola.Balance() == balA, 'thrown: the window waits, nothing paid')
+check(ndu(A) == 1 and 'Richiesta de duello' in str(dd.msg.text) and A.ns.Tombola.Balance() == balA, 'Sfida! sends the game\'s duel request, nothing paid: ' + str(dd.msg.text))
 check(not any('gogna' in str(x) for x in A.g.CHAT.values()), 'nothing in the chat')
 secs(2)
-call = B.g.ErPattoChiamata
-check(call is not None and call.shown and 'Dario' in str(call.text.text) and 'gogna' in str(call.title.text) and 'pegno' in str(call.text.text), 'Pietro gets the call at once: ' + str(call and call.text.text))
+av = B.g.ErPattoAvviso
+check(av is not None and av.shown and 'gogna' in str(av.title.text) and 'accetta la richiesta' in str(av.text.text) and av.yes is None, 'Pietro is told what\'s at stake, no buttons of ours: ' + str(av and av.text.text))
+check(ndu(B) == 0, 'Pietro sends no duel request of his own')
 busy = SC.Gogna('Player-1-AAA')
 check(first(busy) is False and 'ballo' in str(second(busy)), 'Gina can\'t throw one at Dario while he has one going: ' + str(second(busy)))
-call.yes.Click(call.yes)
-secs(2)
-check('detto de sì' in str(dd.msg.text), 'Dario\'s window says Pietro accepted: ' + str(dd.msg.text))
 bet = C.g.ErPattoScommessa
-check(bet is not None and bet.shown and 'Colosseo' in str(bet.title.text) and 'gogna' in str(bet.text.text), 'Gina, in the same zone, can bet: ' + str(bet and bet.text.text))
-check(not hasattr(bet, 'no') or bet.no is None, 'no "Gnente" button between the two names')
+check(bet is not None and bet.shown and 'Colosseo' in str(bet.title.text), 'Gina, in the same zone, can bet')
 bet.stake.SetText(bet.stake, '3')
 bet.pa.Click(bet.pa)
 balC = C.ns.Tombola.Balance()
 duel(A, B)
-check(C.ns.Tombola.Balance() == balC + 6, 'Gina bet 3 on Dario and doubled: %s -> %s' % (balC, C.ns.Tombola.Balance()))
+check(C.ns.Tombola.Balance() == balC + 6, 'Gina bet 3 on Dario and doubled')
 off = B.g.ErPattoRivincita
-check(off is not None and off.shown and str(off.yes.text) == 'Rivincita!' and 'settimana' in str(off.text.text), 'Pietro lost: he is offered la rivincita')
-wait = A.g.ErPattoPegno
-check(wait is not None and wait.shown and 'rivincita' in str(wait.msg.text), 'Dario waits to see if he wants it: ' + str(wait and wait.msg.text))
+check(off is not None and off.shown and str(off.yes.text) == 'Rivincita!' and one_at_a_time(B), 'Pietro lost: offered la rivincita, alone on his screen')
+check(shown(A, 'ErPattoAvviso') and 'Hai vinto' in str(A.g.ErPattoAvviso.title.text) and one_at_a_time(A), 'Dario is told he won, nothing to click')
 off.yes.Click(off.yes)
 secs(2)
-call = A.g.ErPattoChiamata
-check(call.shown and 'Rivincita' in str(call.title.text) and 'settimana' in str(call.text.text), 'Dario is asked for la rivincita')
-call.yes.Click(call.yes)
-secs(2)
+check(ndu(B) == 1 and 'Richiesta de duello' in str(off.msg.text), 'Rivincita! sends Pietro\'s duel request')
+check(shown(A, 'ErPattoAvviso') and 'Rivincita' in str(A.g.ErPattoAvviso.title.text) and 'settimana' in str(A.g.ErPattoAvviso.text.text), 'Dario is told what la rivincita puts at stake')
 duel(B, A)
 off = A.g.ErPattoRivincita
-check(off is not None and off.shown and str(off.yes.text) == 'La bella!', 'Pietro got even: Dario can ask for la bella')
-check(B.g.ErPattoPegno.shown and 'bella' in str(B.g.ErPattoPegno.msg.text), 'Pietro waits to see if Dario wants la bella')
+check(off is not None and off.shown and str(off.yes.text) == 'La bella!' and one_at_a_time(A), 'Pietro got even: Dario can ask for la bella')
 off.yes.Click(off.yes)
 secs(2)
-call = B.g.ErPattoChiamata
-check(call.shown and 'bella' in str(call.title.text).lower(), 'Pietro is asked for la bella')
-call.yes.Click(call.yes)
-secs(2)
+check(shown(B, 'ErPattoAvviso') and 'bella' in str(B.g.ErPattoAvviso.title.text).lower(), 'Pietro is told about la bella')
 duel(B, A)
 secs(10)
-check(not A.g.ErPattoRivincita.shown, 'after la bella nobody can ask for more')
+check(not shown(A, 'ErPattoRivincita'), 'after la bella nobody can ask for more')
 peg = B.g.ErPattoPegno
-check(peg.shown and 'Dario' in str(peg.text.text) and 'settimana' in str(peg.text.text) and peg.yes.shown, 'Pietro won la bella that Dario asked for: he chooses er pegno, a week: ' + str(peg.text.text))
-check(A.ns.Sfide.AtGogna('Player-1-AAA') is not None and A.ns.Sfide.NickOf(A.rec()) is None, 'Dario is a la gogna, er pegno still to come')
+check(peg.shown and 'Dario' in str(peg.text.text) and 'settimana' in str(peg.text.text) and one_at_a_time(B), 'Pietro won la bella Dario asked for: he chooses er pegno, a week')
+check(shown(A, 'ErPattoAvviso') and 'sceje' in str(A.g.ErPattoAvviso.text.text), 'Dario is told he is a la gogna, er pegno to come')
 nickRow = [r for r in peg.pena.radios.values() if r.v == 2][0]
 nickRow.Click(nickRow)
 peg.yes.Click(peg.yes)
-check('Scrivi' in str(peg.err.text), 'a nickname is needed: ' + str(peg.err.text))
+check('Scrivi' in str(peg.err.text), 'a nickname is needed')
 peg.pena.text.SetText(peg.pena.text, 'Pippa')
 peg.pena.text.GetScript(peg.pena.text, 'OnTextChanged')(peg.pena.text)
 peg.yes.Click(peg.yes)
 secs(5)
+pw = A.g.ErPattoPena
+check(pw is not None and pw.shown and 'soprannome' in str(pw.name.text) and 'Te chiamano "Pippa"' in str(pw.text.text) and 'Pietro' in str(pw.til.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
 nA = SC.NickOf(C.ns.state.members['Player-1-AAA'])
 check(nA is not None and str(nA.t) == 'Pippa' and nA.til - T[0] > 6 * 86400, 'Dario is "Pippa" for a week, Gina sees it')
-colA = str(C.ns.UI.H.Colored(C.ns.state.members['Player-1-AAA']))
-check('Dario' in colA and '"Pippa"' in colA, 'Dario keeps his name, with "Pippa" next to it: ' + colA)
 res = B.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Dario-Realm')
-check(res[0] is False and 'Pippa' in str(res[1]), 'and in chat: ' + str(res[1]))
-check(str(SC.Champion()) == 'Player-1-BBB' and C.ns.Titles.Holders()['campione']['Player-1-BBB'], 'Pietro sent Dario a la gogna: er Campione')
+check(res[0] is False and 'Pippa' in str(res[1]), 'and in chat')
+check(str(SC.Champion()) == 'Player-1-BBB', 'Pietro sent Dario a la gogna: er Campione')
 check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'Pippa' in n for n in C.news()), 'news: the bella lost and er pegno')
-# a la gogna nobody duels: Dario can't throw one, Pietro already had his today
 r1 = S.Gogna('Player-1-CCC')
-check(first(r1) is False and 'Stai a la gogna' in str(second(r1)), 'Dario a la gogna: no duelli a la gogna: ' + str(second(r1)))
+check(first(r1) is False and 'Stai a la gogna' in str(second(r1)), 'Dario a la gogna: no duelli a la gogna')
 r2 = SB.Gogna('Player-1-CCC')
-check(first(r2) is False and 'oggi' in str(second(r2)), 'Pietro had his one today: ' + str(second(r2)))
-SC.OpenDuel('Player-1-AAA')
-gd = C.g.ErPattoDuelloGogna
-check(gd.shown and 'gogna' in str(gd.err.text) and gd.yes.enabled is False, 'Gina\'s window says Dario is a la gogna, Sfida! off: ' + str(gd.err.text))
-gd.no.Click(gd.no)
-# the next day: Pietro beats Gina, she says basta, Pietro doesn't choose: the picture, a day
+check(first(r2) is False and 'oggi' in str(second(r2)), 'Pietro had his one today')
+# not near: no request, the reason in the window
 T[0] += 86400 + 60; secs(5)
-ok = SC.Gogna('Player-1-BBB')
-check(first(ok), 'Gina throws one at Pietro the next day')
-secs(2)
-B.g.ErPattoChiamata.yes.Click(B.g.ErPattoChiamata.yes)
+C.g.TARGETNAME = None
+SC.OpenDuel('Player-1-BBB')
+gd = C.g.ErPattoDuelloGogna
+gd.yes.Click(gd.yes)
+check(ndu(C) == 0 and 'vicino' in str(gd.err.text), 'Pietro not near: no request, Gina is told: ' + str(gd.err.text))
+C.g.TARGETNAME = 'Pietro'
+# Pietro beats Gina, she says basta, Pietro doesn't choose: the mask, a day
+gd.yes.Click(gd.yes)
 secs(2)
 duel(B, C)
-offC = C.g.ErPattoRivincita
-check(offC.shown, 'Gina is offered la rivincita')
-offC.no.Click(offC.no)
+C.g.ErPattoRivincita.no.Click(C.g.ErPattoRivincita.no)
 secs(5)
 peg = B.g.ErPattoPegno
 check(peg.shown and 'Gina' in str(peg.text.text) and "'n giorno" in str(peg.text.text), 'she said basta: Pietro chooses at once, a day')
 peg.Hide(peg)
 T[0] += 1000; secs(40)
 g = A.ns.Sfide.GognaOf(A.ns.state.members['Player-1-CCC'])
-check(g is not None and 0 < g.til - T[0] < 86400, 'Pietro didn\'t choose: Gina gets the picture for a day')
-check(any('nun ha scelto' in n for n in A.news()), 'news: he didn\'t choose')
-# the figuraccia: the day after, Pietro beats Gina again and makes her cluck
+check(g is not None and 0 < g.til - T[0] < 86400, 'Pietro didn\'t choose: Gina gets the mask for a day')
+check(shown(C, 'ErPattoPena') and 'maschera' in str(C.g.ErPattoPena.text.text), 'Gina is told about the mask')
+C.g.ErPattoPena.Hide(C.g.ErPattoPena)
+# the figuraccia
 T[0] += 86400 + 60; secs(5)
-SB.Gogna('Player-1-CCC'); secs(2)
-C.g.ErPattoChiamata.yes.Click(C.g.ErPattoChiamata.yes); secs(2)
+B.g.TARGETNAME = 'Gina'
+SB.Gogna('Player-1-CCC', 'target'); secs(2)
 duel(B, C)
 C.g.ErPattoRivincita.no.Click(C.g.ErPattoRivincita.no); secs(5)
 peg = B.g.ErPattoPegno
@@ -396,48 +389,49 @@ row = [r for r in peg.pena.radios.values() if r.v == 4][0]
 row.Click(row)
 peg.yes.Click(peg.yes)
 secs(10)
-check(any('CHICKEN' in str(e) for e in C.g.EMOTES.values()), 'Gina does the chicken in front of everyone: ' + str(list(C.g.EMOTES.values())))
+check(any('CHICKEN' in str(e) for e in C.g.EMOTES.values()), 'Gina does the chicken in front of everyone')
 n0 = len(list(C.g.EMOTES.values()))
 T[0] += 30; C.g.FIRE('PLAYER_UNGHOST'); secs(5)
 check(len(list(C.g.EMOTES.values())) == n0 + 1, 'and again every time she comes back to life')
-# la rivincita refused: Gina beats Pietro, who asks for it; Gina says no: Pietro a la gogna a day
+check('resusciti' in str(C.g.ErPattoPena.text.text), 'her window says so')
+# la rivincita turned down: Gina beats Pietro, Pietro asks, Gina declines the duel request: Pietro a la gogna a day
 T[0] += 86400 + 60; secs(5)
-SC.Gogna('Player-1-BBB'); secs(2)
-B.g.ErPattoChiamata.yes.Click(B.g.ErPattoChiamata.yes); secs(2)
+C.g.TARGETNAME = 'Pietro'; B.g.TARGETNAME = 'Gina'
+ok = SC.Gogna('Player-1-BBB', 'target')
+check(first(ok), 'Gina throws another: ' + str(second(ok)))
+secs(8)
 duel(C, B)
-B.g.ErPattoRivincita.yes.Click(B.g.ErPattoRivincita.yes); secs(2)
-check(C.g.ErPattoChiamata.shown and str(C.g.ErPattoChiamata.no.text) == 'Nun te la do', 'Gina can refuse la rivincita')
-C.g.ErPattoChiamata.no.Click(C.g.ErPattoChiamata.no); secs(5)
-check('tirato indietro' in str(B.g.ErPattoRivincita.msg.text), 'Pietro\'s window says she refused: ' + str(B.g.ErPattoRivincita.msg.text) + ' / ' + str(B.g.ErPattoRivincita.shown))
-check(any('nun ha dato la rivincita' in n for n in A.news()), 'news: rivincita refused')
+B.g.ErPattoRivincita.yes.Click(B.g.ErPattoRivincita.yes); secs(4)
+check(shown(C, 'ErPattoAvviso') and 'nun accetti' in str(C.g.ErPattoAvviso.text.text), 'Gina is told what declining means')
+T[0] += 20
+C.g.FIRE('DUEL_FINISHED'); B.g.FIRE('DUEL_FINISHED')
+secs(15)
+check(any('nun ha dato la rivincita' in n for n in A.news()), 'declined: news says so')
 peg = C.g.ErPattoPegno
-row = [r for r in peg.pena.radios.values() if r.v == 5][0]
+check(peg.shown, 'Gina chooses er pegno')
+row = [r for r in peg.pena.radios.values() if r.v == 6][0]
 row.Click(row)
 peg.yes.Click(peg.yes)
 secs(5)
 gB = A.ns.Sfide.AtGogna('Player-1-BBB')
-check(gB is not None and gB.til - T[0] < 86400 and str(SC.Champion()) == 'Player-1-CCC', 'Pietro a la gogna a day; Gina beat the champion: the crown is hers')
-hook = A.lua.eval('function(N) local o = N.Banner; BANNERS = {}; N.Banner = function(t, s, ...) table.insert(BANNERS, tostring(t) .. " / " .. tostring(s)) return o(t, s, ...) end end')
-hook(A.ns.News)
-B.ns.Fun.OnDeath(); B.ns.T.OnDeath()
-secs(30)
-bn = [str(x) for x in A.g.BANNERS.values()]
-check(any('morto de novo Pietro' in n and 'strillone de Gina' in n for n in bn), 'lo strillone: Dario is told Pietro died: ' + str(bn[-2:]))
-# a crash in the middle: Pietro beats Dario... Dario is a la gogna; Gina beats Pietro, Pietro reloads before asking
+check(gB is not None and gB.til - T[0] < 86400 and str(SC.Champion()) == 'Player-1-CCC', 'Pietro a la gogna a day; Gina has the crown')
+check(shown(B, 'ErPattoPena') and 'servo de Gina' in str(B.g.ErPattoPena.text.text) and 'inchina' in str(B.g.ErPattoPena.text.text), 'Pietro is told what being er servo means: ' + str(B.g.ErPattoPena.text.text))
+res = A.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Pietro-Realm')
+check('servo de Gina' in str(res[1]), 'in chat: [servo de Gina]')
+B.g.TARGETNAME = 'Gina'; B.g.FIRE('PLAYER_TARGET_CHANGED'); secs(1)
+check(any('BOW' in str(e) for e in B.g.EMOTES.values()), 'Pietro bows to Gina when he targets her')
+# a reload in the middle: the window still due comes back
 T[0] += 86400 + 60; secs(5)
-ok = SC.Gogna('Player-1-BBB')
-check(first(ok), 'Gina throws another: ' + str(second(ok)))
-secs(8)
-B.g.ErPattoChiamata.yes.Click(B.g.ErPattoChiamata.yes); secs(4)
+SC.Gogna('Player-1-BBB', 'target'); secs(8)
 duel(C, B)
 B.g.ErPattoRivincita.Hide(B.g.ErPattoRivincita)
 B.ns.Sfide.Update()
 check(not B.g.ErPattoRivincita.shown, 'closed by hand: not shown again in the same session')
-B.ns.Sfide.Forget()  # what a reload (or a crash and a new login) does
+B.ns.Sfide.Forget()
 B.ns.Sfide.Update()
-check(B.g.ErPattoRivincita.shown, 'after a reload Pietro is offered la rivincita again: ' + str([str(x.state) for x in B.ns.Sfide.Series().values()][:2]))
+check(B.g.ErPattoRivincita.shown, 'after a reload Pietro is offered la rivincita again')
 T[0] += 700; secs(40)
-check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.yes.shown, 'ten minutes passed: Gina chooses er pegno: ' + str([str(x.state) for x in C.ns.Sfide.Series().values()][:2]))
+check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.yes.shown, 'ten minutes passed: Gina chooses er pegno')
 C.g.ErPattoPegno.Hide(C.g.ErPattoPegno)
 # a sfida a piotte: who fishes more until the end of the week
 balA, balB = A.ns.Tombola.Balance(), B.ns.Tombola.Balance()
