@@ -938,7 +938,9 @@ local function RefreshCap(v)
       row:SetSize(700, 18)
       row.hl = row:CreateTexture(nil, "BACKGROUND")
       row.hl:SetAllPoints()
-      row.hl:SetColorTexture(1, 0.82, 0, 0.18)
+      row.hl:SetTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+      row.hl:SetBlendMode("ADD")
+      row.hl:SetVertexColor(1, 0.82, 0, 0.5)
       row.cells = {}
       v.rows[k] = row
     end

@@ -134,18 +134,29 @@ card = A.ns.Tombola.Card()
 ids = [str(sq.id) for sq in card.values()]
 cardB = [str(sq.id) for sq in B.ns.Tombola.Card().values()]
 check(len(set(ids)) == 9 and ids == cardB, 'one 3x3 card, the same for everybody: ' + ','.join(ids))
+groups = [str(sq.zero or (sq.k if isinstance(sq.k, str) else '+'.join(sq.k.values()))) for sq in card.values()]
+check(len(set(groups)) == 9, 'never two squares on the same thing: ' + ','.join(groups))
 sc = A.ns.Tombola.Score(A.rec())
 A.ns.Tombola.Update()
-check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my sesterzi shared: 20 + %s' % sc.points)
+check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my piotte shared: 20 + %s' % sc.points)
 A.ns.UI.Show('botteghino')
-check(A.has('La Tombola, settimana 1') and A.has('La Schedina') and A.has('Li più ricchi') and A.has('sesterzi'), 'Botteghino: card, schedina, richest, purse')
+check(A.has('La Tombola, settimana 1') and A.has('La Schedina') and A.has('Li più ricchi') and A.has('piotte'), 'Botteghino: card, schedina, richest, purse')
 
 # ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
 TB = A.ns.Tombola
 bal0 = TB.Balance()
 ok = TB.Bet('a', 'Player-1-BBB')
 ok2 = TB.Bet('a', None, 10)
-check(ok and ok2 and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 sesterzi on Pietro')
+check(ok and ok2 and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 piotte on Pietro')
+bad = TB.Bet('a', None, 'boh')
+check((bad[0] if isinstance(bad, tuple) else bad) is False, 'a stake must be a number')
+ok7 = TB.Bet('a', None, 7)
+check(ok7 and A.rec().vt.sa == 7 and TB.Balance() == bal0 - 7, 'any stake, not just 1/5/10: 7')
+# typed in the box and Punta
+A.ns.UI.Show('botteghino')
+r1 = A.ns.UI._views.botteghino.q[1]
+r1.stake.SetText(r1.stake, '10'); r1.place.Click(r1.place)
+check(A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'typed 10 in the box and Punta')
 res = TB.Bet('b', None, 5)
 check(res[0] is False if isinstance(res, tuple) else res is False, 'no stake without a pick')
 big = TB.Bet('c', 'Player-1-AAA', 10000)
@@ -158,7 +169,12 @@ check(A.has('Montepremi 15: Pietro 2 (paga 1,0)'), 'pot and the top pick with it
 T[0] = START + WEEK + 3600; secs(130)
 book = A.g.ErPattoDB.points[code]
 check(book.weeks[1] is not None and book.right == 1 and book.weeks[1].w == 10, 'week 1 paid: pot 15 shared 10/5 -> Dario gets 10: %s' % (book.weeks[1].w,))
-check(any('Schedina' in str(x) for x in A.g.CHAT.values()), 'told in chat')
+ch = A.g.ErPattoChiusura
+check(ch and ch.shown and 'Settimana 1 chiusa' in str(ch.title.text) and '+10' in str(ch.schMoney.text) and 'Pietro' in str(ch.rows[1].detail.text), 'closed week shown in its own window, not the chat: ' + str(ch and ch.title.text))
+check(not any('Schedina de la settimana' in str(x) for x in A.g.CHAT.values()), 'nothing in the chat')
+check(any('Settimana 1 chiusa' in n for n in A.news()), 'and a line in the news')
+ch.ok.Click(ch.ok)
+check(not ch.shown, 'Daje closes it')
 # a sfottò costs 3 and lands on the other screen
 before = TB.Balance()
 ok, msg = TB.Sfotti('Player-1-BBB')

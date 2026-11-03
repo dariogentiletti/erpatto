@@ -17,7 +17,7 @@ A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
 bv = A.ns.UI._views.botteghino
 check(A.has('(prova') and bv.testBtn.shown and A.has('La Schedina'), 'Botteghino in test mode, with the close button')
 # what I do now counts: a duel lost, two quests
-A.ns.T.Bump('dl'); A.ns.T.Bump('q', 20); A.ns.T.Bump('dg', 1)
+A.ns.T.Bump('dl'); A.ns.T.Bump('q', 80); A.ns.T.Bump('dg', 6); A.ns.T.Bump('fl', 10); A.ns.T.Bump('dw', 5); A.ns.T.Bump('fi', 50)
 sc = TB.Score(A.rec())
 check(sc.cells >= 1, 'my pre-start actions tick the card: %d cells' % sc.cells)
 ok = TB.Bet('a', 'FAKE-3')
@@ -34,12 +34,13 @@ check(A.g.ErPattoDB.testVotes.b == row.guid, 'picking from the list places the b
 # the bulletin can be tried in test mode
 A.ns.Home.ShowBulletin(True)
 check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.text), 'test bulletin')
-total, sc2, right, lines, won = TB.SimulateClose()
+total, sc2, right, lines, won, res = TB.SimulateClose()
 check(total is not None and total >= sc2.points, 'simulated close: %s points, %s right' % (total, right))
 btn = bv.testBtn; btn.Click(btn)
-check(any('prova, settimana chiusa' in str(x) for x in A.g.CHAT.values()) and A.g.ErPattoBanner.shown, 'close button: chat and banner')
+ch = A.g.ErPattoChiusura
+check(ch and ch.shown and '(prova)' in str(ch.title.text) and "C'avresti" in str(ch.balance.text), 'close button: the closing window, in test mode')
 TB.Update()
-check(A.rec().pts is None, 'no real sesterzi written in test mode')
+check(A.rec().pts is None, 'no real piotte written in test mode')
 A.ns.db.opts.testMode = False
 check(TB.Testing() is False and TB.Card() is None, 'test mode off: back to no card')
 bad = A.errors()

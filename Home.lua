@@ -242,7 +242,7 @@ local function Refresh(v)
   for i, l in ipairs(v.week) do l:SetText(lines[i] or "") end
   local TB = ns.Tombola
   local sc = TB and rec and TB.Score(rec)
-  v.tomb:SetText(sc and ("Tombola: " .. sc.cells .. "/9 caselle, +" .. sc.points .. (sc.full and " (TOMBOLA!)" or "") .. ".  Sesterzi: |cffffd100" .. TB.Balance() .. "|r") or "")
+  v.tomb:SetText(sc and ("Tombola: " .. sc.cells .. "/9 caselle, +" .. sc.points .. (sc.full and " (TOMBOLA!)" or "") .. ".  " .. TB.Money(TB.Balance())) or "")
   v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
 
@@ -278,7 +278,7 @@ function Home.Bulletin(wk)
     m, v = Leader(list, function(x) local sc = ns.Tombola.Score(x, wk) return sc and sc.points or 0 end)
     if m then
       local sc = ns.Tombola.Score(m, wk)
-      line("Tombola: " .. Colored(m) .. " " .. v .. " sesterzi" .. (sc and sc.full and " (TOMBOLA!)" or ""))
+      line("Tombola: " .. Colored(m) .. " " .. ns.Tombola.HEX .. ns.Tombola.Piotte(v) .. "|r" .. (sc and sc.full and " (TOMBOLA!)" or ""))
     end
   end
   if #out == 0 then line(GREY .. "Settimana tranquilla: nun s'è mosso nessuno.|r") end

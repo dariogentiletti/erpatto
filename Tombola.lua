@@ -1,15 +1,18 @@
--- Er Patto: the logic of Er Botteghino (the betting shop of the patto). The money is the sesterzio.
+-- Er Patto: the logic of Er Botteghino (the betting shop of the patto). The money is the piotta: play money of the
+-- patto, never the game's gold (its own icon, a Darkmoon Faire ticket, and its own green colour).
 --
 -- La Tombola: every week one 3x3 card of nine challenges, the same for everybody. Nobody picks it: it comes out of
 -- the "sacchetto", a draw seeded with the patto code and the week number, so every computer gets the same card
--- without sending anything. Each square is checked against what the member did that week (the shared weekly stats).
---   1 sesterzio a square, +2 a full line ("terno"), +10 the whole card ("tombola").
+-- without sending anything. Never two squares on the same thing. Each square is checked against what the member did
+-- that week (the shared weekly stats).
+--   1 piotta a square, +2 a full line ("terno"), +10 the whole card ("tombola").
 --
 -- La Schedina: three questions each week (who levels most, who quests most, who dies most). In the first two days you
--- pick a member and stake sesterzi. At the end of the week the stakes of each question make the pot, shared among
--- those who guessed right, in proportion to what they staked. If nobody guessed right, everyone gets the stake back.
+-- pick a member and stake as many piotte as you like. At the end of the week the stakes of each question make the pot,
+-- shared among those who guessed right, in proportion to what they staked. If nobody guessed right, stakes go back.
+-- The closed week is shown in its own window (Botteghino.lua), not in the chat.
 --
--- Everybody starts with 20 sesterzi. Sesterzi buy "sfottò" (a banner on a friend's screen) and make the ranking of
+-- Everybody starts with 20 piotte. Piotte buy "sfottò" (a banner on a friend's screen) and make the ranking of
 -- the richest. Each player keeps their own book (per week: tombola, winnings, stakes) and shares the balance.
 -- The bets travel in the record: this week's (vt) and last week's (vp), so the pots can be counted by everyone.
 local ADDON, ns = ...
@@ -18,34 +21,44 @@ local H = UI.H
 local TB = {}
 ns.Tombola = TB
 
-TB.START = 20          -- sesterzi everyone starts with
-TB.STAKES = { 1, 5, 10 }
+TB.START = 20          -- piotte everyone starts with
 TB.SFOTTO = 3          -- the price of a sfottò
+TB.ICON = "Interface\\Icons\\INV_Misc_Ticket_Darkmoon_01"
+TB.HEX = "|cff8fe08f"   -- the colour of piotte, never gold yellow
+
+-- "1 piotta", "20 piotte"; Money adds the colour, Coin the little icon in front
+function TB.Piotte(n) n = n or 0 return (n == 1 or n == -1) and (n .. " piotta") or (n .. " piotte") end
+function TB.Coin(size) return "|T" .. TB.ICON .. ":" .. (size or 0) .. "|t" end
+function TB.Money(n, noIcon) return (noIcon and "" or (TB.Coin() .. " ")) .. TB.HEX .. TB.Piotte(n) .. "|r" end
 local YD_KM = 0.0009144 -- yards to km
 
--- the squares; k is a weekly stat (or a list summed), n the target
+-- the squares; k is a weekly stat (or a list summed), n the target. Meant to take a real week of play.
 TB.POOL = {
-  { id = "q20", t = "Fai 20 quest", k = "q", n = 20 },
-  { id = "q50", t = "Fai 50 quest", k = "q", n = 50 },
-  { id = "dg1", t = "Fai 'n dungeon", k = "dg", n = 1 },
+  { id = "q40", t = "Fai 40 quest", k = "q", n = 40 },
+  { id = "q80", t = "Fai 80 quest", k = "q", n = 80 },
   { id = "dg3", t = "Fai 3 dungeon", k = "dg", n = 3 },
-  { id = "ding2", t = "Sali 2 livelli", k = "ding", n = 2 },
-  { id = "ding4", t = "Sali 4 livelli", k = "ding", n = 4 },
-  { id = "dw1", t = "Vinci 'n duello", k = "dw", n = 1 },
-  { id = "dl1", t = "Perdi 'n duello", k = "dl", n = 1 },
-  { id = "rk1", t = "Ammazza 'n raro", k = "rk", n = 1 },
-  { id = "nk2", t = "Ammazza 2 boss o famosi", k = "nk", n = 2 },
-  { id = "fi10", t = "Pesca 10 pesci", k = "fi", n = 10 },
-  { id = "ga20", t = "Raccoji 20 erbe, minerali o pelli", k = { "he", "mi", "sk" }, n = 20 },
-  { id = "lb1", t = "Trova 'n blu", k = { "lb", "le" }, n = 1 },
-  { id = "em1", t = "More da scemo", k = "em", n = 1 },
-  { id = "pt10", t = "Gioca 10 ore", k = "pt", n = 36000 },
-  { id = "g50", t = "Fai 50 monete d'oro", k = "g", n = 500000 },
-  { id = "tr20", t = "Cammina 20 km", k = "tr", n = 21873 },
-  { id = "fl3", t = "Prendi 3 voli", k = "fl", n = 3 },
-  { id = "hs3", t = "Torna a casa co' la pietra 3 vorte", k = "hs", n = 3 },
-  { id = "dt0", t = "Nun more mai (armeno 5 ore)", zero = "dt", min = { "pt", 18000 } },
+  { id = "dg6", t = "Fai 6 dungeon", k = "dg", n = 6 },
+  { id = "ding5", t = "Sali 5 livelli", k = "ding", n = 5 },
+  { id = "dw5", t = "Vinci 5 duelli", k = "dw", n = 5 },
+  { id = "rk2", t = "Ammazza 2 rari", k = "rk", n = 2 },
+  { id = "nk8", t = "Ammazza 8 boss o famosi", k = "nk", n = 8 },
+  { id = "fi50", t = "Pesca 50 pesci", k = "fi", n = 50 },
+  { id = "ga80", t = "Raccoji 80 erbe, minerali o pelli", k = { "he", "mi", "sk" }, n = 80 },
+  { id = "lb3", t = "Trova 3 blu o viola", k = { "lb", "le" }, n = 3 },
+  { id = "pt12", t = "Gioca 12 ore", k = "pt", n = 43200 },
+  { id = "pt20", t = "Gioca 20 ore", k = "pt", n = 72000 },
+  { id = "g25", t = "Fai 25 monete d'oro", k = "g", n = 250000 },
+  { id = "tr50", t = "Cammina 50 km", k = "tr", n = 54681 },
+  { id = "tr100", t = "Cammina 100 km", k = "tr", n = 109362 },
+  { id = "fl10", t = "Prendi 10 voli", k = "fl", n = 10 },
+  { id = "em2", t = "More 2 vorte da scemo", k = "em", n = 2 },
+  { id = "dt0", t = "Nun more mai (armeno 10 ore)", zero = "dt", min = { "pt", 36000 } },
 }
+-- what a square is about: a card never has two squares on the same thing
+local function Group(sq)
+  if sq.zero then return "0" .. sq.zero end
+  return type(sq.k) == "table" and table.concat(sq.k, "+") or sq.k
+end
 local LINES = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 }, { 1, 4, 7 }, { 2, 5, 8 }, { 3, 6, 9 }, { 1, 5, 9 }, { 3, 5, 7 } }
 TB.LINES = LINES
 
@@ -113,8 +126,14 @@ function TB.Card(wk)
   local rnd = Seeded(key)
   local pool = {}
   for i, c in ipairs(TB.POOL) do pool[i] = c end
-  local card = {}
-  for i = 1, 9 do card[i] = table.remove(pool, rnd(#pool)) end
+  local card, used = {}, {}
+  while #card < 9 and #pool > 0 do
+    local sq = table.remove(pool, rnd(#pool))
+    if not used[Group(sq)] then
+      used[Group(sq)] = true
+      card[#card + 1] = sq
+    end
+  end
   cards[key] = card
   return card
 end
@@ -162,7 +181,7 @@ function TB.Score(rec, wk)
 end
 
 ----------------------------------------------------------------------
--- the book: my sesterzi
+-- the book: my piotte
 ----------------------------------------------------------------------
 local function Book()
   if not (ns.db and ns.state) then return nil end
@@ -247,7 +266,7 @@ end
 
 function TB.Closes(wk) return TB.WeekStart(wk) + TB.VOTE_WINDOW end
 
--- pick (guid) and/or stake for a question; the stake is paid now, a change refunds the old one
+-- pick (guid) and/or stake (any whole number of piotte) for a question; the stake is paid now, a change refunds the old one
 function TB.Bet(qkey, guid, stake)
   local ok, wk = TB.CanVote()
   if not ok then return false, "Le giocate so' chiuse." end
@@ -259,9 +278,15 @@ function TB.Bet(qkey, guid, stake)
   if guid then new[qkey] = guid end
   if not new[qkey] then return false, "Prima scegli su chi giocà." end
   local old = new["s" .. qkey] or 0
-  stake = stake or (old > 0 and old or 5)
+  if stake ~= nil then
+    stake = tonumber(stake)
+    if not stake or stake < 1 then return false, "Scrivi quante piotte ce metti (armeno 1)." end
+    stake = math.floor(stake)
+  end
+  stake = stake or (old > 0 and old or math.min(5, TB.Balance() + old))
   local available = TB.Balance() + old
-  if stake > available then return false, "Nun c'hai abbastanza sesterzi (" .. available .. ")." end
+  if stake < 1 then return false, "Nun c'hai manco 'na piotta." end
+  if stake > available then return false, "Nun c'hai abbastanza piotte (" .. available .. ")." end
   new["s" .. qkey] = stake
   if TB.Testing() then
     ns.db.testVotes = new
@@ -345,6 +370,26 @@ end
 ----------------------------------------------------------------------
 -- closing the weeks
 ----------------------------------------------------------------------
+-- everything the closing window shows for one week
+local function Result(wk, rec, list, mine, sc, test)
+  local byGuid = {}
+  for _, m in ipairs(list) do byGuid[m.guid] = m end
+  local function Name(g) return byGuid[g] and (tostring(byGuid[g].name):match("^(%S+)")) or "?" end
+  local won, right, details = TB.Payout(wk, list, mine or {})
+  local bets = {}
+  for _, d in ipairs(details) do
+    local names = {}
+    for g in pairs(d.winners) do names[#names + 1] = Name(g) end
+    table.sort(names)
+    local pick = mine and mine[d.q.key]
+    bets[#bets + 1] = { text = d.q.text, winners = names, pick = pick and Name(pick) or nil, stake = d.mine, got = d.got,
+      nobody = d.nobody, pot = d.pot, right = pick ~= nil and d.winners[pick] or false }
+  end
+  sc = sc or { points = 0, cells = 0, lines = 0 }
+  return { wk = wk, test = test, tomb = sc, bets = bets, won = won, right = right, total = sc.points + won, played = mine ~= nil }
+end
+TB.Result = Result
+
 function TB.Update()
   if not ns.state or ns.alt or not P.HasSettings(ns.state) then return end
   for _, m in pairs(ns.state.members) do Remember(m) end
@@ -355,18 +400,17 @@ function TB.Update()
   local b = Book()
   local list = UI.Members()
   if b.closed == nil then b.closed = math.max(0, wk - 2) end
+  local closed = {}
   for prev = b.closed + 1, wk - 1 do
     if not b.weeks[prev] then
       local sc = TB.Score(rec, prev)
       local mine = TB.VotesOf(rec, prev)
-      local won, right = 0, 0
-      if mine then won, right = TB.Payout(prev, list, mine) end
+      local res = Result(prev, rec, list, mine, sc, false)
+      local won, right = mine and res.won or 0, mine and res.right or 0
       b.weeks[prev] = { t = sc and sc.points or 0, w = won }
       if b.stakes and b.stakes[prev] then b.weeks[prev].s = b.stakes[prev] b.spent = b.spent + b.stakes[prev] b.stakes[prev] = nil end
       b.right = b.right + right
-      if mine then
-        U.Say("La Schedina de la settimana " .. prev .. ": " .. right .. "/3 indovinate, " .. won .. " sesterzi.")
-      end
+      if res.total > 0 or mine then closed[#closed + 1] = res end
     end
   end
   b.closed = math.max(b.closed, wk - 1)
@@ -375,6 +419,14 @@ function TB.Update()
   local cur = rec.pts or {}
   if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) then
     P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk } }, "pts")
+  end
+  for _, res in ipairs(closed) do
+    res.balance = bal
+    if ns.News then
+      ns.News.Add("Settimana " .. res.wk .. " chiusa: |cffffffff+" .. TB.Piotte(res.total) .. "|r (tombola " .. res.tomb.points ..
+        ", Schedina " .. res.won .. ")")
+    end
+    ns.Fire("WeekClosed", res)
   end
 end
 
@@ -385,23 +437,20 @@ function TB.SimulateClose()
   if not (wk and rec) then return nil end
   local sc = TB.Score(rec, wk) or { points = 0, cells = 0, lines = 0 }
   local list = UI.Members()
-  local mine = TB.VotesOf(rec, wk) or {}
-  local won, right, details = TB.Payout(wk, list, mine)
-  local byGuid = {}
-  for _, m in ipairs(list) do byGuid[m.guid] = m end
+  local mine = TB.VotesOf(rec, wk)
+  local res = Result(wk, rec, list, mine, sc, true)
+  -- the tombola is already in the balance, the stakes already out of it: what changes is the winnings
+  res.balance = TB.Balance() + res.won
   local out = {}
-  for _, d in ipairs(details) do
-    local names = {}
-    for g in pairs(d.winners) do names[#names + 1] = byGuid[g] and (tostring(byGuid[g].name):match("^(%S+)")) or "?" end
-    table.sort(names)
-    out[#out + 1] = d.q.text .. " " .. (#names > 0 and table.concat(names, ", ") or "nessuno") ..
-      (d.mine > 0 and (d.got > 0 and (" |cff20ff20+" .. d.got .. "|r") or " |cffff4040perso|r") or "")
+  for _, d in ipairs(res.bets) do
+    out[#out + 1] = d.text .. " " .. (#d.winners > 0 and table.concat(d.winners, ", ") or "nessuno") ..
+      (d.stake > 0 and (d.got > 0 and (" +" .. d.got) or " perso") or "")
   end
-  return sc.points + won, sc, right, out, won
+  return res.total, sc, res.right, out, res.won, res
 end
 
 ----------------------------------------------------------------------
--- sfottò: a banner on a friend's screen, for 3 sesterzi
+-- sfottò: a banner on a friend's screen, for 3 piotte
 ----------------------------------------------------------------------
 TB.SFOTTI = {
   "Sei proprio 'n pischello!",
@@ -421,7 +470,7 @@ function TB.Sfotti(guid, idx)
   if guid == ns.recordGuid then return false, "Nun te poi sfotte da solo." end
   local now = GetTime and GetTime() or 0
   if now - lastSfotto < 30 then return false, "Aspetta 'n attimo prima de sfotte de novo." end
-  if TB.Balance() < TB.SFOTTO then return false, "Te servono " .. TB.SFOTTO .. " sesterzi." end
+  if TB.Balance() < TB.SFOTTO then return false, "Te servono " .. TB.Piotte(TB.SFOTTO) .. "." end
   idx = idx or math.random(#TB.SFOTTI)
   lastSfotto = now
   if not TB.Testing() then
