@@ -550,6 +550,13 @@ check(C.has('Scontrini') and C.has('Gufata su Dario') and C.has('Messe'), 'the S
 secs(30)
 lgA = [str(C.ns.Tombola.LedgerText(l)) for l in C.ns.Tombola.LedgerOf(C.ns.state.members['Player-1-AAA']).values()]
 check(any('Gufata de Gina' in t for t in lgA), 'and Gina can read Dario\'s: ' + str(lgA[:4]))
+# the game blocks the emotes: remembered, and from then on a line in the emote colour for the patto
+B.g.FIRE('ADDON_ACTION_BLOCKED', 'ErPatto', 'C_ChatInfo.PerformEmote()')
+n0 = len(list(B.g.EMOTES.values()))
+T[0] += 5
+B.ns.Sfide.Emote('DANCE')
+secs(3)
+check(len(list(B.g.EMOTES.values())) == n0 and any('se mette a ballà' in str(m) for m in A.g.CHAT.values()), 'emote blocked once: no more tries, Dario reads the line')
 # er karaoke: every song at every speed is there, and the speeds gather round 1x
 import collections
 media = os.path.join(ADDON, 'Media', 'karaoke')

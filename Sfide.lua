@@ -857,7 +857,8 @@ end
 local function Figuraccia(s, all)
   local e = S.EMOTES[s.e or 1] or S.EMOTES[1]
   local winner = all[s.w]
-  if DoEmote then pcall(DoEmote, e.tok, winner and Short(winner) or nil) end
+  local perform = (C_ChatInfo and C_ChatInfo.PerformEmote) or DoEmote
+  if perform then pcall(perform, e.tok, winner and Short(winner) or nil) end
 end
 
 -- what happened, in one line: "Pietro ha perso pure la rivincita co' Dario"
@@ -1743,11 +1744,34 @@ end
 
 -- the pegni that act by themselves: la figuraccia when coming back to life, er servo bowing to his master
 local lastEmote = 0
+-- the game's emote. On the newest clients addons may not do emotes by themselves (the game shows its "blocked"
+-- window): the first time that happens the build is remembered, and from then on the emote is a line in the emote
+-- colour for me and the patto in the same zone (Say, below) instead
+S.EMOTE_TEXT = { DANCE = "se mette a ballà.", CHICKEN = "fa la gallina.", KNEEL = "s'inginocchia.", CRY = "piagne.",
+  SILLY = "fa lo scemo.", BOW = "s'inchina.", FLEX = "fa er bullo.", SURRENDER = "se arrende." }
+local Say
+local function Build() return GetBuildInfo and select(2, GetBuildInfo()) or "?" end
+local function EmoteBlocked() return ns.db and type(ns.db.noEmote) == "table" and ns.db.noEmote[Build()] end
+local trying = false
 local function Emote(tok, target)
   local now = GetTime and GetTime() or 0
-  if now - lastEmote < 2 or not DoEmote then return end
+  if now - lastEmote < 2 then return end
   lastEmote = now
-  pcall(DoEmote, tok, target)
+  local perform = (C_ChatInfo and C_ChatInfo.PerformEmote) or DoEmote
+  if not perform or EmoteBlocked() then
+    if Say and S.EMOTE_TEXT[tok] then Say(S.EMOTE_TEXT[tok]) end
+    return
+  end
+  trying = true
+  pcall(perform, tok, target)
+  trying = false
+end
+S.Emote = Emote
+-- the game said no: remember it for this build
+function S.EmoteRefused()
+  if not ns.db then return end
+  ns.db.noEmote = type(ns.db.noEmote) == "table" and ns.db.noEmote or {}
+  ns.db.noEmote[Build()] = true
 end
 local function OnRevive() end
 -- er servo: a bow every time he targets his master, and now and then when he's near him
@@ -1767,8 +1791,18 @@ end
 S.SERVO_LINES = { "s'inchina: \"Comandi, padrone %s!\"", "s'inchina davanti ar padrone suo, %s.", "s'inchina: \"Er padrone mio è %s, er mejo der patto.\"",
   "s'inchina: \"Pe' te, padrone %s, questo e artro.\"", "s'inchina e je lucida li stivali a %s." }
 local saidAt, saidN = 0, 0
-local function Say(text)
-  if SendChatMessage then pcall(SendChatMessage, text, "EMOTE") end
+-- a line in the emote colour, as if said: addons can't write in the chat any more (SendChatMessage is blocked
+-- for them and the game shows its "blocked" window), so it goes as a quick message to the patto in the same zone
+-- and in my own chat window
+local function EmoteLine(who, text)
+  local f = DEFAULT_CHAT_FRAME
+  if f and f.AddMessage then f:AddMessage(tostring(who) .. " " .. text, 1, 0.5, 0.25) end
+end
+function Say(text)
+  local rec = ns.MyRecord and ns.MyRecord()
+  EmoteLine(Short(rec), text)
+  local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+  Send({ t = "em", x = text, z = z })
 end
 S.Say = Say
 local function NearBow()
@@ -1951,6 +1985,9 @@ ns.On("Live", function(from, data)
     if pena and pena.key == "kara" and data.z and z == data.z and i and i >= 1 and i <= S.KARAOKE_SONGS then
       for _, x in ipairs(S.KARAOKE_SPEEDS) do if x == sp then PlayKara(i, sp) end end
     end
+  elseif data.t == "em" and type(data.x) == "string" and not ns.alt then
+    local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+    if data.z and z == data.z and all[from] then EmoteLine(Short(all[from]), data.x:gsub("|", ""):sub(1, 120)) end
   elseif data.t == "pp" and data.on == me then
     local g = S.AtGogna(me)
     local pena = g and S.PENE[g.s.pena or 0]
@@ -1985,7 +2022,13 @@ end
 
 local frame = CreateFrame("Frame")
 frame:SetScript("OnEvent", function(_, event, ...)
-  if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
+  if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
+    local addon, fn = ...
+    if addon == ADDON then
+      U.Log("Bloccato", tostring(fn))
+      if tostring(fn):find("Emote") then S.EmoteRefused() end
+    end
+  elseif event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
   elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
     if not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then pcall(OnRevive) end
   elseif event == "PLAYER_TARGET_CHANGED" then pcall(OnTarget)
@@ -1994,7 +2037,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) end) end
   end
 end)
-for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
+for _, e in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "DUEL_REQUESTED", "DUEL_FINISHED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
 
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end
