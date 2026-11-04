@@ -291,6 +291,18 @@ SlashCmdList.ERPATTO = function(raw)
     ns.PrintStatus()
   elseif msg == "sync" then
     if ns.state then C.Hello() U.Say("ho chiesto l'aggiornamenti.") end
+  elseif msg == "bloccati" then
+    -- what the game blocked, and from where (to find it and fix it)
+    local list = ns.db.blocked or {}
+    if #list == 0 then U.Say("er gioco nun ha bloccato gnente.") end
+    for i = 1, math.min(3, #list) do
+      local x = list[i]
+      U.Say(U.When(x.at) .. ": " .. tostring(x.fn))
+      for l in tostring(x.st or ""):gmatch("[^\n]+") do
+        local short = l:match("AddOns[/\\](.-%:%d+)") or l:sub(1, 90)
+        U.Say("   " .. short)
+      end
+    end
   elseif msg == "hud" then
     ns.db.opts.hud = not ns.db.opts.hud
     ns.Fire("Refresh")

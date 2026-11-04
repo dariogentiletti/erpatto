@@ -276,6 +276,16 @@ function P.CleanMember(r)
     if not Num(x.at, 0, 4e9) then return nil end
     return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
   end)
+  -- la guardia: my own time played without the addon (na), the ones I saw online with it off (nv)
+  c.na = List(r.na, 5, function(x)
+    if not (Num(x.at, 0, 4e9) and Num(x.s, 0, 1e7)) then return nil end
+    return { at = Num(x.at, 0, 4e9), s = math.floor(Num(x.s, 0, 1e7)) }
+  end)
+  c.nv = List(r.nv, 5, function(x)
+    local k = Str(x.k, 8)
+    if not (Str(x.g, 60) and Num(x.at, 0, 4e9) and (k == "gilda" or k == "gruppo" or k == "chat")) then return nil end
+    return { g = Str(x.g, 60), at = Num(x.at, 0, 4e9), k = k }
+  end)
   c.dd = List(r.dd, 8, function(x)
     if not (Str(x.o, 60) and Num(x.at, 0, 4e9)) then return nil end
     return { o = Str(x.o, 60), w = (Num(x.w, 0, 1) == 1) and 1 or 0, at = Num(x.at, 0, 4e9) }

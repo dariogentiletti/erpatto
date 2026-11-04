@@ -1758,6 +1758,7 @@ local function RefreshCapo(v)
   local list = P.SortedMembers(state)
   local capo = ns.IsCapo()
   for _, r in ipairs(v.rows) do r:Hide() end
+  local guard = capo and ns.Guardia and ns.Guardia.Report()
   for i, m in ipairs(list) do
     local row = v.rows[i]
     if not row then
@@ -1765,6 +1766,14 @@ local function RefreshCapo(v)
       row:SetSize(700, 24)
       row.name = Text(row, "GameFontHighlightSmall", "", 300)
       row.name:SetPoint("LEFT", 4, 0)
+      -- played with the addon off: the details in the tooltip (Guardia.lua)
+      row:SetScript("OnEnter", function(self)
+        if not self.off then return end
+        local lines = { "Addon spento" }
+        for k = 1, math.min(6, #self.off.lines) do lines[#lines + 1] = self.off.lines[k] end
+        Tip(self, lines)
+      end)
+      row:SetScript("OnLeave", HideTip)
       row.vice = Btn(row, "Fa' vice", 100, function(self)
         local on = not (ns.state.admins.vice or {})[self.guid]
         P.SetVice(ns.state, ns.me, self.guid, on)
@@ -1784,7 +1793,10 @@ local function RefreshCapo(v)
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", 0, -(i - 1) * 24)
     local role = (m.guid == state.admins.capo) and " |cffffd100(capo)|r" or (((state.admins.vice or {})[m.guid]) and " |cffffd100(vice)|r" or "")
-    row.name:SetText(Colored(m) .. role .. "  |cff9d9d9d" .. P.TeamName(state, m.team) .. ", livello " .. tostring(m.lv or "?") .. "|r")
+    local off = guard and guard[m.guid]
+    row.name:SetText(Colored(m) .. role .. (off and "  |cffff4040addon spento|r" or ("  |cff9d9d9d" .. P.TeamName(state, m.team) .. ", livello " .. tostring(m.lv or "?") .. "|r")))
+    row.off = off
+    row:EnableMouse(off ~= nil)
     local isSelf = m.guid == ns.me
     local isCapo = m.guid == state.admins.capo
     row.vice.guid, row.capo.guid, row.ban.guid = m.guid, m.guid, m.guid

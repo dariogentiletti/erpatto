@@ -222,7 +222,8 @@ X.INFO = {
     "Quanno due der patto fanno 'n duello, chi sta ne la stessa zona pò puntà su uno dei due: chi indovina raddoppia.",
     "Scontrini: ogni piotta che hai messo e preso, riga pe' riga; scegli 'n amico pe' vede li sua." },
   imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni." },
-  capo = { "Capo", "Solo pe' er capo: squadre, ore, partenza, annunci e vice." },
+  capo = { "Capo", "Solo pe' er capo: squadre, ore, partenza, annunci e vice.",
+    "\"Addon spento\" vicino a 'n nome: ha giocato senza addon (lo dice er /played suo quanno lo riaccenne) o l'hanno visto online in gilda, in gruppo o in chat co' l'addon zitto. Er mouse sopra pe' li dettagli." },
 }
 
 ----------------------------------------------------------------------

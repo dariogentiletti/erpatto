@@ -580,6 +580,27 @@ B.ns.UI.ShowProgress('rip')
 check(B.has('Cimitero') and B.has('R.I.P.') and B.has('Li più morti') and B.has('A la gogna'), 'Cimitero page')
 holders = A.ns.Titles.Holders()
 check(holders['pecore'] and (holders['pecore']['Player-1-BBB'] or holders['pecore']['Player-1-CCC']), 'A Re de le Pecore: who went most a la gogna')
+# la guardia: Dario plays an hour with the addon off (his /played grows, the addon wasn't there)
+GA = A.ns.Guardia
+GA.OnPlayed(50000)
+secs(60)
+GA.OnPlayed(50000 + 60 + 3600)
+secs(5)
+na = A.rec().na
+check(na and 3500 <= na[1].s <= 3700, 'Dario\'s own /played tells an hour without the addon: ' + str(na and na[1].s))
+# Gina's addon goes quiet, but she writes in the guild chat: Pietro sees it after ten minutes
+C.ns.C.Stop()
+T[0] += 700; secs(5)
+B.ns.Guardia.OnChat('Gina-Realm')
+T[0] += 700; secs(65)
+nv = B.rec().nv
+check(nv and str(nv[1].g) == 'Player-1-CCC' and str(nv[1].k) == 'chat', 'Pietro saw Gina writing with the addon off: ' + str(nv and nv[1].k))
+secs(40)
+rep = A.ns.Guardia.Report()
+check(rep['Player-1-AAA'] is not None and rep['Player-1-CCC'] is not None and any('Pietro' in str(l) for l in rep['Player-1-CCC'].lines.values()), 'the capo\'s report has both')
+A.ns.UI.Show('capo')
+check(A.has('addon spento'), 'Capo, Membri: "addon spento" by their names')
+check(any('addon spento' in n for n in A.news()), 'and the capo reads it in the news')
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

@@ -25,6 +25,7 @@ Progress.lua
 Botteghino.lua
 Sfide.lua
 Bollettino.lua
+Guardia.lua
 News.lua
 Extras.lua
 Diag.lua

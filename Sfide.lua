@@ -2264,7 +2264,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
     local addon, fn = ...
     if addon == ADDON then
-      U.Log("Bloccato", tostring(fn))
+      U.Log("Bloccato", tostring(fn), debugstack and debugstack(2, 8, 0) or "")
+      ns.db.blocked = type(ns.db.blocked) == "table" and ns.db.blocked or {}
+      table.insert(ns.db.blocked, 1, { at = U.Now(), fn = tostring(fn), st = debugstack and tostring(debugstack(2, 8, 0)):sub(1, 600) or "" })
+      while #ns.db.blocked > 5 do table.remove(ns.db.blocked) end
       if tostring(fn):find("Emote") then S.EmoteRefused() end
     end
   elseif event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
