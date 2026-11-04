@@ -208,7 +208,7 @@ X.INFO = {
     "Titoli: chi è er primo in quarcosa vince 'n titolo, che compare in chat davanti ar nome.",
     "Diario: la settimana de ognuno. Confronto: tu contro 'n amico.",
     "Cimitero: tutti li morti der patto, co' l'urtime parole scritte in chat prima de morì, e chi sta a la gogna.",
-    "Er duello a la gogna (tasto destro su 'n amico): parte la richiesta de duello der gioco, e accettalla vor dì accettà la gogna. Chi perde sta a la gogna 'n giorno, e chi vince sceje er pegno: 'n soprannome, la pecora (sopra la testa, "Dario me ha 'mpecorato"), er burattino, er verso, er piagnone, lo strillone, er servo o er karaoke. Cliccanno l'icona de la gogna vicino a li buff vedi che te succede.",
+    "Er duello a la gogna (tasto destro su 'n amico): parte la richiesta de duello der gioco, e accettalla vor dì accettà la gogna. Chi perde sta a la gogna 'n giorno, e chi vince sceje er pegno: 'n soprannome, la pecora (sopra la testa, \"Dario me ha 'mpecorato\"), er burattino, er verso, er piagnone, lo strillone, er servo o er karaoke. Cliccanno l'icona de la gogna vicino a li buff vedi che te succede.",
     "Chi perde pò chiede la rivincita entro 10 minuti; si l'artro la perde, pò chiede la bella. Chi chiede la rivincita (o la bella) e la perde sta a la gogna 'na settimana. Chi sta a la gogna nun ne pò fà; chi vince, invece, pò sfidà chi je pare.",
     "Er Campione: chi manna a la gogna er campione se pija la corona.",
     "'Sta settimana e Da sempre cambiano er periodo contato." },
