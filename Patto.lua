@@ -278,6 +278,14 @@ function P.CleanMember(r)
     if not Num(x.at, 0, 4e9) then return nil end
     return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
   end)
+  -- when I first met each milestone title (Titles.lua), so only the first holds it
+  if type(r.tt) == "table" then
+    c.tt = {}
+    local n = 0
+    for k, v in pairs(r.tt) do
+      if n < 40 and type(k) == "string" and #k <= 16 and Num(v, 0, 4e9) then c.tt[k] = Num(v, 0, 4e9) n = n + 1 end
+    end
+  end
   -- la guardia: my own time played without the addon (na), the ones I saw online with it off (nv)
   c.na = List(r.na, 5, function(x)
     if not (Num(x.at, 0, 4e9) and Num(x.s, 0, 1e7)) then return nil end

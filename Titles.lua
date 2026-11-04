@@ -33,12 +33,12 @@ local function BestProfession(m)
 end
 
 -- kind "top": the one with the highest value, if above zero; nobody on a tie
--- kind "check": a plain condition on the member
+-- kind "check": a condition on the member; of those who meet it, only the first who did (tt) holds it
 Ti.LIST = {
   { id = "pariolino", name = "A Pariolino", kind = "top", value = function(m) return Stat(m, "g") end, desc = "Er primo der patto pe' sordi fatti." },
   { id = "fattorino", name = "A Fattorino", kind = "top", value = function(m) return Stat(m, "q") end, desc = "Er primo pe' quest consegnate: te fai tutte le commissioni de Azeroth." },
   { id = "topo", name = "A Topo de Fogna", kind = "top", value = function(m) return Stat(m, "dg") end, desc = "Er primo pe' dungeon fatti: vivi sotto terra." },
-  { id = "bullo", name = "A Bullo de Trastevere", kind = "top", value = function(m, c) return (InPattoDuels(m, c.idx)) end, desc = "Er primo pe' duelli vinti contro l'artri der patto." },
+  { id = "bullo", name = "A Bullo", kind = "top", value = function(m, c) return (InPattoDuels(m, c.idx)) end, desc = "Er primo pe' duelli vinti contro l'artri der patto." },
   { id = "sacco", name = "A Sacco da Boxe", kind = "top", value = function(m, c) return select(2, InPattoDuels(m, c.idx)) end, desc = "Chi ha perso più duelli ner patto. Armeno ce provi." },
   { id = "gladiatore", name = "A Gladiatore", kind = "top", value = function(m) return Stat(m, "bw") end, desc = "Er primo pe' campi de battaja vinti." },
   { id = "attaccabrighe", name = "A Attaccabrighe", kind = "top", value = function(m) return Stat(m, "hk") end, desc = "Er primo pe' uccisioni onorevoli: nun te se pò incontrà pe' strada." },
@@ -49,7 +49,7 @@ Ti.LIST = {
   { id = "nottambulo", name = "A Nottambulo", kind = "top", value = function(m) return H.StatOf(m, "pt", "w") end, desc = "Chi ha giocato de più 'sta settimana." },
   { id = "cascamorto", name = "A Cascamorto", kind = "top", value = function(m) return Stat(m, "dt") end, desc = "Chi è morto più vorte. Casca e more." },
   { id = "griffato", name = "A Griffato", kind = "top", value = function(m, c) return c.il(m) end, desc = "Er livello oggetti più arto der patto: tutto firmato." },
-  { id = "mastro", name = "A Mastro de Bottega", kind = "top", value = BestProfession, desc = "La professione più arta der patto, quarunque sia." },
+  { id = "mastro", name = "A Mastro", kind = "top", value = BestProfession, desc = "La professione più arta der patto, quarunque sia." },
   { id = "fortunello", name = "A Fortunello", kind = "top", desc = "Er più fortunato: più blu e epici pe' ora de gioco (armeno 2 ore).",
     value = function(m) return Stat(m, "pt") >= 7200 and ns.Fun and ns.Fun.LuckOf(m, "t") or 0 end },
   { id = "iettato", name = "A Iettato", kind = "top", desc = "Er più sfigato: manco 'n blu (armeno 5 ore de gioco). Toccate quarcosa.",
@@ -58,28 +58,28 @@ Ti.LIST = {
   { id = "fruttarolo", name = "A Fruttarolo", kind = "top", desc = "Chi ha raccorto più erbe, minerali e pelli.",
     value = function(m) return Stat(m, "he") + Stat(m, "mi") + Stat(m, "sk") end },
   { id = "pellegrino", name = "A Pellegrino", kind = "top", desc = "Chi ha camminato de più: le scarpe so' finite.", value = function(m) return Stat(m, "tr") end },
-  { id = "cacciatore", name = "A Cacciatore de Teste", kind = "top", desc = "Chi ha ammazzato più boss e rari.", value = function(m) return Stat(m, "nk") end },
+  { id = "cacciatore", name = "A Cacciatore", kind = "top", desc = "Chi ha ammazzato più boss e rari.", value = function(m) return Stat(m, "nk") end },
   { id = "imbranato", name = "A Imbranato", kind = "top", desc = "Chi è morto più vorte in modo ridicolo: cascato, affogato o da 'n pischello.",
     value = function(m) return Stat(m, "em") end },
   { id = "campione", name = "A Campione", kind = "check", desc = "Ha mannato a la gogna er campione: la corona è sua finché nun ce va lui.",
     check = function(m) return ns.Sfide and ns.Sfide.Champion() == m.guid end },
-  { id = "pecore", name = "A Re de le Pecore", kind = "top", desc = "Chi è stato più vorte a la gogna.",
+  { id = "pecore", name = "A Pecorone", kind = "top", desc = "Chi è stato più vorte a la gogna.",
     value = function(m) return ns.Sfide and ns.Sfide.ShameOf(m.guid) or 0 end },
   { id = "tombolaro", name = "A Strozzino", kind = "top", desc = "Er più ricco der Botteghino: più piotte de tutti.",
     value = function(m) return math.max(0, (ns.Tombola and ns.Tombola.TotalOf(m) or 0) - 20) end },
   { id = "imperatore", name = "A Imperatore", kind = "check", desc = "Er primo der patto a arrivà ar 60.",
     check = function(m, c) return c.first60 and c.first60 == m.guid end },
-  { id = "centurione", name = "A Centurione", kind = "check", desc = "Cento quest consegnate.", check = function(m) return Stat(m, "q") >= 100 end },
-  { id = "bottegaio", name = "A Bottegaio", kind = "check", desc = "Cento monete d'oro fatte.", check = function(m) return Stat(m, "g") >= 1000000 end },
-  { id = "turista", name = "A Turista", kind = "check", desc = "Quest in sei zone diverse.", check = function(m) return Count(m.zq) >= 6 end },
-  { id = "cavernicolo", name = "A Cavernicolo", kind = "check", desc = "Cinque dungeon diversi.", check = function(m) return Count(m.dgl) >= 5 end },
-  { id = "immortale", name = "A Immortale", kind = "check", desc = "Zero morti co' armeno dieci ore de gioco.",
+  { id = "centurione", name = "A Centurione", kind = "check", desc = "Er primo der patto a consegnà cento quest.", check = function(m) return Stat(m, "q") >= 100 end },
+  { id = "bottegaio", name = "A Bottegaio", kind = "check", desc = "Er primo der patto a fà cento monete d'oro.", check = function(m) return Stat(m, "g") >= 1000000 end },
+  { id = "turista", name = "A Turista", kind = "check", desc = "Er primo der patto a fà quest in sei zone diverse.", check = function(m) return Count(m.zq) >= 6 end },
+  { id = "cavernicolo", name = "A Cavernicolo", kind = "check", desc = "Er primo der patto a fà cinque dungeon diversi.", check = function(m) return Count(m.dgl) >= 5 end },
+  { id = "immortale", name = "A Immortale", kind = "check", desc = "Er primo a arrivà a dieci ore de gioco senza morì mai (finché nun more).",
     check = function(m) return Stat(m, "pt") >= 36000 and Stat(m, "dt") == 0 end },
-  { id = "furbetto", name = "A Furbetto", kind = "check", desc = "Sta sopra er cap de la squadra sua. Se vede, eh.",
+  { id = "furbetto", name = "A Furbetto", kind = "check", desc = "Er primo che è passato sopra er cap de la squadra sua (finché ce sta). Se vede, eh.",
     check = function(m, c) local st = m.team and M.Status(c.settings, m.team, U.Now()) return st and st.started and not st.lifted and (m.lv or 0) > st.cap end },
   { id = "sorcapo", name = "A Sor Capo", kind = "check", desc = "Er capo der patto.", check = function(m, c) return c.admins.capo == m.guid end },
-  { id = "braccio", name = "A Braccio Destro", kind = "check", desc = "Vice der capo.", check = function(m, c) return (c.admins.vice or {})[m.guid] and true or false end },
-  { id = "pischello", name = "A Pischello", kind = "check", desc = "Ancora sotto ar livello 10.", check = function(m) return (m.lv or 0) > 0 and (m.lv or 0) < 10 end },
+  { id = "braccio", name = "A Braccio", kind = "check", desc = "Er primo vice der capo.", check = function(m, c) return (c.admins.vice or {})[m.guid] and true or false end },
+  { id = "pischello", name = "A Pischello", kind = "check", desc = "L'urtimo rimasto sotto ar livello 10.", check = function(m) return (m.lv or 0) > 0 and (m.lv or 0) < 10 end },
 }
 
 -- one title per profession, for whoever has it highest in the patto (names as the English client writes them)
@@ -87,14 +87,14 @@ local PROFESSIONS = {
   { "Engineering", "scienziato", "A Scienziato", "Er più bravo in Engineering: te fai esplode tutto." },
   { "Blacksmithing", "fabbro", "A Fabbro", "Er più bravo in Blacksmithing." },
   { "Alchemy", "alchimista", "A Alchimista", "Er più bravo in Alchemy: te le fai da solo, le pozioni." },
-  { "Tailoring", "sarto", "A Sarto de Via der Corso", "Er più bravo in Tailoring." },
+  { "Tailoring", "sarto", "A Sarto", "Er più bravo in Tailoring." },
   { "Leatherworking", "conciatore", "A Conciatore", "Er più bravo in Leatherworking." },
   { "Enchanting", "incantatore", "A Incantatore", "Er più bravo in Enchanting." },
   { "Mining", "minatore", "A Minatore", "Er più bravo in Mining." },
   { "Herbalism", "erborista", "A Erborista", "Er più bravo in Herbalism: a coje l'erbetta." },
   { "Skinning", "scortichino", "A Scortichino", "Er più bravo in Skinning." },
-  { "Cooking", "cuoco", "A Cuoco de Testaccio", "Er più bravo in Cooking: amatriciana pe' tutti." },
-  { "Fishing", "pescatore", "A Pescatore der Tevere", "Er più bravo in Fishing." },
+  { "Cooking", "cuoco", "A Cuoco", "Er più bravo in Cooking: amatriciana pe' tutti." },
+  { "Fishing", "pescatore", "A Pescatore", "Er più bravo in Fishing." },
   { "First Aid", "infermiere", "A Infermiere", "Er più bravo in First Aid." },
 }
 for _, p in ipairs(PROFESSIONS) do
@@ -143,10 +143,17 @@ function Ti.Earned(list)
         if n == 1 then out[who.guid][t.id] = true end
       end
     else
+      -- a milestone is one person's only too: the first who reached it (the time is in his record, tt), as long
+      -- as he still qualifies
+      local who, whenAt
       for _, m in ipairs(list) do
         local ok, yes = pcall(t.check, m, c)
-        if ok and yes then out[m.guid][t.id] = true end
+        if ok and yes then
+          local at = type(m.tt) == "table" and m.tt[t.id] or 4e9
+          if not who or at < whenAt or (at == whenAt and tostring(m.guid) < tostring(who.guid)) then who, whenAt = m, at end
+        end
       end
+      if who then out[who.guid][t.id] = true end
     end
   end
   return out
@@ -249,8 +256,26 @@ end
 ----------------------------------------------------------------------
 -- new titles: say it once
 ----------------------------------------------------------------------
+function Ti.Stamp()
+  local rec = ns.state and ns.state.members[ns.recordGuid]
+  if not rec or ns.alt then return end
+  local c = Context(UI.Members())
+  local tt, changed = {}, false
+  for k, v in pairs(type(rec.tt) == "table" and rec.tt or {}) do tt[k] = v end
+  for _, t in ipairs(Ti.LIST) do
+    if t.kind == "check" then
+      local ok, yes = pcall(t.check, rec, c)
+      if ok and yes and not tt[t.id] then tt[t.id] = U.Now() changed = true end
+      -- lost it (a vice no more, back under the cap...): when it comes back, it counts from then
+      if ok and not yes and tt[t.id] and (t.id == "immortale" or t.id == "furbetto" or t.id == "braccio" or t.id == "pischello") then tt[t.id] = nil changed = true end
+    end
+  end
+  if changed then P.UpdateSelf(ns.state, ns.recordGuid, { tt = tt }, "title") end
+end
+
 function Ti.CheckNew()
   if not (ns.state and ns.db) or ns.alt then return end
+  pcall(Ti.Stamp)
   Refresh(true)
   ns.db.titles = ns.db.titles or {}
   local seen = ns.db.titles[ns.state.code] or {}

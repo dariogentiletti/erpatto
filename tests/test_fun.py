@@ -306,8 +306,8 @@ dd = A.g.ErPattoDuelloGogna
 check(dd.shown and 'Pietro' in str(dd.text.text) and 'pegno' in str(dd.text.text) and 'piotte' not in str(dd.text.text), 'the duel window: no piotte, the rule in one line')
 dd.yes.Click(dd.yes)
 check(ndu(A) == 1 and 'Richiesta de duello' in str(dd.msg.text) and A.ns.Tombola.Balance() == balA, 'Sfida! sends the game\'s duel request, nothing paid: ' + str(dd.msg.text))
-check(not any('gogna' in str(x) for x in A.g.CHAT.values()), 'nothing in the chat')
 secs(2)
+check(any('[Er Patto]' in str(x) and 'ha sfidato Pietro a duello a la gogna' in str(x) for x in C.g.CHAT.values()), 'the whole patto hears it: Dario called Pietro, Pietro is thinking')
 av = B.g.ErPattoAvviso
 check(av is not None and av.shown and 'gogna' in str(av.title.text) and 'accetta la richiesta' in str(av.text.text) and av.yes is None, 'Pietro is told what\'s at stake, no buttons of ours: ' + str(av and av.text.text))
 check(ndu(B) == 0, 'Pietro sends no duel request of his own')
@@ -326,6 +326,8 @@ check(shown(A, 'ErPattoAvviso') and 'Hai vinto' in str(A.g.ErPattoAvviso.title.t
 off.yes.Click(off.yes)
 secs(2)
 check(ndu(B) == 1 and 'Richiesta de duello' in str(off.msg.text), 'Rivincita! sends Pietro\'s duel request')
+secs(3)
+check(any('dipiu' in str(x) for x in C.g.SOUNDS.values()) and any('vole la rivincita' in str(x) for x in C.g.CHAT.values()), 'the patto hears the rivincita asked, with er DI PIÙÙÙ')
 check(shown(A, 'ErPattoAvviso') and 'Rivincita' in str(A.g.ErPattoAvviso.title.text) and 'settimana' in str(A.g.ErPattoAvviso.text.text), 'Dario is told what la rivincita puts at stake')
 duel(B, A)
 off = A.g.ErPattoRivincita
@@ -389,7 +391,7 @@ peg.Hide(peg)
 T[0] += 1000; secs(40)
 g = A.ns.Sfide.AtGogna('Player-1-CCC')
 check(g is not None and 0 < g.til - T[0] < 86400 and g.s.pena == 1, 'Pietro didn\'t choose: Gina gets er santino for a day')
-check(shown(C, 'ErPattoPena') and 'pecora' in str(C.g.ErPattoPena.name.text) and 'testa' in str(C.g.ErPattoPena.text.text), 'Gina is told about la pecora')
+check(shown(C, 'ErPattoPena') and 'pecora' in str(C.g.ErPattoPena.name.text) and 'schermo' in str(C.g.ErPattoPena.text.text), 'Gina is told about la pecora')
 C.g.ErPattoPena.Hide(C.g.ErPattoPena)
 # er piagnone
 T[0] += 86400 + 60; secs(5)
@@ -609,6 +611,25 @@ check(rep['Player-1-AAA'] is not None and rep['Player-1-CCC'] is not None and an
 A.ns.UI.Show('capo')
 check(A.has('spento'), 'Capo, Membri: "addon spento" by their names')
 check(any('addon spento' in n for n in A.news()), 'and the capo reads it in the news')
+# er Giampaolato: a jump, "ahia" or "basta"; a /thanks, er Cerbero
+A.ns.db.opts.testMode = True
+for _ in range(12):
+    name = A.ns.Sfide.TestGogna()
+    if str(name) == 'Er Giampaolato': break
+check(str(name) == 'Er Giampaolato', 'the test cycles to Er Giampaolato')
+n0 = len(list(A.g.SOUNDS.values()))
+A.ns.Sfide.OnJump()
+snd = [str(x) for x in list(A.g.SOUNDS.values())[n0:]]
+check(any('ahia' in x or 'basta' in x for x in snd), 'a jump: ' + str(snd))
+A.ns.Sfide.OnEmote('THANK', 'Pietro')
+snd = [str(x) for x in list(A.g.SOUNDS.values())[n0:]]
+check(any('cerbero' in x for x in snd), '/thanks: er Cerbero')
+A.ns.Sfide.OnEmote('BOW', 'Pietro')
+check(len([x for x in A.g.SOUNDS.values() if 'cerbero' in str(x)]) == 1, 'other emotes: nothing')
+cnt = collections.Counter('ahia' if A.lua.eval('math.random()') < 0.8 else 'basta' for _ in range(1000))
+A.ns.db.opts.testMode = False
+# the herald of a refusal mocks him
+cl = [str(x) for x in C.g.CHAT.values() if "s'è cagato sotto" in str(x)]
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

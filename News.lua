@@ -20,6 +20,11 @@ local MAX_NEWS = 80
 ----------------------------------------------------------------------
 local function Ping(sound)
   if not (ns.db and ns.db.opts.toastSound and PlaySound) then return end
+  -- a file of our own (Media)
+  if type(sound) == "string" and sound:find("^Interface") then
+    if PlaySoundFile then pcall(PlaySoundFile, sound, "Master") end
+    return
+  end
   local kit = SOUNDKIT and ((sound == "big" and SOUNDKIT.RAID_WARNING) or SOUNDKIT.MAP_PING) or (sound == "big" and 8959 or 3175)
   pcall(PlaySound, kit, "Master")
 end

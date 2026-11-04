@@ -48,7 +48,7 @@ local SLACK = 60
 -- the order is the number in the records: new ones go at the end
 S.PENE = {
   { key = "img", name = "La pecora",
-    tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, sopra la testa der personaggio suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
+    tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, in mezzo a lo schermo suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
   { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) e dì a tutti che se fa tirà li fili; lui sente pure 'na canzoncina ar rallentatore.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
@@ -59,8 +59,10 @@ S.PENE = {
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
   { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino je s'inchina, e 'na vorta ogni dieci minuti dice a tutti \"is the slave of\" er padrone.",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
-  { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente solo lui.",
+  { key = "kara", name = "Er karaoke", tip = "A ogni mostro che ammazza parte 'na canzoncina (a vorte lenta, a vorte veloce, mai due insieme): la sente solo lui.",
     icon = "Interface\\Icons\\INV_Misc_Drum_01" },
+  { key = "giampy", name = "Er Giampaolato", tip = "Ogni vorta che zompa se sente \"ahia!\" (o \"basta!\"); e quanno ringrazia quarcuno (/thanks) parte er Cerbero, pe' lui e pe' chi ha ringraziato.",
+    icon = "Interface\\Icons\\Spell_Holy_Silence" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
@@ -401,7 +403,7 @@ function S.Series(all)
   local out = {}
   for _, root in pairs(gd) do
     if not root.rv and not root.x then
-      local s = { id = root.id, a = root.from, b = root.to, at = root.at, duels = {}, ids = {} }
+      local s = { id = root.id, a = root.from, b = root.to, at = root.at, duels = {}, ids = {}, reqs = {} }
       local function Close(te, why)
         local d = s.duels[#s.duels]
         s.state, s.w, s.l, s.te, s.why = "chiusa", d.w, d.l, te, why
@@ -411,6 +413,7 @@ function S.Series(all)
       local cur, n = root, 1
       while cur do
         s.ids[n] = cur.id
+        s.reqs[n] = { id = cur.id, from = cur.from, to = cur.to, at = cur.at }
         local fightWin = n == 1 and S.DUEL_WINDOW or S.RV_FIGHT
         local t0 = cur.at
         local prev = s.duels[n - 1]
@@ -420,6 +423,7 @@ function S.Series(all)
           -- the duel request turned down (x = 2, written by either of the two), or never fought
           local off
           for _, x in ipairs(nexts[cur.id] or {}) do if x.x == 2 and x.at >= t0 - SLACK then off = x end end
+          if off then s.refused = { n = n, id = cur.id, from = cur.from, to = cur.to, at = off.at } end
           if not off and now - t0 <= fightWin then s.state, s.cur, s.n = "incorso", cur, n
           elseif n == 1 then s.state = "nunfatto"
           else Close(off and off.at or (t0 + fightWin), "no") end
@@ -517,9 +521,11 @@ function S.PegnoYou(s, all)
   local by = Short(all[s.w])
   if pena.key == "img" then
     local f = Figure(s.id, s.e)
-    return "Ogni tanto (in media 'na vorta ogni mezz'ora), pe' 'n minuto, te compare 'na pecora sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"Ricordate che " .. by .. " te ha 'mpecorato\". Nun la poi levà."
+    return "Ogni tanto (in media 'na vorta ogni mezz'ora), pe' 'n minuto, te compare 'na pecora in mezzo a lo schermo, co' scritto \"Ricordate che " .. by .. " te ha 'mpecorato\". Nun la poi levà."
   elseif pena.key == "kara" then
-    return "Ogni tanto, quanno ammazzi 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce). La senti te e la sentono pure quelli der patto che te stanno vicino."
+    return "A ogni mostro che ammazzi parte 'na canzoncina (a vorte lenta, a vorte veloce, una pe' vorta). La senti solo te."
+  elseif pena.key == "giampy" then
+    return "Sei giampaolato: ogni vorta che zompi senti \"ahia!\" (o \"basta!\"); e quanno ringrazi quarcuno (/thanks) parte er Cerbero, pe' te e pe' chi hai ringraziato, si è der patto."
   elseif pena.key == "pupo" then
     return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' 'na canzoncina ar rallentatore."
   elseif pena.key == "bee" then
@@ -849,6 +855,56 @@ local function Tell(st, key, fn)
 end
 local function Name(all, guid) return Short(all[guid]) end
 
+-- the herald of the gogna: one line in the chat for everyone online, with a sound (er "DI PIÙÙÙ" for a rivincita
+-- or a bella asked)
+S.CAGASOTTO = {
+  "%s s'è cagato sotto: ha rifiutato er duello a la gogna co' %s. Coniglio!",
+  "%s ha visto %s e s'è dato. Fuggi, fuggi.",
+  "%s dice de no a %s. Mamma l'ha chiamato pe' cena, se capisce.",
+  "%s nun ce sta: co' %s nun se mena. Che fifa.",
+}
+function S.Herald(what, n, r, all, past)
+  if not ns.News then return end
+  local a, b = Name(all, r.from), Name(all, r.to)
+  local kind = n == 1 and "duello a la gogna" or (n == 2 and "rivincita" or "bella")
+  if what == "ask" then
+    if n == 1 then
+      ns.News.Banner("Duello a la gogna!", a .. " ha sfidato " .. b .. " a duello a la gogna. " .. b .. " ce sta a pensà...", { 1, 0.5, 0.2 }, "big")
+    else
+      ns.News.Banner(n == 2 and "Rivincita!" or "La bella!", a .. " vole " .. (n == 2 and "la rivincita" or "la bella") .. " co' " .. b .. ". " .. b .. " ce sta a pensà...", { 1, 0.5, 0.2 },
+        H.MEDIA .. "duello\\dipiu.ogg")
+    end
+  elseif what == "ok" then
+    ns.News.Banner(b .. " ha accettato!", (past and "Er " .. kind .. " s'è fatto" or "Er " .. kind .. " è partito") .. ": " .. a .. " contro " .. b .. ".", { 1, 0.82, 0 }, "big")
+  elseif what == "no" then
+    local f = S.CAGASOTTO[(math.floor(r.at or 0) % #S.CAGASOTTO) + 1]
+    ns.News.Banner(b .. " s'è cagato sotto!", f:format(b, a), { 1, 0.3, 0.3 }, "big")
+  end
+end
+
+-- the duel request of a gogna was accepted (the countdown starts): the patto hears it at once
+local function Accepted(id)
+  local st = Store()
+  if not st then return end
+  local all = Members()
+  for _, s in ipairs(S.Series(all)) do
+    for n, r in ipairs(s.reqs or {}) do
+      if r.id == id then Tell(st, id .. ":ok", function() S.Herald("ok", n, r, all) end) return end
+    end
+  end
+end
+S.Accepted = Accepted
+function S.DuelStarts()
+  local me = ns.recordGuid
+  for _, s in ipairs(S.Series(Members())) do
+    if s.state == "incorso" and s.cur and (s.cur.to == me or s.cur.from == me) then
+      Send({ t = "gok", id = s.cur.id })
+      Accepted(s.cur.id)
+      return
+    end
+  end
+end
+
 -- "Chi fa più pesci, fino a dom 8 nov"
 function S.What(c, all, ans)
   local w
@@ -940,6 +996,26 @@ function S.Update()
         st.told["y:" .. s.id] = true
         S.ShowPena(s, all)
       end
+    end
+    -- the whole patto hears it: who called whom, and whether he took it or ran away
+    for n, r in ipairs(s.reqs or {}) do
+      Tell(st, r.id .. ":ask", function()
+        if quiet or Now() - (r.at or 0) > 900 then return end
+        S.Herald("ask", n, r, all)
+      end)
+      if s.duels[n] then
+        Tell(st, r.id .. ":ok", function()
+          if quiet or Now() - (s.duels[n].at or 0) > 900 then return end
+          S.Herald("ok", n, r, all, true)
+        end)
+      end
+    end
+    if s.refused then
+      local r = s.refused
+      Tell(st, r.id .. ":no", function()
+        if quiet or Now() - (r.at or 0) > 900 then return end
+        S.Herald("no", r.n, r, all)
+      end)
     end
     if s.state == "chiusa" then
       Tell(st, s.id .. ":fine", function()
@@ -2087,11 +2163,11 @@ local function NearBow()
   end
 end
 S.NearBow = NearBow
--- er karaoke: one kill in five starts one of the songs, and one plays anyway every ten minutes; never two at once.
+-- er karaoke: every kill starts one of the songs (and one plays anyway after ten minutes without); never two at once.
 -- The speed: 0.5x and 1.5x one time in ten each (the jackpot, told in the chat), the rest round 1x. The pitch goes
 -- with the speed. The speeds are ready-made files (the game can't change a sound's speed). Only the one a la
 -- gogna hears it (the others aren't punished). Cost: one random number per kill and a look at the clock every five seconds.
-S.KARAOKE_CHANCE = 0.20
+S.KARAOKE_CHANCE = 1 -- every mob killed (never two songs at once)
 S.KARAOKE_EVERY = 600
 S.KARAOKE_SONGS = 4
 S.KARAOKE_LENGTH = { 6.6, 7.8, 6.6, 22.9 } -- seconds at 1x
@@ -2124,6 +2200,46 @@ function S.Puppet(e, master)
   local now = GetTime and GetTime() or 0
   if now >= karaUntil then PlayKara(math.random(S.KARAOKE_SONGS), 50) end
 end
+
+-- er Giampaolato: a jump plays "ahia" (four times in five) or "basta"; a /thanks plays er Cerbero for him and for
+-- the one thanked, if he's of the patto. Cost: one look at my gogna per jump or emote (hooks after the game's own)
+S.GIAMPY = { ahia = "ahia.ogg", basta = "basta.ogg", cerbero = "cerbero.ogg", AHIA = 0.8 }
+local function Giampy(file) if PlaySoundFile then pcall(PlaySoundFile, H.MEDIA .. "giampy\\" .. file, "Master") end end
+S.Giampy = Giampy
+local function Giampaolato()
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  return pena and pena.key == "giampy"
+end
+local jumpAt = 0
+function S.OnJump()
+  if not Giampaolato() then return end
+  local now = GetTime and GetTime() or 0
+  if now - jumpAt < 0.7 then return end
+  jumpAt = now
+  Giampy(math.random() < S.GIAMPY.AHIA and S.GIAMPY.ahia or S.GIAMPY.basta)
+end
+function S.OnEmote(token, target)
+  if type(token) ~= "string" or U.IsSecret(token) then return end
+  local t = token:upper()
+  if t ~= "THANK" and t ~= "THANKS" and t ~= "TY" then return end
+  if not Giampaolato() then return end
+  Giampy(S.GIAMPY.cerbero)
+  local name = (type(target) == "string" and not U.IsSecret(target) and target ~= "") and target or nil
+  if not name and UnitName then
+    local ok, n = pcall(UnitName, "target")
+    if ok and type(n) == "string" and not U.IsSecret(n) then name = n end
+  end
+  if not name then return end
+  for guid, m in pairs(Members()) do
+    if guid ~= ns.recordGuid and (m.name == name or Short(m) == name or Short(m) == name:match("^([^%-]+)")) then Send({ t = "gy", to = guid }) end
+  end
+end
+if hooksecurefunc then
+  if JumpOrAscendStart then pcall(hooksecurefunc, "JumpOrAscendStart", function() pcall(S.OnJump) end) end
+  if C_ChatInfo and C_ChatInfo.PerformEmote then pcall(hooksecurefunc, C_ChatInfo, "PerformEmote", function(tok, tgt) pcall(S.OnEmote, tok, tgt) end)
+  elseif DoEmote then pcall(hooksecurefunc, "DoEmote", function(tok, tgt) pcall(S.OnEmote, tok, tgt) end) end
+end
 -- the jackpot line, as a slot machine would say it
 local function Jackpot(sp)
   local f = DEFAULT_CHAT_FRAME
@@ -2139,7 +2255,7 @@ function S.Karaoke(force)
   if not (pena and pena.key == "kara") then return false end
   local now = GetTime and GetTime() or 0
   if now < karaUntil then return false end -- one at a time
-  local chance = (ns.Tombola and ns.Tombola.Testing()) and 0.5 or S.KARAOKE_CHANCE
+  local chance = S.KARAOKE_CHANCE
   if not force and math.random() >= chance then return false end
   karaAt = now
   local i, sp = math.random(S.KARAOKE_SONGS), KaraSpeed()
@@ -2211,6 +2327,8 @@ function S.TestGogna()
   elseif pena.key == "kara" then
     karaAt, karaUntil = 0, 0
     Soon(function() S.Karaoke(true) end)
+  elseif pena.key == "giampy" then
+    Soon(function() S.Giampy(S.GIAMPY.ahia) end)
   end
   if UI.Refresh then UI.Refresh() end
   if C_Timer then C_Timer.After(121, function() Rebuild() S.ShowMyGogna() UI.Refresh() end) end
@@ -2284,6 +2402,13 @@ ns.On("Live", function(from, data)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
     end
+  elseif data.t == "gok" and type(data.id) == "string" then
+    Accepted(data.id:sub(1, 40))
+  elseif data.t == "gy" and data.to == ns.recordGuid and not ns.alt then
+    -- the Giampaolato thanked me: er Cerbero
+    local g = S.AtGogna(from)
+    local pena = g and S.PENE[g.s.pena or 0]
+    if pena and pena.key == "giampy" then S.Giampy(S.GIAMPY.cerbero) end
   elseif data.t == "em" and type(data.x) == "string" and not ns.alt then
     local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
     if data.z and z == data.z and all[from] then EmoteLine(Short(all[from]), data.x:gsub("|", ""):sub(1, 120)) end
@@ -2321,12 +2446,13 @@ end
 local frame = CreateFrame("Frame")
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
+  elseif event == "DUEL_COUNTDOWN" then pcall(S.DuelStarts)
   elseif event == "DUEL_FINISHED" then
     -- after a real duel the result is in by then; if not, the request was turned down
     if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) end) end
   end
 end)
-for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED" }) do pcall(frame.RegisterEvent, frame, e) end
+for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED", "DUEL_COUNTDOWN" }) do pcall(frame.RegisterEvent, frame, e) end
 
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end

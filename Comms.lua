@@ -87,13 +87,20 @@ end
 ----------------------------------------------------------------------
 -- sending
 ----------------------------------------------------------------------
-local function Push(kind, target, text)
+-- a quick message (X: a duel, a gufata, the strings pulled...) goes before the pieces of a record waiting to go
+local urgentAt = 0
+local function Push(kind, target, text, urgent)
   if #queue > 300 then C.stats.dropped = C.stats.dropped + 1 return end
-  queue[#queue + 1] = { kind, target, text }
+  if urgent then
+    urgentAt = math.min(urgentAt + 1, #queue + 1)
+    table.insert(queue, urgentAt, { kind, target, text })
+  else
+    queue[#queue + 1] = { kind, target, text }
+  end
 end
 
-local function Enqueue(kind, target, body)
-  if #body <= MAXLEN then Push(kind, target, "!" .. body) return end
+local function Enqueue(kind, target, body, urgent)
+  if #body <= MAXLEN then Push(kind, target, "!" .. body, urgent) return end
   seq = seq % 999 + 1
   local size = MAXLEN - 14
   local n = math.ceil(#body / size)
@@ -102,14 +109,14 @@ local function Enqueue(kind, target, body)
   end
 end
 
-local function Broadcast(body)
+local function Broadcast(body, urgent)
   chanId = CurrentChannelId()
   if chanId then
-    Enqueue("CHANNEL", tostring(chanId), body)
+    Enqueue("CHANNEL", tostring(chanId), body, urgent)
     -- members stuck on whispers still need to hear us
     local now = Clock()
     for g, who in pairs(whisperPeers) do
-      if seen[g] and now - seen[g] < ONLINE_WINDOW then Enqueue("WHISPER", who, body) end
+      if seen[g] and now - seen[g] < ONLINE_WINDOW then Enqueue("WHISPER", who, body, urgent) end
     end
     return
   end
@@ -119,7 +126,7 @@ local function Broadcast(body)
   for g, rec in pairs(state and state.members or {}) do
     local who = nameOf[g] or rec.name
     if g ~= me and who and (isHello or (seen[g] and now - seen[g] < ONLINE_WINDOW)) then
-      Enqueue("WHISPER", who, body)
+      Enqueue("WHISPER", who, body, urgent)
     end
   end
 end
@@ -130,7 +137,7 @@ end
 
 function C.Send(kind, data)
   if not state then return end
-  Broadcast(Body(kind, data))
+  Broadcast(Body(kind, data), kind == "X")
 end
 
 local function ResultIsThrottle(res)
@@ -178,6 +185,7 @@ local function Tick()
   C.stats.held = 0
   while #queue > 0 and tokens >= 1 do
     local item = table.remove(queue, 1)
+    urgentAt = math.max(0, urgentAt - 1)
     local ok, res = pcall(C_ChatInfo.SendAddonMessage, PREFIX, item[3], item[1], item[2])
     if ok and ResultIsThrottle(res) then
       table.insert(queue, 1, item)
