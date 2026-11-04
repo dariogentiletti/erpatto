@@ -2068,9 +2068,10 @@ local function BuildHUD()
   hud.text = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   hud.text:SetPoint("TOP", 0, 5)
   hud.text:SetSize(185, 16)
-  -- above the bar, in the bar's colour, only while you wait for the next cap ("19 tra 2g")
-  hud.next = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  hud.next:SetPoint("BOTTOM", hud, "TOP", 0, 7)
+  -- above the bar, small and light grey, only while you wait for the next cap ("Prossimo cap: 22, tra 2 giorni")
+  hud.next = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hud.next:SetPoint("BOTTOM", hud, "TOP", 0, 12)
+  hud.next:SetTextColor(0.85, 0.85, 0.85)
   hud:SetClampedToScreen(true)
   hud:SetMovable(true)
   hud:EnableMouse(true)
@@ -2093,8 +2094,6 @@ end
 local function HudColor(r, g, b)
   hud:SetStatusBarColor(r, g, b)
   hud.spark:SetVertexColor(r, g, b)
-  -- the same colour, a bit lighter, so it reads on the world behind
-  hud.next:SetTextColor(r + (1 - r) * 0.35, g + (1 - g) * 0.35, b + (1 - b) * 0.35)
 end
 
 function UI.RefreshHUD()
@@ -2135,16 +2134,20 @@ function UI.RefreshHUD()
       fill = math.max(0, math.min(1, (pos - from) / math.max(1, st.cap - from)))
       text = "Cap " .. st.cap .. "  -" .. d
     end
-    -- the next cap appears only when you're at (or past) this one, as "19 tra 2g"
+    -- above the bar: when the patto starts, or (once you're at this cap) the next one: "Prossimo cap: 22, tra 2 giorni"
     local function short(sec)
-      if sec >= 86400 then return math.floor(sec / 86400) .. "g" end
-      if sec >= 3600 then return math.floor(sec / 3600) .. "h" end
-      return math.max(1, math.floor(sec / 60)) .. "m"
+      local d, h = math.floor(sec / 86400), math.floor(sec / 3600)
+      if d >= 2 then return d .. " giorni" end
+      if d == 1 then return "1 giorno" end
+      if h >= 2 then return h .. " ore" end
+      if h == 1 then return "1 ora" end
+      local m = math.max(1, math.floor(sec / 60))
+      return m .. (m == 1 and " minuto" or " minuti")
     end
     if not st.started then
-      nextText = "via tra " .. short(ns.state.settings.start - now)
+      nextText = "Er patto parte tra " .. short(ns.state.settings.start - now)
     elseif ps ~= "behind" and st.nextCap > st.cap then
-      nextText = st.nextCap .. " tra " .. short(st.unlockAt - now)
+      nextText = "Prossimo cap: " .. st.nextCap .. ", tra " .. short(st.unlockAt - now)
     end
     tip[1] = "Cap de 'sta settimana: " .. st.cap
     tip[#tip + 1] = ps == "over" and ("Sei sopra de " .. d .. ".") or (ps == "at" and "Sei ar cap." or ("Te " .. (d == 1 and "manca 1 livello." or ("mancano " .. d .. " livelli."))))

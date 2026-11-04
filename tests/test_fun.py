@@ -535,6 +535,11 @@ secs(5)
 gw = B.g.ErPattoGufaWatch
 check(gw is not None and gw.shown and 'Dario te gufa' in str(gw['items'][1].title.text) and '10 piotte' in str(gw['items'][1].line1.text) and ':' in str(gw['items'][1].bar.text.text), 'Pietro sees the gufata with its timer: ' + str(gw and gw['items'][1].bar.text.text))
 check(A.g.ErPattoGufaWatch is not None and A.g.ErPattoGufaWatch.shown and 'gufi Pietro' in str(A.g.ErPattoGufaWatch['items'][1].title.text), 'and Dario sees his own')
+B.ns.Sfide.RefreshStrip()
+st = B.g.ErPattoStato
+ic = [b for b in st.icons.values() if b.shown and b.data] if st else []
+owl = [b for b in ic if 'Owl' in str(b.data.icon)]
+check(st is not None and st.shown and owl and owl[0].border.shown and 'gufà' in str(owl[0].data.tip[1]) and ':' in str(owl[0].time.text), 'under the cap bar Pietro has the owl, red bordered, with the time: ' + str(owl and owl[0].data.tip[1]))
 T[0] += 400; secs(70)
 check(B.ns.Tombola.Balance() == balB + 10 and A.ns.Tombola.Balance() == balA - 10, 'Pietro lived: he takes the 10')
 balA, balC = A.ns.Tombola.Balance(), C.ns.Tombola.Balance()

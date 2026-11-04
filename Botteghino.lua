@@ -21,6 +21,10 @@ local function Say(ok, msg, good)
   if not ok and msg then view.status:SetText(msg)
   elseif ok and good then view.status:SetText("|cff20ff20" .. good .. "|r")
   else view.status:SetText("") end
+  -- right next to the piotte, never over the tabs
+  local w = view.purse and view.purse.GetStringWidth and view.purse:GetStringWidth() or 60
+  view.status:ClearAllPoints()
+  view.status:SetPoint("RIGHT", view.coin, "LEFT", -(tonumber(w) or 60) - 18, 0)
 end
 local function Sound(kit, fallback)
   if not (PlaySound and ns.db and ns.db.opts.toastSound ~= false) then return end
@@ -397,7 +401,8 @@ local function Build()
   v.coin:SetPoint("RIGHT", 0, 0)
   v.purse = H.Text(purse, "GameFontHighlight", "", 170, "RIGHT")
   v.purse:SetPoint("RIGHT", v.coin, "LEFT", -6, 0)
-  v.status = H.Text(v, "GameFontRedSmall", "", 300, "RIGHT")
+  v.status = H.Text(v, "GameFontRedSmall", "", 290, "RIGHT")
+  if v.status.SetWordWrap then v.status:SetWordWrap(false) end
   v.status:SetPoint("RIGHT", purse, "LEFT", -10, 0)
   view = v
   BuildTombola(v)

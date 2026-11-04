@@ -94,7 +94,7 @@ check(not A.errors(), 'no errors building all tabs: ' + str(A.errors()[:3]))
 hud = A.g.ErPattoHUD
 check(hud is not None and hud.shown and 'se parte tra' in str(hud.text and '' or ''), 'HUD exists') if False else None
 hudtext = [str(x) for x in A.lua.eval('function() local out = {} for _, o in ipairs(WIDGETS) do if o.kind == "FontString" and o.parent == ErPattoHUD then out[#out+1] = o.text end end return out end')().values()]
-check(any(t == 'Cap 22  -21' for t in hudtext) and any(t == 'via tra 3g' for t in hudtext), 'on-screen bar before start: cap, gap, start countdown: ' + str(hudtext))
+check(any(t == 'Cap 22  -21' for t in hudtext) and any(t == 'Er patto parte tra 3 giorni' for t in hudtext), 'on-screen bar before start: cap, gap, start countdown: ' + str(hudtext))
 
 # second player joins with the code from the UI
 B = Client('Player-1-BBB', 'Pietro'); clients.append(B)
@@ -381,7 +381,7 @@ c, v, t = hudstate()
 check(c == '0.00,0.39,0.88' and 0.7 < v < 0.9 and 'Cap 22  -4' in t and '' in t, 'behind: blue, filled from week start (%s %.2f %s)' % (c, v, t))
 A.g.P_LEVEL = 22; A.g.FIRE('PLAYER_LEVEL_UP', 22)
 c, v, t = hudstate()
-check(c == '0.10,0.75,0.10' and v == 1 and 'Cap 22' in t and any(x.startswith('32 tra ') for x in t), 'at the cap: green, full, next cap countdown (%s %s)' % (c, t))
+check(c == '0.10,0.75,0.10' and v == 1 and 'Cap 22' in t and any(x.startswith('Prossimo cap: 32, tra ') for x in t), 'at the cap: green, full, next cap countdown (%s %s)' % (c, t))
 A.g.P_LEVEL = 23; A.g.FIRE('PLAYER_LEVEL_UP', 23)
 c, v, t = hudstate()
 check(c == '0.85,0.15,0.15' and v == 1 and any('+1' in x for x in t), 'over the cap: red, full, +1 (%s %s)' % (c, t))

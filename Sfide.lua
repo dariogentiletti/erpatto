@@ -57,9 +57,9 @@ S.PENE = {
     icon = "Interface\\Icons\\Spell_Shadow_DeathScream" },
   { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
-  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e lo dice a tutti: \"Comandi, padrone mio!\".",
+  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e, 'na vorta ogni dieci minuti, in chat: \"is the slave of\" er padrone.",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
-  { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente lui e chi der patto je sta vicino.",
+  { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente solo lui.",
     icon = "Interface\\Icons\\INV_Misc_Drum_01" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
@@ -522,7 +522,7 @@ function S.PegnoYou(s, all)
   elseif pena.key == "crier" then
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
-    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ogni mezzo minuto er personaggio tuo je s'inchina e lo dice a tutti (\"Comandi, padrone " .. by .. "!\"), e pure ogni vorta che lo metti ner mirino."
+    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ogni mezzo minuto er personaggio tuo je s'inchina e, 'na vorta ogni dieci minuti, in chat se legge \"" .. ((ns.MyRecord and Short(ns.MyRecord())) or "") .. " is the slave of " .. by .. ".\"; e s'inchina pure ogni vorta che lo metti ner mirino."
   end
 end
 
@@ -1633,7 +1633,6 @@ local function Left(t)
   return math.floor(d) .. " s"
 end
 S.Left = Left
-local pic
 -- la pecora: now and then (one minute, on average once every half hour) a sheep over the loser's own character, in
 -- the middle of the screen, "Ricordate che Dario te ha 'mpecorato" over it and the seconds left under it. Clicks
 -- go through it. Cost: one random number every five seconds while a la gogna (5 s / 1800 s per tick, so on
@@ -1698,48 +1697,151 @@ function S.SheepNow(g) sheepUntil = (GetTime and GetTime() or 0) + S.SHEEP_FOR S
 S.ShowSantino = ShowSantino
 
 function S.ShowMyGogna()
-  local g = S.AtGogna(ns.recordGuid)
-  ShowSantino(g)
-  if not g then if pic then pic:Hide() end return end
-  if not pic then
-    pic = CreateFrame("Button", "ErPattoGogna", UIParent)
-    pic:SetSize(30, 30)
-    local pos = ns.db.ui and ns.db.ui.gogna
-    if type(pos) == "table" and pos[1] and pos[5] then pic:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else pic:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -205, -110) end
-    pic:SetFrameStrata("MEDIUM")
-    pic:SetMovable(true)
-    pic:SetClampedToScreen(true)
-    pic:RegisterForDrag("LeftButton")
-    pic:SetScript("OnDragStart", pic.StartMoving)
-    pic:SetScript("OnDragStop", function(self)
-      self:StopMovingOrSizing()
-      local p, _, rp, x, y = self:GetPoint()
-      ns.db.ui = ns.db.ui or {}
-      ns.db.ui.gogna = { p, rp, x, y, 1 }
-    end)
-    pic.icon = pic:CreateTexture(nil, "ARTWORK")
-    pic.icon:SetAllPoints()
-    local border = pic:CreateTexture(nil, "OVERLAY")
-    border:SetTexture("Interface\\Buttons\\UI-Debuff-Border")
-    border:SetSize(33, 32)
-    border:SetPoint("CENTER")
-    border:SetVertexColor(0.8, 0, 0)
-    pic.time = pic:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    pic.time:SetPoint("TOP", pic, "BOTTOM", 0, -2)
-    pic:SetScript("OnEnter", function(self)
-      local x = S.AtGogna(ns.recordGuid)
-      if not x then return end
-      local p = S.PENE[x.s.pena or 0]
-      H.Tip(self, { "A la gogna" .. (p and (": " .. p.name) or ""), S.PegnoYou(x.s) or ("Er pegno lo sta a sceje " .. Short(Members()[x.by]) .. "."),
-        "T'ha mannato " .. Short(Members()[x.by]) .. ". Ancora " .. Left(x.til) .. "." })
-    end)
-    pic:SetScript("OnLeave", H.HideTip)
-    pic:SetScript("OnClick", function() local x = S.AtGogna(ns.recordGuid) if x and x.s.pena then S.ShowPena(x.s) end end)
-    if C_Timer then C_Timer.NewTicker(20, function() if pic:IsShown() then S.ShowMyGogna() end end) end
+  ShowSantino(S.AtGogna(ns.recordGuid))
+  if S.RefreshStrip then pcall(S.RefreshStrip) end
+end
+
+----------------------------------------------------------------------
+-- what's going on for me, under the cap bar: a row of icons as the old buffs and debuffs (red border when it's
+-- against me, time left under it, details in the tooltip): a la gogna, la corona, a duello a la gogna in ballo,
+-- le sfide, le taje (on me and mine), le gufate (on me and mine). Without the bar, where the gogna icon was.
+-- Cost: every ten seconds a look through the lists already worked out (the series are cached by Rebuild), a few
+-- dozen entries at most; nothing else while it's shown.
+----------------------------------------------------------------------
+local strip
+local STRIP_MAX, STRIP_SIZE = 8, 26
+local function MyStatus()
+  local me = ns.recordGuid
+  local all = Members()
+  local out = {}
+  local function add(x) if #out < STRIP_MAX then out[#out + 1] = x end end
+  if not (me and all[me]) then return out end
+  -- a la gogna
+  local g = S.AtGogna(me)
+  if g then
+    local p = S.PENE[g.s.pena or 0]
+    add({ icon = S.PegnoIcon(g.s), bad = true, time = Left(g.til), click = "pena",
+      tip = { "A la gogna" .. (p and (": " .. p.name) or ""), S.PegnoYou(g.s) or ("Er pegno lo sta a sceje " .. Name(all, g.by) .. "."),
+        "T'ha mannato " .. Name(all, g.by) .. ". Ancora " .. Left(g.til) .. "." } })
   end
-  pic.icon:SetTexture(S.PegnoIcon(g.s))
-  pic.time:SetText(Left(g.til))
-  pic:Show()
+  -- la corona
+  if S.Champion() == me then
+    add({ icon = "Interface\\Icons\\INV_Crown_01", tip = { "La corona de la gogna", "Hai vinto l'urtimo duello a la gogna de chi c'aveva la corona. Chi te batte a la gogna se la pija." } })
+  end
+  -- a duello a la gogna in ballo
+  for _, x in ipairs(S.Last() or {}) do
+    if (x.a == me or x.b == me) and (x.state == "incorso" or x.state == "rivincita") then
+      local other = x.a == me and x.b or x.a
+      local what = x.state == "rivincita" and ((x.last and x.last.l == me) and "Hai perso: pòi chiede la rivincita." or "Ha perso: pò chiede la rivincita.")
+        or "La richiesta de duello è partita: chi perde va a la gogna."
+      add({ icon = "Interface\\Icons\\Ability_Warrior_Challange", tip = { "Duello a la gogna co' " .. Name(all, other), what } })
+    end
+  end
+  -- le sfide a piotte
+  for _, c in ipairs(S.All()) do
+    if c.from == me or c.to == me then
+      local state, _, ans = S.State(c, all)
+      local other = c.from == me and c.to or c.from
+      if state == "incorso" then
+        local e = ans and ans.e or S.EndOf(ans and ans.at or c.at)
+        add({ icon = "Interface\\Icons\\INV_Scroll_03", time = Left(e), click = "sfide",
+          tip = { "Sfida co' " .. Name(all, other), S.What(c, all, ans) .. ".", "In palio: " .. Piotte((c.s or 0) * 2) .. ", chi vince se le pija tutte." } })
+      elseif state == "aspetta" and c.to == me then
+        add({ icon = "Interface\\Icons\\INV_Scroll_03", time = "?", click = "sfide",
+          tip = { "Sfida da " .. Name(all, other), S.What(c, all, ans) .. ", " .. Piotte(c.s or 0) .. " a testa.", "Aspetta la risposta tua: Botteghino, Sfide." } })
+      end
+    end
+  end
+  -- le taje
+  local onMe, onMeN, mine = 0, {}, {}
+  for _, t in ipairs(S.Taje()) do
+    if S.TajaState(t, all) == "aperta" then
+      if t.on == me then onMe = onMe + (t.s or 0) onMeN[#onMeN + 1] = Name(all, t.by) .. " (" .. (t.s or 0) .. ")"
+      elseif t.by == me then mine[#mine + 1] = t end
+    end
+  end
+  if onMe > 0 then
+    add({ icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath", bad = true, time = tostring(onMe), click = "sfide",
+      tip = { "Taja su de te: " .. Piotte(onMe), "Chi te batte a duello pe' primo se le pija.", "L'hanno messa: " .. table.concat(onMeN, ", ") .. "." } })
+  end
+  for _, t in ipairs(mine) do
+    add({ icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath", time = Left(t.at + S.TAJA_WINDOW), click = "sfide",
+      tip = { "Taja tua su " .. Name(all, t.on) .. ": " .. Piotte(t.s or 0), "Chi lo batte a duello pe' primo se le pija. Si nessuno lo batte, te tornano." } })
+  end
+  -- le gufate
+  for _, x in ipairs(S.Gufate()) do
+    if (x.on == me or x.by == me) and S.GufaState(x, all) == "aperta" then
+      local half = math.floor((x.s or 0) / 2)
+      local secs = (x.at or Now()) + S.GUFA - Now()
+      local tm = string.format("%d:%02d", math.max(0, math.floor(secs / 60)), math.max(0, math.floor(secs % 60)))
+      if x.on == me then
+        add({ icon = "Interface\\Icons\\Ability_Hunter_Pet_Owl", bad = true, time = tm,
+          tip = { Name(all, x.by) .. " te sta a gufà", "In palio: " .. Piotte(x.s or 0) .. ". Si campi te le pij, si mori ne paghi " .. half .. "." } })
+      else
+        add({ icon = "Interface\\Icons\\Ability_Hunter_Pet_Owl", time = tm,
+          tip = { "Stai a gufà " .. Name(all, x.on), "In palio: " .. Piotte(x.s or 0) .. ". Si more vinci " .. half .. ", si campa le perdi." } })
+      end
+    end
+  end
+  return out
+end
+S.MyStatus = MyStatus
+
+local function BuildStrip()
+  strip = CreateFrame("Frame", "ErPattoStato", UIParent)
+  strip:SetSize(STRIP_SIZE, STRIP_SIZE + 14)
+  strip:SetFrameStrata("MEDIUM")
+  strip.icons = {}
+  for i = 1, STRIP_MAX do
+    local b = CreateFrame("Button", nil, strip)
+    b:SetSize(STRIP_SIZE, STRIP_SIZE)
+    b:SetPoint("TOPLEFT", (i - 1) * (STRIP_SIZE + 6), 0)
+    b.icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon:SetAllPoints()
+    b.border = b:CreateTexture(nil, "OVERLAY")
+    b.border:SetTexture("Interface\\Buttons\\UI-Debuff-Border")
+    b.border:SetSize(STRIP_SIZE + 3, STRIP_SIZE + 2)
+    b.border:SetPoint("CENTER")
+    b.border:SetVertexColor(0.8, 0, 0)
+    b.time = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    b.time:SetPoint("TOP", b, "BOTTOM", 0, -2)
+    b:SetScript("OnEnter", function(self) if self.data then H.Tip(self, self.data.tip) end end)
+    b:SetScript("OnLeave", H.HideTip)
+    b:SetScript("OnClick", function(self)
+      local d = self.data
+      if not d then return end
+      if d.click == "pena" then local x = S.AtGogna(ns.recordGuid) if x and x.s.pena then S.ShowPena(x.s) end
+      elseif d.click == "sfide" and ns.Botteghino and ns.Botteghino.Show then pcall(ns.Botteghino.Show, "sfide") end
+    end)
+    strip.icons[i] = b
+  end
+  if C_Timer then C_Timer.NewTicker(10, function() pcall(S.RefreshStrip) end) end
+end
+
+function S.RefreshStrip()
+  if not (ns.state and ns.db) or ns.alt then if strip then strip:Hide() end return end
+  local list = MyStatus()
+  if #list == 0 then if strip then strip:Hide() end return end
+  if not strip then BuildStrip() end
+  for i, b in ipairs(strip.icons) do
+    local d = list[i]
+    b.data = d
+    if d then
+      b.icon:SetTexture(d.icon)
+      b.border:SetShown(d.bad and true or false)
+      b.time:SetText(d.time or "")
+      b:Show()
+    else
+      b:Hide()
+    end
+  end
+  strip:SetWidth(#list * (STRIP_SIZE + 6) - 6)
+  -- under the cap bar when it's there, else where the gogna icon used to be
+  strip:ClearAllPoints()
+  local hud = _G.ErPattoHUD
+  if hud and hud.IsShown and hud:IsShown() then strip:SetPoint("TOP", hud, "BOTTOM", 0, -16)
+  else strip:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -205, -110) end
+  strip:Show()
 end
 
 ----------------------------------------------------------------------
@@ -1902,8 +2004,9 @@ local function OnTarget()
   local ok, n = pcall(UnitName, "target")
   if ok and n and not U.IsSecret(n) and (n == master.name or n == Short(master)) then Emote("BOW", "target") end
 end
-S.SERVO_LINES = { "s'inchina: \"Comandi, padrone %s!\"", "s'inchina davanti ar padrone suo, %s.", "s'inchina: \"Er padrone mio è %s, er mejo der patto.\"",
-  "s'inchina: \"Pe' te, padrone %s, questo e artro.\"", "s'inchina e je lucida li stivali a %s." }
+-- what er servo says, in the emote colour, when his master is near: at most once every ten minutes
+S.SERVO_LINE = "is the slave of %s."
+S.SERVO_EVERY = 600
 local saidAt, saidN = 0, 0
 -- a line in the emote colour, as if said: addons can't write in the chat any more (SendChatMessage is blocked
 -- for them and the game shows its "blocked" window), so it goes as a quick message to the patto in the same zone
@@ -1929,18 +2032,18 @@ local function NearBow()
   if near == true then
     lastNear = now
     Emote("BOW", u)
-    -- every other bow, a line in the emote chat that everyone around reads
-    if now - saidAt >= 55 then
+    -- he comes near (or stays): "X is the slave of Aldo.", once every ten minutes at most
+    if saidAt == 0 or now - saidAt >= S.SERVO_EVERY then
       saidAt, saidN = now, saidN + 1
-      Say(S.SERVO_LINES[(saidN - 1) % #S.SERVO_LINES + 1]:format(Short(master)))
+      Say(S.SERVO_LINE:format(Short(master)))
     end
   end
 end
 S.NearBow = NearBow
 -- er karaoke: one kill in five starts one of the songs, and one plays anyway every ten minutes; never two at once.
 -- The speed: 0.5x and 1.5x one time in ten each (the jackpot, told in the chat), the rest round 1x. The pitch goes
--- with the speed. The speeds are ready-made files (the game can't change a sound's speed). The patto in the same
--- zone hears it too. Cost: one random number per kill and a look at the clock every five seconds.
+-- with the speed. The speeds are ready-made files (the game can't change a sound's speed). Only the one a la
+-- gogna hears it (the others aren't punished). Cost: one random number per kill and a look at the clock every five seconds.
 S.KARAOKE_CHANCE = 0.20
 S.KARAOKE_EVERY = 600
 S.KARAOKE_SONGS = 4
@@ -1985,8 +2088,6 @@ function S.Karaoke(force)
   local i, sp = math.random(S.KARAOKE_SONGS), KaraSpeed()
   PlayKara(i, sp)
   if sp == 50 or sp == 150 then Jackpot(sp) end
-  local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
-  Send({ t = "ka", f = i, v = sp, z = z })
   return true, i, sp
 end
 -- the ten minutes without a song: one comes anyway
@@ -2050,7 +2151,7 @@ function S.TestGogna()
   elseif pena.key == "cry" then
     Soon(function() lastEmote = 0 Emote("CRY") Say("piagne: \"nguee nguee\"") end)
   elseif pena.key == "servo" then
-    Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINES[1]:format(master)) end)
+    Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINE:format(master)) end)
   elseif pena.key == "kara" then
     karaAt, karaUntil = 0, 0
     Soon(function() S.Karaoke(true) end)
@@ -2126,16 +2227,6 @@ ns.On("Live", function(from, data)
       S.ShowBet(data.a, data.b, data.g == 1)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
-    end
-  elseif data.t == "ka" and not ns.alt then
-    -- someone of the patto with er karaoke sang near me
-    local g = S.AtGogna(from)
-    local pena = g and S.PENE[g.s.pena or 0]
-    local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
-    local i, sp = tonumber(data.f), tonumber(data.v)
-    if pena and pena.key == "kara" and data.z and z == data.z and i and i >= 1 and i <= S.KARAOKE_SONGS then
-      local now = GetTime and GetTime() or 0
-      for _, x in ipairs(S.KARAOKE_SPEEDS) do if x == sp and now >= karaUntil then PlayKara(i, sp) end end
     end
   elseif data.t == "em" and type(data.x) == "string" and not ns.alt then
     local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
