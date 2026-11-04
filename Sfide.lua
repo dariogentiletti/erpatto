@@ -53,8 +53,8 @@ S.PENE = {
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
-  { key = "emote", name = "La figuraccia", tip = "Ogni vorta che resuscita, er personaggio suo fa la gallina (o quello che sceji) davanti a tutti.",
-    icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken" },
+  { key = "cry", name = "Er piagnone", tip = "Ogni du' minuti er personaggio suo piagne davanti a tutti; e si je stai vicino, fa pure \"nguee nguee\" in chat.",
+    icon = "Interface\\Icons\\Spell_Shadow_DeathScream" },
   { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
   { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e lo dice a tutti: \"Comandi, padrone mio!\".",
@@ -505,7 +505,6 @@ function S.PegnoText(s, all)
   if not pena then return nil end
   if pena.key == "img" then return pena.name .. (s.t and (": \"" .. s.t .. "\"") or "") end
   if pena.key == "bee" then return pena.name .. " \"" .. tostring(s.t or "?") .. "\"" end
-  if pena.key == "emote" then return pena.name .. ": " .. (S.EMOTES[s.e or 1] or S.EMOTES[1]).name:lower() end
   if pena.key == "servo" then return pena.name .. " de " .. Short((all or Members())[s.w]) end
   return pena.name
 end
@@ -522,8 +521,8 @@ function S.PegnoYou(s, all)
     return "Sei er burattino de " .. by .. ": ogni vorta che je pare te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
-  elseif pena.key == "emote" then
-    return "Ogni vorta che resusciti, er personaggio tuo " .. (S.EMOTES[s.e or 1] or S.EMOTES[1]).name:lower() .. " da solo, davanti a tutti."
+  elseif pena.key == "cry" then
+    return "Sei er piagnone: ogni du' minuti er personaggio tuo piagne da solo davanti a tutti, e quanno stai vicino a " .. by .. " fa pure \"nguee nguee\" in chat."
   elseif pena.key == "crier" then
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
@@ -704,7 +703,7 @@ function S.Pick(sid, p, t, e)
   if not pena then return false, "Scegli er pegno." end
   local text = Clean(t)
   if pena.ask and not pena.opt and not text then return false, "Scrivi " .. pena.ask:lower() .. "." end
-  local x = { id = sid, p = tonumber(p), t = pena.ask and text or nil, e = (pena.key == "emote" or pena.key == "img") and (tonumber(e) or 1) or nil, at = Now() }
+  local x = { id = sid, p = tonumber(p), t = pena.ask and text or nil, e = pena.key == "img" and (tonumber(e) or 1) or nil, at = Now() }
   local keep = { x }
   for _, y in ipairs(MyList("gp")) do if #keep < 4 and y.id ~= sid then keep[#keep + 1] = y end end
   P.UpdateSelf(ns.state, ns.recordGuid, { gp = keep }, "sfide")
@@ -958,7 +957,6 @@ function S.Update()
       if s.pena then
         Tell(st, s.id .. ":pegno", function()
           local pena = S.PENE[s.pena]
-          if s.l == me and pena.key == "emote" and Now() - s.te < S.PICK + 300 then Figuraccia(s, all) end
           if quiet or not News then return end
           local what = S.PegnoText(s, all)
           News.Add("Er pegno de " .. GOLD .. Name(all, s.l) .. "|r: " .. what .. (s.pick and "" or " (" .. Name(all, s.w) .. " nun ha scelto)") .. ".")
@@ -1273,10 +1271,6 @@ local function PenaPicker(parent, x, y, form)
       w.text:SetPoint("LEFT", row, "LEFT", x0 + 6, 0)
       if not w.text:HasFocus() then w.text:SetText(form.t or "") end
       w.text:Show()
-    elseif pena.key == "emote" then
-      w.emote:SetPoint("LEFT", row, "LEFT", x0, 0)
-      w.emote:SetText((S.EMOTES[form.e or 1] or S.EMOTES[1]).name)
-      w.emote:Show()
     end
   end
   return w
@@ -1773,14 +1767,7 @@ local function Emote(tok, target)
   lastEmote = now
   pcall(DoEmote, tok, target)
 end
-local function OnRevive()
-  local g = S.AtGogna(ns.recordGuid)
-  local pena = g and S.PENE[g.s.pena or 0]
-  if pena and pena.key == "emote" then
-    local e = S.EMOTES[g.s.e or 1] or S.EMOTES[1]
-    if C_Timer then C_Timer.After(2, function() Emote(e.tok) end) else Emote(e.tok) end
-  end
-end
+local function OnRevive() end
 -- er servo: a bow every time he targets his master, and now and then when he's near him
 local lastNear = 0
 local function Master()
@@ -1820,6 +1807,25 @@ local function NearBow()
   end
 end
 S.NearBow = NearBow
+-- er piagnone: a cry every two minutes (not in a fight); "nguee nguee" too when his winner is near. The look for
+-- the winner is cheap: the usual unit tokens, once every two minutes
+local cryAt = 0
+local function Crybaby()
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if not (pena and pena.key == "cry") then return end
+  local now = GetTime and GetTime() or 0
+  if now - cryAt < 120 or (InCombatLockdown and InCombatLockdown()) then return end
+  if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+  cryAt = now
+  lastEmote = 0
+  Emote("CRY")
+  local master = Members()[g.by]
+  local u = master and UnitFor(master.name)
+  local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
+  if near == true then Say("piagne: \"nguee nguee\"") end
+end
+S.Crybaby = Crybaby
 
 S.OnRevive, S.OnTarget = OnRevive, OnTarget
 
@@ -1840,7 +1846,6 @@ function S.TestGogna()
   S.ShowMyGogna()
   local all = Members()
   if ns.News then ns.News.Banner(Short(ns.MyRecord()) .. " va a la gogna!", S.PegnoText(test.s, all) .. ", pe' du' minuti (prova).", { 1, 0.5, 0.2 }, "evento") end
-  if pena.key == "emote" then Emote((S.EMOTES[1]).tok) end
   S.ShowPena(test.s, all)
   if UI.Refresh then UI.Refresh() end
   if C_Timer then C_Timer.After(121, function() Rebuild() S.ShowMyGogna() UI.Refresh() end) end
@@ -1974,7 +1979,7 @@ ns.On("SelfChanged", function(state, reason) if reason ~= "pts" and reason ~= "s
 ns.On("Login", function()
   AddMenu()
   if C_Timer then
-    C_Timer.NewTicker(5, function() pcall(NearBow) end)
+    C_Timer.NewTicker(5, function() pcall(NearBow) pcall(Crybaby) end)
     C_Timer.After(10, S.Update)
     C_Timer.NewTicker(30, S.Update)
   end

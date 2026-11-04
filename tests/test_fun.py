@@ -392,7 +392,7 @@ g = A.ns.Sfide.AtGogna('Player-1-CCC')
 check(g is not None and 0 < g.til - T[0] < 86400 and g.s.pena == 1, 'Pietro didn\'t choose: Gina gets er santino for a day')
 check(shown(C, 'ErPattoPena') and 'santino' in str(C.g.ErPattoPena.name.text) and 'figura' in str(C.g.ErPattoPena.text.text), 'Gina is told about er santino')
 C.g.ErPattoPena.Hide(C.g.ErPattoPena)
-# the figuraccia
+# er piagnone
 T[0] += 86400 + 60; secs(5)
 B.g.TARGETNAME = 'Gina'
 SB.Gogna('Player-1-CCC', 'target'); secs(2)
@@ -403,11 +403,11 @@ row = [r for r in peg.pena.radios.values() if r.v == 4][0]
 row.Click(row)
 peg.yes.Click(peg.yes)
 secs(10)
-check(any('CHICKEN' in str(e) for e in C.g.EMOTES.values()), 'Gina does the chicken in front of everyone')
-n0 = len(list(C.g.EMOTES.values()))
-T[0] += 30; C.g.FIRE('PLAYER_UNGHOST'); secs(5)
-check(len(list(C.g.EMOTES.values())) == n0 + 1, 'and again every time she comes back to life')
-check('resusciti' in str(C.g.ErPattoPena.text.text), 'her window says so')
+n0 = len([e for e in C.g.EMOTES.values() if 'CRY' in str(e)])
+secs(125)
+n1 = len([e for e in C.g.EMOTES.values() if 'CRY' in str(e)])
+check(n1 >= n0 + 1, 'er piagnone: Gina cries every two minutes: %s -> %s' % (n0, n1))
+check('piagne' in str(C.g.ErPattoPena.text.text), 'her window says so')
 # la rivincita turned down: Gina beats Pietro, Pietro asks, Gina declines the duel request: Pietro a la gogna a day
 T[0] += 86400 + 60; secs(5)
 C.g.TARGETNAME = 'Pietro'; B.g.TARGETNAME = 'Gina'
