@@ -264,6 +264,15 @@ local function Chrome(frame)
     if frame.HookScript and frame.OnBackdropSizeChanged then frame:HookScript("OnSizeChanged", frame.OnBackdropSizeChanged) end
   end
   if frame.SetBackdrop then frame:SetBackdrop(DIALOG) end
+  -- not see-through: a dark ground and the marble of the main window under the dialog box's own background
+  if not frame.ground then
+    frame.ground = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    frame.ground:SetColorTexture(0.05, 0.05, 0.05, 1)
+    frame.ground:SetPoint("TOPLEFT", 11, -12)
+    frame.ground:SetPoint("BOTTOMRIGHT", -12, 11)
+    local w, h = frame:GetWidth(), frame:GetHeight()
+    if type(w) == "number" and type(h) == "number" and w > 40 and h > 40 then MarbleTiles(frame, 11, 12, w - 23, h - 23, "BACKGROUND", -7) end
+  end
   frame.stone = { Refit = function() end }
   return frame.stone
 end
@@ -663,7 +672,7 @@ function UI.Members()
             fi = (i * 3 % 15 + 2) * f, he = (i * 2 % 12) * f, mi = (i % 9) * f, sk = (i % 4) * f, lb = i % 2 + f - 1, le = 0, em = i % 2, nk = i % 3 + f, tr = (i * 2311 % 25000) * f, fl = i % 4, hs = i % 3 } } },
         ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
         nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
-        pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk, r = i % 4, n = i % 4 + 3 },
+        pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk, r = i % 4, n = i % 4 + 3, ps = 10 + i * 3, pw = (i * 7) % 30 },
         rip = { { at = U.Now() - i * 5400, lv = lv, k = ({ "mostro", "cascato", "mostro", "affogato", "pischello" })[i % 5 + 1],
           by = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Kobold Vermin", "Young Wolf" })[i % 5 + 1], z = ({ "Elwynn Forest", "Westfall", "Redridge Mountains" })[i % 3 + 1],
           w = ({ "tranquilli, ce penso io", "nun è niente", nil, "daje che è facile", "aspetta che bevo" })[i % 5 + 1] } },
@@ -2102,9 +2111,9 @@ local function BuildHUD()
   hud.text = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   hud.text:SetPoint("TOP", 0, 5)
   hud.text:SetSize(185, 16)
-  -- how far over or under the cap: small, at the right end of the bar
+  -- how far over or under the cap: small, just outside the right end of the bar (never red on red)
   hud.over = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  hud.over:SetPoint("RIGHT", hud, "RIGHT", -4, 1)
+  hud.over:SetPoint("LEFT", hud, "RIGHT", 10, 1)
   -- above the bar, small and light grey, only while you wait for the next cap ("Prossimo cap: 22, tra 2 giorni")
   hud.next = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   hud.next:SetPoint("BOTTOM", hud, "TOP", 0, 12)
@@ -2303,7 +2312,14 @@ end
 ns.On("Login", function() if C_Timer then C_Timer.After(6, function() UI.CheckAnnouncement(true) end) end end)
 ns.On("StateChanged", function(_, kind) if kind == "S" then UI.CheckAnnouncement(false) end end)
 
-ns.On("Refresh", function() UI.Refresh() end)
+-- many changes in the same moment (a click that writes my record, pays, updates the book...) make one redraw
+local refreshSoon = false
+ns.On("Refresh", function()
+  if not C_Timer then UI.Refresh() return end
+  if refreshSoon then return end
+  refreshSoon = true
+  C_Timer.After(0.05, function() refreshSoon = false UI.Refresh() end)
+end)
 ns.On("Login", function()
   UI.RefreshHUD()
   if C_Timer then C_Timer.NewTicker(20, function() UI.Refresh() end) end

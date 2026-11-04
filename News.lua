@@ -34,6 +34,7 @@ function N.Banner(title, sub, color, sound, big)
   end
   if big and RaidNotice_AddMessage and RaidWarningFrame then
     pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(title), { r = c[1], g = c[2], b = c[3] })
+    if sub and sub ~= "" then pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(sub), { r = 1, g = 1, b = 1 }) end
   end
   Ping(big and "big" or sound)
 end

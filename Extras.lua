@@ -229,43 +229,82 @@ X.INFO = {
 ----------------------------------------------------------------------
 -- Condividi: plain text for Discord
 ----------------------------------------------------------------------
+-- the week as a Discord message: the same things Er Bollettino tells, as text (Discord turns :trophy: and the
+-- others into emoji when it's sent; the ``` block keeps the table straight)
 function X.ShareText()
   local state = ns.state
   if not (state and P.HasSettings(state)) then return "" end
   local s = state.settings
-  local wk = M.WeekIndex(s, U.Now())
-  local list = UI.Members()
+  local wk = math.max(1, M.WeekIndex(s, U.Now()))
+  local B = ns.Bollettino
+  local d = B and B.Data and B.Data(wk, true)
+  local function plain(t) return (tostring(t or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|", "")) end
+  local function money(c)
+    c = math.floor(c or 0)
+    local g, sv, cu = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
+    if g > 0 then return g .. "g " .. sv .. "s" end
+    if sv > 0 then return sv .. "s " .. cu .. "c" end
+    return cu .. "c"
+  end
   local out = {}
+  local function add(t) out[#out + 1] = t end
   local st = ns.MyStatus()
-  out[#out + 1] = "**" .. tostring(s.name or "Er Patto") .. "**, settimana " .. math.max(0, wk) .. (st and not st.lifted and (" (cap " .. st.cap .. ")") or "")
+  add("**" .. plain(s.name or "Er Patto") .. "**, settimana " .. wk .. (st and not st.lifted and (" (cap " .. st.cap .. ")") or ""))
+  if d and d.head then add(":newspaper: " .. plain(d.head.title) .. (d.head.sub and (", " .. plain(d.head.sub)) or "")) end
+  -- the race: level, the levels of the week, against the cap
+  local list = UI.Members()
   table.sort(list, function(a, b) return (a.lv or 0) > (b.lv or 0) or ((a.lv or 0) == (b.lv or 0) and tostring(a.name) < tostring(b.name)) end)
-  local function W(m, k) local w = m.stats and m.stats.w and m.stats.w[wk] return type(w) == "table" and (w[k] or 0) or 0 end
+  local function W(m, k) return ns.Tombola and ns.Tombola.Weekly(m, wk)[k] or 0 end
+  add("") add(":checkered_flag: **La corsa**") add("```")
   for i, m in ipairs(list) do
-    if i > 15 then break end
-    local title = ns.Titles and ns.Titles.Of(m)
+    if i > 20 then break end
     local up = W(m, "ding")
-    out[#out + 1] = i .. ". " .. Short(m) .. " " .. tostring(m.lv or "?") .. (up > 0 and (" (+" .. up .. ")") or "") .. (title and (", " .. title) or "")
-  end
-  local function lead(label, fn, fmt)
-    local best, bv
-    for _, m in ipairs(list) do local v = fn(m) if v > 0 and (not bv or v > bv) then best, bv = m, v end end
-    if best then out[#out + 1] = label .. ": " .. Short(best) .. " (" .. (fmt and fmt(bv) or bv) .. ")" end
-  end
-  if wk >= 1 then
-    out[#out + 1] = ""
-    out[#out + 1] = "'Sta settimana"
-    lead("Più quest", function(m) return W(m, "q") end)
-    lead("Più ore", function(m) return W(m, "pt") end, function(v) return math.floor(v / 3600) .. " ore" end)
-    lead("Più morti", function(m) return W(m, "dt") end)
-    lead("Morti ridicole", function(m) return W(m, "em") end)
-    lead("Più fortunato", function(m) return W(m, "lb") + 5 * W(m, "le") end, function() return "che culo" end)
-    if ns.Tombola then
-      lead("Tombola", function(m) local sc = ns.Tombola.Score(m, wk) return sc and sc.points or 0 end, function(v) return ns.Tombola.Piotte(v) end)
-      lead("Er più ricco", function(m) return ns.Tombola.TotalOf(m) end, function(v) return ns.Tombola.Piotte(v) end)
+    local mst = m.team and M.Status(s, m.team, U.Now())
+    local vs = ""
+    if mst and mst.started and not mst.lifted then
+      local ps, dd = M.PlayerState(m.lv or 1, mst.cap)
+      vs = ps == "over" and ("+" .. dd .. " sopra er cap") or ps == "at" and "ar cap" or ("-" .. dd)
     end
-    local wipes = ns.News and ns.News.WipeCount() or 0
-    if wipes > 0 then out[#out + 1] = "Wipe der patto: " .. wipes end
+    add(string.format("%2d. %-12s %2s %-5s %s", i, Short(m):sub(1, 12), tostring(m.lv or "?"), up > 0 and ("+" .. up) or "", vs))
   end
+  add("```")
+  if d then
+    if #d.titles > 0 then
+      local t = {}
+      for i = 1, math.min(6, #d.titles) do t[#t + 1] = plain(d.titles[i].t.name) .. ": " .. Short(d.titles[i].m) end
+      add(":crown: **Titoli de la settimana:** " .. table.concat(t, ", "))
+    end
+    local p = {}
+    for i = 1, math.min(3, #d.rich) do p[#p + 1] = i .. ". " .. Short(d.rich[i].m) .. " " .. d.rich[i].total .. (d.rich[i].week ~= 0 and (" (" .. (d.rich[i].week > 0 and "+" or "") .. d.rich[i].week .. ")") or "") end
+    if #p > 0 then add(":moneybag: **Le piotte:** " .. table.concat(p, ", ")) end
+    local g = {}
+    for i = 1, math.min(3, #d.gold) do g[#g + 1] = Short(d.gold[i].m) .. " +" .. money(d.gold[i].g) end
+    if #g > 0 then add(":coin: **Li ricchi (fatti 'sta settimana):** " .. table.concat(g, ", ")) end
+    local dd = d.dead
+    if dd.total > 0 then
+      local t = { dd.total .. " morti" }
+      if dd.most then t[#t + 1] = "er più morto " .. Short(dd.most) .. " (" .. dd.mostN .. ")" end
+      if dd.silly then t[#t + 1] = "er più scemo " .. Short(dd.silly) .. (dd.words and (", ultime parole: \"" .. plain(dd.words) .. "\"") or "") end
+      if dd.killer then t[#t + 1] = "er boia " .. plain(dd.killer) .. " (" .. dd.kills .. ")" end
+      add(":skull: **Er cimitero:** " .. table.concat(t, "; "))
+    else
+      add(":angel: **Er cimitero:** nessun morto")
+    end
+    local a = d.arena
+    local t = {}
+    if a.fought > 0 then t[#t + 1] = a.fought .. " duelli a la gogna" end
+    for i = 1, math.min(3, #a.gogne) do local x = a.gogne[i] t[#t + 1] = Short(x.w) .. " ha messo a la gogna " .. Short(x.l) .. (x.pena and (" (" .. plain(x.pena.name):lower() .. ")") or "") end
+    if a.bully then t[#t + 1] = "er bullo " .. Short(a.bully) .. " (" .. a.bullyN .. " vinti)" end
+    if #t > 0 then add(":crossed_swords: **Er Colosseo:** " .. table.concat(t, "; ")) end
+    local tb = {}
+    for i, c in ipairs(d.cards) do tb[#tb + 1] = Short(c.m) .. " " .. (c.sc.full and "TOMBOLA!" or (c.sc.cells .. "/9")) end
+    if #tb > 0 then add(":ticket: **Tombola:** " .. table.concat(tb, ", ")) end
+    local q = {}
+    for _, x in ipairs(d.questions) do q[#q + 1] = plain(x.text) .. " " .. (#x.names > 0 and plain(x.names[1]) or "nessuno") end
+    if #q > 0 then add(":memo: **Schedina:** " .. table.concat(q, " / ")) end
+  end
+  local wipes = ns.News and ns.News.WipeCount() or 0
+  if wipes > 0 then add(":boom: **Wipe der patto:** " .. wipes) end
   return table.concat(out, "\n")
 end
 

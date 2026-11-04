@@ -274,7 +274,7 @@ function B.Data(wk, testing)
     local parts = {}
     if rank then parts[#parts + 1] = "In tutto " .. Signed(mineR.week) .. " " .. Coin() .. ", " .. rank .. "° de " .. #rich end
     parts[#parts + 1] = "+" .. Plural(W(me, wk, "ding"), "livello", "livelli")
-    parts[#parts + 1] = math.floor(W(me, wk, "g") / 10000) .. " oro"
+    parts[#parts + 1] = (ns.Money and ns.Money(W(me, wk, "g"), true) or "0") .. " fatti"
     parts[#parts + 1] = Plural(W(me, wk, "dt"), "morte", "morti")
     d.you = table.concat(parts, ", ")
     -- la tombola mia, la schedina mia, and every other piotta of the week (sfide, taje, gufate, Colosseo, sfottò)
@@ -381,12 +381,6 @@ local function Build()
   bull:SetScript("OnDragStart", bull.StartMoving)
   bull:SetScript("OnDragStop", bull.StopMovingOrSizing)
   H.Chrome(bull)
-  -- not see-through: the dark marble of the main window under the dialog box border
-  local solid = bull:CreateTexture(nil, "BACKGROUND", nil, -8)
-  solid:SetColorTexture(0.05, 0.05, 0.05, 1)
-  solid:SetPoint("TOPLEFT", 11, -12)
-  solid:SetPoint("BOTTOMRIGHT", -12, 11)
-  if H.MarbleTiles then H.MarbleTiles(bull, 11, 12, WIDTH - 23, HEIGHT - 23, "BACKGROUND", -7) end
   if bull.SetBackdropColor then bull:SetBackdropColor(0, 0, 0, 0) end
   bull.title = H.DialogHeader(bull, "", 300)
   H.CloseX(bull)
@@ -414,7 +408,7 @@ local function Build()
   bull.myCells = {}
   for i = 1, 9 do
     local cell = me:CreateTexture(nil, "ARTWORK")
-    cell:SetTexture("Interface\\Buttons\\UI-EmptySlot-White")
+    cell:SetTexture("Interface\\Buttons\\UI-Quickslot2") cell:SetTexCoord(12 / 64, 52 / 64, 12 / 64, 52 / 64)
     cell:SetSize(18, 18)
     cell:SetPoint("TOPLEFT", 16 + ((i - 1) % 3) * 17, -30 - math.floor((i - 1) / 3) * 17)
     local check = me:CreateTexture(nil, "OVERLAY")
@@ -478,6 +472,8 @@ local function Build()
   local so = H.Box(bull, COL, h1)
   so:SetPoint("TOPLEFT", x[3], y1)
   Title(so, "Li ricchi")
+  -- the money made in the week (not what they have): copper and silver count too
+  local sh = H.Text(so, "GameFontDisableSmall", "fatti 'sta settimana", 120, "RIGHT") sh:SetPoint("TOPRIGHT", -34, -13)
   Corner(so, "INV_Misc_Coin_01")
   bull.gold = Ranking(so, 7, 110)
 
@@ -505,7 +501,7 @@ local function Build()
     local left = 24 + (c - 1) * 94
     for i = 1, 9 do
       local cell = tb:CreateTexture(nil, "ARTWORK")
-      cell:SetTexture("Interface\\Buttons\\UI-EmptySlot-White")
+      cell:SetTexture("Interface\\Buttons\\UI-Quickslot2") cell:SetTexCoord(12 / 64, 52 / 64, 12 / 64, 52 / 64)
       cell:SetSize(16, 16)
       cell:SetPoint("TOPLEFT", left + ((i - 1) % 3) * 15, -30 - math.floor((i - 1) / 3) * 15)
       local check = tb:CreateTexture(nil, "OVERLAY")
@@ -622,10 +618,10 @@ local function Fill(d, testing)
     if x then
       r.name:SetText(i .. ". " .. Colored(x.m))
       Bar(r, x.g / gmax, i == 1, true)
-      r.val:SetText(WHITE .. math.floor(x.g / 10000) .. "|r " .. GOLDICON)
+      r.val:SetText(WHITE .. "+|r" .. (ns.Money and ns.Money(x.g) or tostring(x.g)))
       r.right:SetText("")
     else
-      r.name:SetText(i == 1 and (GREY .. "Nessuno ha fatto sordi.|r") or "") r.bar:Hide() r.val:SetText("") r.right:SetText("")
+      r.name:SetText(i == 1 and (GREY .. "Nessuno ha fatto manco 'n rame.|r") or "") r.bar:Hide() r.val:SetText("") r.right:SetText("")
     end
   end
 
@@ -683,7 +679,7 @@ local function Fill(d, testing)
     local names = {}
     for i = 1, math.min(2, #q.names) do names[i] = q.names[i] end
     if #q.names > 2 then names[#names + 1] = GREY .. "e artri " .. (#q.names - 2) .. "|r" end
-    bl[#bl + 1] = q.text .. " " .. (#q.names > 0 and (table.concat(names, ", ") .. " " .. GREY .. "(" .. (q.stat == "pt" and U.Hours(q.val / 3600) or q.stat == "g" and (math.floor(q.val / 10000) .. " oro") or q.val) .. ")|r") or (GREY .. "nessuno|r"))
+    bl[#bl + 1] = q.text .. " " .. (#q.names > 0 and (table.concat(names, ", ") .. " " .. GREY .. "(" .. (q.stat == "pt" and U.Hours(q.val / 3600) or q.stat == "g" and (ns.Money and ns.Money(q.val, true) or q.val) or q.val) .. ")|r") or (GREY .. "nessuno|r"))
   end
   if #d.right > 0 then
     br[#br + 1] = "Ce l'hanno presa:"

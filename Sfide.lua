@@ -49,15 +49,15 @@ local SLACK = 60
 S.PENE = {
   { key = "img", name = "La pecora",
     tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, sopra la testa der personaggio suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
-  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, ogni vorta che te pare, ner chat der patto se legge che balla, fa la gallina, s'inchina...",
+  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) e dì a tutti che se fa tirà li fili; lui sente pure 'na canzoncina ar rallentatore.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
-  { key = "cry", name = "Er piagnone", tip = "Ogni du' minuti, ner chat der patto, se legge che piagne; e si je stai vicino, \"nguee nguee\".",
+  { key = "cry", name = "Er piagnone", tip = "Ogni du' minuti er personaggio suo piagne davanti a tutti; e si je stai vicino, fa pure \"nguee nguee\".",
     icon = "Interface\\Icons\\Spell_Shadow_DeathScream" },
   { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
-  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino, ner chat der patto se legge \"is the slave of\" er padrone, 'na vorta ogni dieci minuti.",
+  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino je s'inchina, e 'na vorta ogni dieci minuti dice a tutti \"is the slave of\" er padrone.",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
   { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente solo lui.",
     icon = "Interface\\Icons\\INV_Misc_Drum_01" },
@@ -267,7 +267,7 @@ function S.Total(m, key)
 end
 
 function S.Fmt(key, n)
-  if key == "g" then return math.floor(n / 10000) .. " oro" end
+  if key == "g" then return ns.Money and ns.Money(n, true) or (math.floor(n / 10000) .. " oro") end
   if key == "tr" then return string.format("%.1f km", n * 0.0009144) end
   return tostring(n)
 end
@@ -521,15 +521,15 @@ function S.PegnoYou(s, all)
   elseif pena.key == "kara" then
     return "Ogni tanto, quanno ammazzi 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce). La senti te e la sentono pure quelli der patto che te stanno vicino."
   elseif pena.key == "pupo" then
-    return "Sei er burattino de " .. by .. ": ogni vorta che je pare, ner chat der patto se legge che balli, fai la gallina, t'inchini..."
+    return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' 'na canzoncina ar rallentatore."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
   elseif pena.key == "cry" then
-    return "Sei er piagnone: ogni du' minuti, ner chat der patto, se legge che piagni; e quanno stai vicino a " .. by .. ", \"nguee nguee\"."
+    return "Sei er piagnone: ogni du' minuti er personaggio tuo piagne davanti a tutti, e quanno stai vicino a " .. by .. " fa pure \"nguee nguee\"."
   elseif pena.key == "crier" then
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
-    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ner chat der patto se legge \"" .. ((ns.MyRecord and Short(ns.MyRecord())) or "") .. " is the slave of " .. by .. ".\", 'na vorta ogni dieci minuti."
+    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino je t'inchini, e 'na vorta ogni dieci minuti tutti leggono \"" .. ((ns.MyRecord and Short(ns.MyRecord())) or "") .. " is the slave of " .. by .. ".\""
   end
 end
 
@@ -1035,7 +1035,7 @@ function S.Update()
         -- lo strillone: everyone is told
         local cr = criers[guid]
         if cr and g.at >= cr.from and g.at < cr.til and Now() - g.at < 600 then
-          News.Banner("È morto de novo " .. Short(m) .. "!", S.GraveText(g):gsub("^, ", "") .. ". Lo strillone de " .. Name(all, cr.by) .. ".", { 1, 0.5, 0.2 }, "evento")
+          News.Banner("Lo strillone: " .. Short(m) .. " è morto de novo!", S.CrierLine(Short(m), g), { 1, 0.5, 0.2 }, "evento", true)
         end
       end)
     end
@@ -1053,6 +1053,37 @@ function S.Update()
   S.ShowMyGogna()
   S.GufaWatch()
   if ns.Tombola then ns.Tombola.Update() end
+end
+
+-- lo strillone: how he died, told so the whole patto laughs (by the kind of death, the killer and the place)
+S.CRIER = {
+  cascato = { "%s è cascato a %s. Gravità 1, %s 0.", "%s ha provato a volà a %s. Nun era 'n uccello.", "A %s c'era 'n gradino. %s nun l'ha visto." },
+  affogato = { "%s è affogato a %s. Pure li pesci ridono.", "%s s'è scordato de respirà a %s.", "A %s %s ha bevuto troppo. Acqua." },
+  pischello = { "%s s'è fatto ammazzà da 'n %s a %s. 'N pischello!", "A %s 'n %s ha menato %s. Vergogna eterna." },
+  pvp = { "%s s'è fatto fà fori da %s a %s. 'Na passeggiata.", "A %s %s ha incontrato %s. È finita male." },
+  mostro = { "%s s'è fatto fà fori da 'n %s a %s.", "%s 1, %s 0. A %s.", "A %s 'n %s s'è magnato %s. Bon appetito." },
+}
+function S.CrierLine(name, g)
+  local k = g.k
+  if not S.CRIER[k] then k = "mostro" end
+  local list = S.CRIER[k]
+  local f = list[(math.floor(g.at or 0) % #list) + 1]
+  local z, by = g.z or "chissà dove", g.by or "quarcosa"
+  -- the order of the names in each line: name, place / name, killer, place, as the line wants them
+  if k == "cascato" then
+    if f:find("^A %%s") then return f:format(z, name) end
+    return f:format(name, z, name)
+  elseif k == "affogato" then
+    if f:find("^A %%s") then return f:format(z, name) end
+    return f:format(name, z)
+  elseif k == "pischello" or k == "pvp" then
+    if f:find("^A %%s") then return f:format(z, by, name) end
+    return f:format(name, by, z)
+  else
+    if f:find("^A %%s") then return f:format(z, by, name) end
+    if f:find("^%%s 1") then return f:format(by, name, z) end
+    return f:format(name, by, z)
+  end
 end
 
 -- ", livello 14, ammazzato da Kobold Vermin a Elwynn Forest"
@@ -1284,9 +1315,9 @@ function S.ShowPegno(s)
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 400, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
     pegno.pena = PenaPicker(pegno, 36, -74, pegno.form, function()
-      if pegno.sid == "prova" then Done(pegno, "Er pegno è fatto (prova).") return end
+      if pegno.sid == "prova" then Done(pegno, "Er pegno è fatto (prova).", 2.5) return end
       local f = pegno.form
-      if Report(pegno, S.Pick(pegno.sid, f.p, f.t, f.e)) then Done(pegno, "Er pegno è fatto: " .. Name(Members(), pegno.l) .. " sta a la gogna.") end
+      if Report(pegno, S.Pick(pegno.sid, f.p, f.t, f.e)) then Done(pegno, "Er pegno è fatto: " .. Name(Members(), pegno.l) .. " sta a la gogna.", 2.5) end
     end)
     pegno.msg = H.Text(pegno, "GameFontNormal", "", 340, "CENTER")
     pegno.msg:SetPoint("CENTER", 0, -10)
@@ -1314,8 +1345,6 @@ function S.ShowBet(a, b, gogna)
   if not (all[a] and all[b]) then return end
   if not bet then
     bet = Dialog("ErPattoScommessa", 320, 150, "Ar Colosseo!")
-    bet:ClearAllPoints()
-    bet:SetPoint("TOP", UIParent, "TOP", 0, -90)
     H.CloseX(bet)
     bet.text = H.Text(bet, "GameFontHighlight", "", 290, "CENTER")
     bet.text:SetPoint("TOP", 0, -32)
@@ -1347,8 +1376,17 @@ function S.ShowBet(a, b, gogna)
   bet.pb:SetText(Short(all[b]))
   bet.stake:SetText("5")
   bet.shownAt = GetTime and GetTime() or 0
+  -- on top, centred: under the cap bar when the bar is up there (as the clip after a duel)
+  bet:ClearAllPoints()
+  if bet.SetUserPlaced then pcall(bet.SetUserPlaced, bet, false) end
+  local hud = _G.ErPattoHUD
+  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
+  local hh = UIParent.GetHeight and UIParent:GetHeight() or 768
+  if top and top > hh * 0.6 then bet:SetPoint("TOP", hud, "BOTTOM", 0, -56)
+  else bet:SetPoint("TOP", UIParent, "TOP", 0, -90) end
   bet:Show()
-  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
+  -- the call to the arena: the ready check bell
+  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master") end
   if C_Timer then C_Timer.After(60, function() if bet and bet.shownAt and (GetTime() - bet.shownAt) >= 59 then bet:Hide() end end) end
 end
 
@@ -1550,7 +1588,7 @@ function S.OpenSfotti(guid)
 end
 
 -- er burattino: the master picks an emote, the loser's character does it (once every ten minutes)
-S.PUPO_EVERY = 2 -- just against a double click
+S.PUPO_EVERY = 300 -- li fili, once every five minutes
 S.PUPO = { { tok = "DANCE", name = "Balla" }, { tok = "CHICKEN", name = "Fa la gallina" }, { tok = "KNEEL", name = "S'inginocchia" },
   { tok = "CRY", name = "Piagne" }, { tok = "SILLY", name = "Fa lo scemo" }, { tok = "BOW", name = "S'inchina" },
   { tok = "FLEX", name = "Fa er bullo" }, { tok = "SURRENDER", name = "Se arrende" } }
@@ -1565,7 +1603,7 @@ function S.Pull(guid, i)
   local e = S.PUPO[i]
   if not e then return false end
   local left = (pulled[guid] or 0) + S.PUPO_EVERY - Now()
-  if left > 0 then return false, "Piano, 'n attimo." end
+  if left > 0 then return false, "Li fili se ponno tirà de novo tra " .. math.max(1, math.ceil(left / 60)) .. " minuti." end
   pulled[guid] = Now()
   Send({ t = "pp", on = guid, e = i })
   return true, e
@@ -1975,14 +2013,28 @@ local lastEmote = 0
 S.EMOTE_TEXT = { DANCE = "se mette a ballà.", CHICKEN = "fa la gallina.", KNEEL = "s'inginocchia.", CRY = "piagne.",
   SILLY = "fa lo scemo.", BOW = "s'inchina.", FLEX = "fa er bullo.", SURRENDER = "se arrende." }
 local Say
--- the game's emotes (C_ChatInfo.PerformEmote / DoEmote) are "AllowedWhenUntainted": an addon calling them gets
--- the game's "blocked" window. So the addon never calls them: the emote is a line in the emote colour, in my
--- chat and in the chat of the patto in the same zone (only who has the addon reads it)
-local function Emote(tok)
+-- the game's own emotes (the animation and the line everyone around reads). They are "AllowedWhenUntainted" only
+-- for secret values, which we never pass, so an addon may call them; if the game ever blocks them anyway
+-- (Util.lua catches it: ns.OnBlocked), we remember it for this build and write the line ourselves instead
+local function Build() return GetBuildInfo and tostring(select(2, GetBuildInfo())) or "?" end
+local function Refused(what) return ns.db and type(ns.db.refused) == "table" and ns.db.refused[what] == Build() end
+ns.OnBlocked = function(x)
+  if not ns.db then return end
+  ns.db.refused = type(ns.db.refused) == "table" and ns.db.refused or {}
+  local fn = tostring(x and x.fn or "")
+  if fn:find("Emote") then ns.db.refused.emote = Build() end
+  if fn:find("SendChatMessage") then ns.db.refused.chat = Build() end
+end
+local function Emote(tok, target)
   local now = GetTime and GetTime() or 0
   if now - lastEmote < 2 then return end
   lastEmote = now
-  if Say and S.EMOTE_TEXT[tok] then Say(S.EMOTE_TEXT[tok]) end
+  local perform = (C_ChatInfo and C_ChatInfo.PerformEmote) or DoEmote
+  if perform and not Refused("emote") and not (InCombatLockdown and InCombatLockdown()) then
+    pcall(perform, tok, target)
+  elseif Say and S.EMOTE_TEXT[tok] then
+    Say(S.EMOTE_TEXT[tok])
+  end
 end
 S.Emote = Emote
 -- er servo: his line when his master is near
@@ -2004,7 +2056,13 @@ local function EmoteLine(who, text)
   local f = DEFAULT_CHAT_FRAME
   if f and f.AddMessage then f:AddMessage(tostring(who) .. " " .. text, 1, 0.5, 0.25) end
 end
+-- a /me line: the game's emote chat, read by everyone around (EMOTE needs no click, unlike SAY and YELL); if the
+-- game refuses it, my chat and the patto's in the same zone instead
 function Say(text)
+  local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+  if send and not Refused("chat") and not (InCombatLockdown and InCombatLockdown()) then
+    if pcall(send, text, "EMOTE") then return end
+  end
   local rec = ns.MyRecord and ns.MyRecord()
   EmoteLine(Short(rec), text)
   local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
@@ -2015,11 +2073,12 @@ local function NearBow()
   local master = Master()
   if not master then return end
   local now = GetTime and GetTime() or 0
-  if now - lastNear < 30 or (InCombatLockdown and InCombatLockdown()) then return end
+  if now - lastNear < 60 or (InCombatLockdown and InCombatLockdown()) then return end
   local u = UnitFor(master.name)
   local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
   if near == true then
     lastNear = now
+    Emote("BOW", u)
     -- he comes near (or stays): "X is the slave of Aldo.", once every ten minutes at most
     if saidAt == 0 or now - saidAt >= S.SERVO_EVERY then
       saidAt, saidN = now, saidN + 1
@@ -2054,6 +2113,16 @@ local function PlayKara(i, sp)
   if PlaySoundFile then pcall(PlaySoundFile, KaraFile(i, sp), "Master") end
   local now = GetTime and GetTime() or 0
   karaUntil = now + (S.KARAOKE_LENGTH[i] or 8) * 100 / sp + 1
+end
+-- er burattino: the strings are pulled: the emote, the line everyone around reads, and for him alone one of the
+-- songs at half speed
+function S.Puppet(e, master)
+  if not e then return end
+  lastEmote = 0
+  Emote(e.tok)
+  Say("se fa tirà li fili da " .. tostring(master) .. ".")
+  local now = GetTime and GetTime() or 0
+  if now >= karaUntil then PlayKara(math.random(S.KARAOKE_SONGS), 50) end
 end
 -- the jackpot line, as a slot machine would say it
 local function Jackpot(sp)
@@ -2104,7 +2173,8 @@ local function Crybaby()
   local master = Members()[g.by]
   local u = master and UnitFor(master.name)
   local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
-  if near == true then Say("piagne: \"nguee nguee\"") else Emote("CRY") end
+  Emote("CRY")
+  if near == true then Say("piagne: \"nguee nguee\"") end
 end
 S.Crybaby = Crybaby
 
@@ -2133,11 +2203,11 @@ function S.TestGogna()
   if pena.key == "img" then
     S.SheepNow()
   elseif pena.key == "pupo" then
-    Soon(function() lastEmote = 0 Emote("DANCE") S.Notice("Er burattino", GOLD .. master .. "|r tira li fili: balli (prova).", 6) end)
+    Soon(function() S.Puppet(S.PUPO[1], master) end)
   elseif pena.key == "cry" then
-    Soon(function() lastEmote = 0 Say("piagne: \"nguee nguee\"") end)
+    Soon(function() lastEmote = 0 Emote("CRY") Say("piagne: \"nguee nguee\"") end)
   elseif pena.key == "servo" then
-    Soon(function() lastEmote = 0 Say(S.SERVO_LINE:format(master)) end)
+    Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINE:format(master)) end)
   elseif pena.key == "kara" then
     karaAt, karaUntil = 0, 0
     Soon(function() S.Karaoke(true) end)
@@ -2223,8 +2293,7 @@ ns.On("Live", function(from, data)
     local e = S.PUPO[tonumber(data.e) or 0]
     if g and pena and pena.key == "pupo" and g.by == from and e and Now() - (pulled.me or 0) >= 1 then
       pulled.me = Now()
-      Emote(e.tok)
-      S.Notice("Er burattino", GOLD .. Short(all[from]) .. "|r tira li fili: " .. e.name:lower() .. ".", 6)
+      S.Puppet(e, Short(all[from]))
     end
   elseif data.t == "gf" and type(data.id) == "string" and type(data.on) == "string" then
     liveGf[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), on = data.on:sub(1, 60), s = math.floor(tonumber(data.s) or 0), at = tonumber(data.at) or Now(), by = from }
@@ -2440,13 +2509,16 @@ function S.BuildPage(v)
   local d = H.Box(p, 360, 114)
   d:SetPoint("TOPLEFT", 0, -261)
   local td = H.Text(d, "GameFontNormal", "Taje e gufate", 240) td:SetPoint("TOPLEFT", 12, -12)
+  -- all of them, the open ones first, with a vanilla scroll when they don't fit
+  local scroll = CreateFrame("ScrollFrame", "ErPattoTajeScroll", d, "UIPanelScrollFrameTemplate")
+  if H.VanillaScroll then H.VanillaScroll(scroll) end
+  scroll:SetPoint("TOPLEFT", 12, -28)
+  scroll:SetPoint("BOTTOMRIGHT", -30, 8)
+  p.tajeBody = CreateFrame("Frame", nil, scroll)
+  p.tajeBody:SetSize(316, 10)
+  scroll:SetScrollChild(p.tajeBody)
+  p.tajeScroll = scroll
   p.lines = {}
-  for i = 1, 5 do
-    local l = H.Text(d, "GameFontHighlightSmall", "", 250) l:SetPoint("TOPLEFT", 14, -30 - (i - 1) * 15)
-    if l.SetWordWrap then l:SetWordWrap(false) end
-    l.right = H.Text(d, "GameFontHighlightSmall", "", 80, "RIGHT") l.right:SetPoint("TOPRIGHT", -14, -30 - (i - 1) * 15)
-    p.lines[i] = l
-  end
 
   -- the sfide
   local c = H.Box(p, 378, 347)
@@ -2519,17 +2591,33 @@ function S.RefreshPage(v)
     end
   end
   p.none:SetText(shown == 0 and (GREY .. "Ancora nessuna sfida.|r") or "")
-  local lines = {}
+  local open, done = {}, {}
   for _, t in ipairs(S.Taje()) do
-    if S.TajaState(t, all) == "aperta" then lines[#lines + 1] = { "Taja su " .. H.Colored(all[t.on] or { name = "?" }), Piotte(t.s) } end
+    local st, r = S.TajaState(t, all)
+    local who = "Taja de " .. Short(all[t.by] or { name = "?" }) .. " su " .. H.Colored(all[t.on] or { name = "?" })
+    if st == "aperta" then open[#open + 1] = { who, Piotte(t.s) }
+    else done[#done + 1] = { GREY .. who .. ((r and r.w and r.w ~= "" and all[r.w]) and (", presa da " .. Short(all[r.w])) or ", scaduta") .. "|r", GREY .. Piotte(t.s) .. "|r" } end
   end
   for _, g in ipairs(S.Gufate()) do
-    if S.GufaState(g, all) == "aperta" then lines[#lines + 1] = { Short(all[g.by]) .. " gufa " .. H.Colored(all[g.on] or { name = "?" }), Piotte(g.s) } end
+    local st = S.GufaState(g, all)
+    local who = Short(all[g.by] or { name = "?" }) .. " gufa " .. H.Colored(all[g.on] or { name = "?" })
+    if st == "aperta" then open[#open + 1] = { who, Piotte(g.s) }
+    else done[#done + 1] = { GREY .. who .. (st == "morto" and ", è morto" or st == "campato" and ", è campato" or ", annullata") .. "|r", GREY .. Piotte(g.s) .. "|r" } end
   end
+  local lines = open
+  for _, x in ipairs(done) do lines[#lines + 1] = x end
   if #lines == 0 then lines[1] = { GREY .. "Nessuna taja o gufata.|r", "" } end
-  for i, l in ipairs(p.lines) do
-    local x = lines[i]
-    l:SetText(x and x[1] or "")
-    l.right:SetText(x and x[2] or "")
+  for i, x in ipairs(lines) do
+    local l = p.lines[i]
+    if not l then
+      l = H.Text(p.tajeBody, "GameFontHighlightSmall", "", 236) l:SetPoint("TOPLEFT", 2, -(i - 1) * 15)
+      if l.SetWordWrap then l:SetWordWrap(false) end
+      l.right = H.Text(p.tajeBody, "GameFontHighlightSmall", "", 76, "RIGHT") l.right:SetPoint("TOPRIGHT", 0, -(i - 1) * 15)
+      p.lines[i] = l
+    end
+    l:SetText(x[1]) l.right:SetText(x[2])
   end
+  for i = #lines + 1, #p.lines do p.lines[i]:SetText("") p.lines[i].right:SetText("") end
+  p.tajeBody:SetHeight(math.max(10, #lines * 15))
+  if UI.FitScroll then UI.FitScroll(p.tajeScroll, #lines * 15, 114 - 36) end
 end

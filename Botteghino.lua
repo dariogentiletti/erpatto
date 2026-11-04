@@ -184,10 +184,20 @@ local function BuildRicchi(v)
   local p = H.Box(v, 744, 347)
   p:SetPoint("TOPLEFT", 0, -28)
   v.ricchi = p
-  local cols = { { "", 30, 14 }, { "Chi", 200, 44 }, { "Piotte", 80, 250 }, { "Tombola", 80, 350 }, { "Schedina", 120, 450 } }
+  local cols = { { "", 30, 14 }, { "Chi", 200, 44 }, { "Piotte", 80, 250 }, { "Tombola", 80, 350 }, { "Schedine", 70, 440 }, { "Resa", 60, 520 } }
   for _, c in ipairs(cols) do
     local t = H.Text(p, "GameFontDisableSmall", c[1], c[2], c[1] == "Chi" and "LEFT" or "RIGHT")
     t:SetPoint("TOPLEFT", c[3], -12)
+    if c[1] == "Resa" or c[1] == "Schedine" then
+      local hit = CreateFrame("Frame", nil, p)
+      hit:SetSize(c[2], 14) hit:SetPoint("TOPLEFT", c[3], -10) hit:EnableMouse(true)
+      hit:SetScript("OnEnter", function(self)
+        if c[1] == "Resa" then
+          H.Tip(self, { "Resa de le schedine", "Quanto t'hanno reso: (vinto - giocato) / giocato. Vince de più chi azzecca dove nessuno punta: 'na quota arta vale tanto, la vittoria scontata poco." })
+        else H.Tip(self, { "Schedine", "Domande azzeccate su quelle giocate." }) end
+      end)
+      hit:SetScript("OnLeave", H.HideTip)
+    end
   end
   v.rich = {}
   for i = 1, 16 do
@@ -198,7 +208,8 @@ local function BuildRicchi(v)
     if r.name.SetWordWrap then r.name:SetWordWrap(false) end
     r.money = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.money:SetPoint("TOPLEFT", 250, y)
     r.tomb = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.tomb:SetPoint("TOPLEFT", 350, y)
-    r.sch = H.Text(p, "GameFontHighlightSmall", "", 120, "RIGHT") r.sch:SetPoint("TOPLEFT", 450, y)
+    r.sch = H.Text(p, "GameFontHighlightSmall", "", 70, "RIGHT") r.sch:SetPoint("TOPLEFT", 440, y)
+    r.roi = H.Text(p, "GameFontHighlightSmall", "", 60, "RIGHT") r.roi:SetPoint("TOPLEFT", 520, y)
     r.dare = H.Btn(p, "Sfida", 60, function(self) ns.Sfide.Prefill(self.guid) end, 18)
     r.dare:SetPoint("TOPRIGHT", -14, y + 3)
     v.rich[i] = r
@@ -417,7 +428,8 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
     local open = can and true or false
     if r.stake.SetEnabled then r.stake:SetEnabled(open) end
     r.place:SetEnabled(open)
-    r.place:SetText(placed and "Cambia" or "Punta")
+    r.place:SetText(placed and "Giocata" or "Punta")
+    if placed and r.stake.SetEnabled then r.stake:SetEnabled(false) end
   end
 end
 
@@ -437,16 +449,17 @@ local function RefreshRicchi(v, wk, list)
     if m then
       local pos = (m.guid == ns.recordGuid and myPos) or i
       local sc = TB.Card(wk) and TB.Score(m, wk)
-      local won, played = TB.SchedineOf(m)
+      local won, played, roi = TB.SchedineOf(m)
       r.pos:SetText(pos .. "º")
       r.name:SetText(H.Colored(m) .. ((m.guid == ns.recordGuid) and (" " .. GOLD .. "(tu)|r") or ""))
       r.money:SetText(TB.TotalOf(m) .. " " .. TB.Coin(12))
       r.tomb:SetText(sc and (sc.cells .. "/9") or (GREY .. "-|r"))
-      r.sch:SetText(played > 0 and (won .. " vinte su " .. played) or (GREY .. "-|r"))
+      r.sch:SetText(played > 0 and (won .. "/" .. played) or (GREY .. "-|r"))
+      r.roi:SetText(roi and ((roi > 0 and "|cff20ff20+" or roi < 0 and "|cffff4040" or GREY) .. roi .. "%|r") or (GREY .. "-|r"))
       r.dare.guid = m.guid
       r.dare:SetShown(m.guid ~= ns.recordGuid and not m.fake)
     else
-      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.dare:Hide()
+      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.roi:SetText("") r.dare:Hide()
     end
   end
 end

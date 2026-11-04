@@ -149,22 +149,20 @@ check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Puntate'), '
 # ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
 TB = A.ns.Tombola
 bal0 = TB.Balance()
-ok = TB.Bet('a', 'Player-1-BBB')
-ok2 = TB.Bet('a', None, 10)
-check(ok and ok2 and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 piotte on Pietro')
+ok = TB.Bet('a', 'Player-1-BBB', 10)
+check(ok and str(A.rec().vt.a) == 'Player-1-BBB' and A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'bet placed and paid: 10 piotte on Pietro')
 check(A.rec().vt.qa and A.rec().vt.qa > 10, 'the odds are taken with the bet: %s' % A.rec().vt.qa)
 bad = TB.Bet('a', None, 'boh')
 check((bad[0] if isinstance(bad, tuple) else bad) is False, 'a stake must be a number')
-ok7 = TB.Bet('a', None, 7)
-check(ok7 and A.rec().vt.sa == 7 and TB.Balance() == bal0 - 7, 'any stake, not just 1/5/10: 7')
-# typed in the box and Punta
+again = TB.Bet('a', 'Player-1-AAA', 7)
+check((again[0] if isinstance(again, tuple) else again) is False and 'nun se cambia' in str(again[1]) and A.rec().vt.sa == 10, 'a giocata is final: no changing it later')
+# the box shows it, and Punta again says it's done
 A.ns.Botteghino.Show('schedina')
 bv = A.ns.UI._views.botteghino
 r1 = bv.q[1]
-r1.stake.SetText(r1.stake, '10'); r1.place.Click(r1.place)
-check(A.rec().vt.sa == 10 and TB.Balance() == bal0 - 10, 'typed 10 in the box and Punta')
-check('Giocata!' in str(r1.mineLine.text) and '10 su Pietro a ' in str(r1.mineLine.text) and 'Si vince' in str(r1.winLine.text), 'the bet is confirmed and says what it pays: ' + str(r1.mineLine.text) + ' / ' + str(r1.winLine.text))
-check(r1.place.text == 'Cambia', 'the button now changes the bet')
+check('10 su Pietro a ' in str(r1.mineLine.text) and 'Si vince' in str(r1.winLine.text) and r1.place.text == 'Giocata', 'the bet is shown with what it pays: ' + str(r1.mineLine.text) + ' / ' + str(r1.winLine.text))
+r1.place.Click(r1.place)
+check('nun se cambia' in str(bv.status.text), 'Punta on a giocata done says why: ' + str(bv.status.text))
 # click a member in the list, write the stake, Punta
 r2 = bv.q[2]
 row = [b for b in r2.rows.values() if b.shown and str(b.guid) == 'Player-1-AAA'][0]
@@ -403,11 +401,11 @@ peg = B.g.ErPattoPegno
 row = [r for r in peg.pena.radios.values() if r.v == 4][0]
 row.Click(row)
 secs(10)
-n0 = len([e for e in C.g.CHAT.values() if 'piagne' in str(e)])
+n0 = len([e for e in C.g.EMOTES.values() if 'CRY' in str(e)])
 secs(125)
-n1 = len([e for e in C.g.CHAT.values() if 'piagne' in str(e)])
-check(n1 >= n0 + 1 and len(list(C.g.EMOTES.values())) == 0, 'er piagnone: Gina cries every two minutes: %s -> %s' % (n0, n1))
-check('piagni' in str(C.g.ErPattoPena.text.text), 'her window says so')
+n1 = len([e for e in C.g.EMOTES.values() if 'CRY' in str(e)])
+check(n1 >= n0 + 1, 'er piagnone: Gina cries every two minutes: %s -> %s' % (n0, n1))
+check('piagne' in str(C.g.ErPattoPena.text.text), 'her window says so')
 # la rivincita turned down: Gina beats Pietro, Pietro asks, Gina declines the duel request: Pietro a la gogna a day
 T[0] += 86400 + 60; secs(5)
 C.g.TARGETNAME = 'Pietro'; B.g.TARGETNAME = 'Gina'
@@ -451,11 +449,14 @@ row.Click(row)
 secs(5)
 ok = SC.Pull('Player-1-BBB', 1)
 secs(3)
-check(first(ok) and any('se mette a ballà' in str(e) for e in B.g.CHAT.values()), 'er burattino: Gina pulls the strings, Pietro dances (a line in the chat)')
+check(first(ok) and any('DANCE' in str(e) for e in B.g.EMOTES.values()) and any('tirà li fili' in str(e) for e in B.g.CHAT.values()), 'er burattino: Gina pulls the strings, Pietro dances and says so')
+soon = SC.Pull('Player-1-BBB', 2)
+check(not first(soon) and 'minuti' in str(second(soon)), 'the strings once every five minutes: ' + str(second(soon)))
+secs(301)
 secs(4)
 again = SC.Pull('Player-1-BBB', 2)
 secs(3)
-check(first(again) and any('fa la gallina' in str(e) for e in list(B.g.CHAT.values())[-3:]), 'and again whenever she likes: the chicken')
+check(first(again) and any('CHICKEN' in str(e) for e in B.g.EMOTES.values()), 'and five minutes later again: the chicken')
 # the dropdowns of the Sfide page: pick a member, pick what, the labels change
 A.ns.Botteghino.Show('sfide')
 pg = A.ns.UI._views.botteghino.sfide

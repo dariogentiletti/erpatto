@@ -201,7 +201,8 @@ function P.CleanMember(r)
   end
   if type(r.pts) == "table" then
     c.pts = { t = math.floor(Num(r.pts.t, 0, 1e7) or 0), w = math.floor(Num(r.pts.w, 0, 1e4) or 0), wk = Num(r.pts.wk, 0, 260),
-      r = math.floor(Num(r.pts.r, 0, 1e4) or 0), n = math.floor(Num(r.pts.n, 0, 1e4) or 0) }
+      r = math.floor(Num(r.pts.r, 0, 1e4) or 0), n = math.floor(Num(r.pts.n, 0, 1e4) or 0),
+      ps = math.floor(Num(r.pts.ps, 0, 1e7) or 0), pw = math.floor(Num(r.pts.pw, 0, 1e7) or 0) }
   end
   -- bets: this week's (vt) and last week's (vp): pick and stake per question
   local function Bets(v)

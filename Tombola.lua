@@ -474,9 +474,21 @@ function TB.Balance()
 end
 
 -- the schedine won and played (questions): mine from the book, theirs as shared
+-- and the return on them, in %: (won - staked) / staked over the closed weeks; nil before the first one
+local function Staked(b)
+  local s, w = 0, 0
+  for _, e in pairs(b and b.weeks or {}) do s, w = s + (e.s or 0), w + (e.w or 0) end
+  return s, w
+end
+local function Roi(s, w) if (s or 0) <= 0 then return nil end return math.floor((w - s) * 100 / s + 0.5) end
 function TB.SchedineOf(m)
-  if m.guid == ns.recordGuid then local b = Book() return b and b.right or 0, b and b.played or 0 end
-  return m.pts and m.pts.r or 0, m.pts and m.pts.n or 0
+  if m.guid == ns.recordGuid then
+    local b = Book()
+    local s, w = Staked(b)
+    return b and b.right or 0, b and b.played or 0, Roi(s, w)
+  end
+  local p = m.pts or {}
+  return p.r or 0, p.n or 0, Roi(p.ps, p.pw or 0)
 end
 
 -- anybody's balance: theirs as shared, mine live
@@ -497,7 +509,15 @@ function TB.CanVote()
   return U.Now() < TB.Closes(wk), wk
 end
 
-function TB.Closes(wk) return TB.WeekStart(wk) + M.WEEK end
+-- la schedina closes on the first Monday 00:00 (Italian time) of the week: the weekend is there for whoever plays
+-- only then, and the rest of the week (at least two days) is still to be played after it
+function TB.Closes(wk)
+  local start = TB.WeekStart(wk)
+  local p = U.RomeParts(start)
+  local days = (8 - (p.wday or 1)) % 7
+  if days == 0 then days = 7 end
+  return start + days * 86400
+end
 
 -- pick (guid) and/or stake (any whole number of piotte) for a question; the stake is paid now, a change refunds the old one
 function TB.Bet(qkey, guid, stake)
@@ -508,6 +528,8 @@ function TB.Bet(qkey, guid, stake)
   local cur = TB.VotesOf(rec, wk) or { wk = wk }
   local new = { wk = wk }
   for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key], new["q" .. q.key] = cur[q.key], cur["s" .. q.key], cur["q" .. q.key] end
+  -- a giocata is final: no changing it later when the week tells who's ahead
+  if (cur["s" .. qkey] or 0) > 0 and cur[qkey] then return false, "La giocata è fatta: nun se cambia più." end
   if guid then new[qkey] = guid end
   if not new[qkey] then return false, "Prima scegli su chi giocà." end
   local old = new["s" .. qkey] or 0
@@ -666,8 +688,10 @@ function TB.Update()
   local now = TB.Score(rec, wk)
   local cur = rec.pts or {}
   local lg = Shared()
-  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) or cur.r ~= b.right or cur.n ~= (b.played or 0) or Sig(lg) ~= Sig(rec.lg) then
-    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk, r = b.right, n = b.played or 0 }, lg = lg }, "pts")
+  local ps, pw = Staked(b)
+  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) or cur.r ~= b.right or cur.n ~= (b.played or 0)
+    or cur.ps ~= ps or cur.pw ~= pw or Sig(lg) ~= Sig(rec.lg) then
+    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk, r = b.right, n = b.played or 0, ps = ps, pw = pw }, lg = lg }, "pts")
   end
   for _, res in ipairs(closed) do
     res.balance = bal
