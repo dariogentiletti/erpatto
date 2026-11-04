@@ -1,10 +1,14 @@
-# Pushing a tag like v0.9.6 builds the zip and uploads it to CurseForge (and to GitHub Releases).
+# A release builds the zip and uploads it to CurseForge (and to GitHub Releases). Two ways to start one:
+#  - pushing a tag like v1.0.0;
+#  - pushing to main a commit whose message says [release v1.0.0]: the job makes the tag itself, then builds.
 name: Release
 
 on:
   push:
     tags:
       - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,6 +16,7 @@ permissions:
 
 jobs:
   release:
+    if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release v')
     runs-on: ubuntu-latest
     env:
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
@@ -20,6 +25,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Tag from the commit message
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          MSG: ${{ github.event.head_commit.message }}
+        run: |
+          v=$(printf '%s' "$MSG" | grep -o '\[release v[0-9][0-9.]*\]' | head -1 | sed -E 's/\[release (v[0-9.]+)\]/\1/')
+          if [ -z "$v" ]; then echo "no version in the message"; exit 1; fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git tag -a "$v" -m "Er Patto $v"
+          git push origin "$v"
       # WoW Forever (1.60.1) and retail together for now, so the addon can be tried on the live client too
       - uses: BigWigsMods/packager@v2
         with:
