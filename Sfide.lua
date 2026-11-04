@@ -199,14 +199,39 @@ function S.All()
   return out
 end
 
+-- the records keep only the last four of each; what we saw before is kept here (the last 40, two weeks), so the
+-- list of taje and gufate shows them all
 local function Lists(key, field)
-  local out = {}
+  local out, seen = {}, {}
+  local st = Store()
+  local arch
+  if st then
+    st.arch = type(st.arch) == "table" and st.arch or {}
+    st.arch[key] = type(st.arch[key]) == "table" and st.arch[key] or {}
+    arch = st.arch[key]
+  end
   for guid, m in pairs(Members()) do
     for _, x in ipairs(m[key] or {}) do
       local y = {}
       for k, v in pairs(x) do y[k] = v end
       y[field] = guid
       out[#out + 1] = y
+      if y.id then seen[y.id] = true if arch then arch[y.id] = y end end
+    end
+  end
+  if arch then
+    local n, oldest = 0, nil
+    for id, y in pairs(arch) do
+      if Now() - (y.at or 0) > 14 * DAY then arch[id] = nil
+      else
+        n = n + 1
+        if not seen[id] then out[#out + 1] = y end
+      end
+    end
+    while n > 40 do
+      oldest = nil
+      for id, y in pairs(arch) do if not oldest or (y.at or 0) < (arch[oldest].at or 0) then oldest = id end end
+      arch[oldest] = nil n = n - 1
     end
   end
   table.sort(out, function(a, b) return (a.at or 0) > (b.at or 0) end)
@@ -741,6 +766,7 @@ function S.Challenge(o)
   local all = Members()
   local other = all[o.to]
   if not other or o.to == ns.recordGuid then return false, "Scegli chi sfidà." end
+  if ns.Tombola and ns.Tombola.Mine(o.to) then return false, "Co' 'n alt tuo nun se fanno sfide." end
   if o.k ~= "l" and not (o.k == "s" and StatOf(o.st)) then return false, "Scegli su che." end
   local stake = math.floor(tonumber(o.s) or 0)
   if stake < 1 then return false, "Metti armeno 'na piotta." end
@@ -785,6 +811,7 @@ function S.Taja(on, stake)
   if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   if not all[on] then return false, "Scegli su chi." end
+  if ns.Tombola and ns.Tombola.Mine(on) then return false, "La taja su te stesso (o su 'n alt tuo) nun se pò mette." end
   stake = math.floor(tonumber(stake) or 0)
   if stake < 1 then return false, "La taja è armeno 'na piotta." end
   if stake > Balance() then return false, "Nun c'hai abbastanza piotte." end
@@ -802,6 +829,7 @@ function S.Gufa(on, stake)
   local all = Members()
   local m = all[on]
   if not m or on == ns.recordGuid then return false, "Scegli a chi gufà." end
+  if ns.Tombola and ns.Tombola.Mine(on) then return false, "Gufà 'n alt tuo? Nun se pò." end
   stake = math.floor(tonumber(stake) or 0)
   if stake < 2 then return false, "La gufata è armeno du' piotte." end
   if stake > Balance() then return false, "Nun c'hai abbastanza piotte." end
@@ -835,6 +863,7 @@ end
 function S.Bet(a, b, pick, stake)
   local st = Store()
   if not st then return NoPlay() end
+  if ns.Tombola and (ns.Tombola.Mine(a) or ns.Tombola.Mine(b)) then return false, "Sur duello tuo (o de 'n alt tuo) nun se punta." end
   stake = math.floor(tonumber(stake) or 0)
   if stake < 1 then return false, "Punta armeno 'na piotta." end
   if stake > Balance() then return false, "Nun c'hai abbastanza piotte." end
@@ -1062,7 +1091,8 @@ function S.Update()
       local half = math.floor(g.s / 2)
       if g.by == me then Got(g.id, state == "morto" and (g.s + half) or (state == "nullo" and g.s or 0), "gu", g.on) end
       if g.on == me and state ~= "nullo" then
-        if state == "morto" then st.book[g.id .. ":t"] = st.book[g.id .. ":t"] or { s = half, got = 0, k = "gut", o = g.by, at = g.at, gt = Now() }
+        -- he pays half, but never more than he has (the bank pays the rest of what the gufo wins)
+        if state == "morto" then st.book[g.id .. ":t"] = st.book[g.id .. ":t"] or { s = math.min(half, math.max(0, Balance())), got = 0, k = "gut", o = g.by, at = g.at, gt = Now() }
         else st.book[g.id .. ":t"] = st.book[g.id .. ":t"] or { s = 0, got = g.s, k = "gut", o = g.by, at = g.at, gt = Now() } end
       end
     end
@@ -2273,7 +2303,16 @@ local function KaraClock()
   if now - karaAt >= S.KARAOKE_EVERY then S.Karaoke(true) end
 end
 S.KaraClock = KaraClock
-ns.On("J_Kill", function() pcall(S.Karaoke) end)
+-- a kill: the target seen dead, or experience that isn't from a quest; one song per kill even when both say so
+local killAt = 0
+local function Killed()
+  local now = GetTime and GetTime() or 0
+  if now - killAt < 1 then return end
+  killAt = now
+  pcall(S.Karaoke)
+end
+ns.On("J_Kill", Killed)
+ns.On("J_XpKill", Killed)
 -- er piagnone: a cry every two minutes (not in a fight); "nguee nguee" too when his winner is near. The look for
 -- the winner is cheap: the usual unit tokens, once every two minutes
 local cryAt = 0

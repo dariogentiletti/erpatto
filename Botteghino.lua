@@ -107,26 +107,77 @@ local function BuildTombola(v)
   end
 end
 
+local SCH_ROWS = 30 -- everyone in the list, with a scroll past what fits
 local function BuildSchedina(v)
   v.sch = CreateFrame("Frame", nil, v)
   v.sch:SetAllPoints()
+  -- the week of the schedina: open from the reset, closed after Saturday, paid at the next reset; where we are now
+  local tl = H.Box(v.sch, 744, 36)
+  tl:SetPoint("TOPLEFT", 0, -28)
+  v.tlOpen = tl:CreateTexture(nil, "ARTWORK")
+  v.tlOpen:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+  v.tlOpen:SetVertexColor(0.1, 0.6, 0.1)
+  v.tlOpen:SetHeight(8)
+  v.tlShut = tl:CreateTexture(nil, "ARTWORK")
+  v.tlShut:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+  v.tlShut:SetVertexColor(0.45, 0.45, 0.45)
+  v.tlShut:SetHeight(8)
+  v.tlNow = tl:CreateTexture(nil, "OVERLAY")
+  v.tlNow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+  v.tlNow:SetBlendMode("ADD")
+  v.tlNow:SetSize(16, 24)
+  v.tlA = H.Text(tl, "GameFontHighlightSmall", "", 240)
+  v.tlA:SetPoint("TOPLEFT", 14, -6)
+  v.tlB = H.Text(tl, "GameFontHighlightSmall", "", 120, "CENTER")
+  v.tlC = H.Text(tl, "GameFontHighlightSmall", "", 240, "RIGHT")
+  v.tlC:SetPoint("TOPRIGHT", -14, -6)
+  v.tlBox = tl
   v.q = {}
   for i, q in ipairs(TB.QUESTIONS) do
-    local box = H.Box(v.sch, 244, 347)
-    box:SetPoint("TOPLEFT", (i - 1) * 250, -28)
+    local box = H.Box(v.sch, 244, 309)
+    box:SetPoint("TOPLEFT", (i - 1) * 250, -66)
     local r = { key = q.key, box = box, i = i }
     r.title = H.Text(box, "GameFontNormal", "", 224, "CENTER")
     r.title:SetPoint("TOP", 0, -10)
+    -- the capo can change a question nobody played yet (two clicks: the second confirms)
+    r.swap = H.Btn(box, "Cambia", 56, function(self)
+      local now = GetTime and GetTime() or 0
+      if not (self.armed and now - self.armed < 4) then
+        self.armed = now
+        self:SetText("Sicuro?")
+        if C_Timer then C_Timer.After(4, function() self.armed = nil self:SetText("Cambia") end) end
+        return
+      end
+      self.armed = nil
+      self:SetText("Cambia")
+      local ok, x = TB.SwapQuestion(q.key)
+      r.err:SetText(ok and ("|cff20ff20Domanda cambiata: " .. x.text .. "|r") or (x or "Nun se pò."))
+      UI.Refresh()
+    end, 16)
+    r.swap:SetPoint("TOPRIGHT", -8, -24)
     r.status = H.Text(box, "GameFontDisableSmall", "", 224, "CENTER")
     r.status:SetPoint("TOP", 0, -26)
     local hName = H.Text(box, "GameFontDisableSmall", "Chi", 100) hName:SetPoint("TOPLEFT", 14, -44)
-    local hSt = H.Text(box, "GameFontDisableSmall", "Puntate", 60, "RIGHT") hSt:SetPoint("TOPRIGHT", box, "TOPLEFT", 172, -44)
+    local hSt = H.Text(box, "GameFontDisableSmall", "Piotte", 60, "RIGHT") hSt:SetPoint("TOPRIGHT", box, "TOPLEFT", 172, -44)
+    local hHit = CreateFrame("Frame", nil, box) hHit:SetSize(60, 14) hHit:SetPoint("TOPRIGHT", box, "TOPLEFT", 172, -42) hHit:EnableMouse(true)
+    hHit:SetScript("OnEnter", function(self) H.Tip(self, { "Piotte", "Quante piotte ha puntato er patto su de lui (in tutto, de tutti)." }) end)
+    hHit:SetScript("OnLeave", H.HideTip)
+    -- the list scrolls when the patto is big
+    local scroll = CreateFrame("ScrollFrame", "ErPattoSchedina" .. i, box, "UIPanelScrollFrameTemplate")
+    if H.VanillaScroll then H.VanillaScroll(scroll) end
+    scroll:SetPoint("TOPLEFT", 8, -56)
+    scroll:SetPoint("TOPRIGHT", -28, -56)
+    scroll:SetHeight(146)
+    local body = CreateFrame("Frame", nil, scroll)
+    body:SetSize(208, 10)
+    scroll:SetScrollChild(body)
+    r.scroll, r.body = scroll, body
     local hQ = H.Text(box, "GameFontDisableSmall", "Quota", 50, "RIGHT") hQ:SetPoint("TOPRIGHT", -14, -44)
     r.rows = {}
-    for k = 1, ROWS do
-      local b = CreateFrame("Button", nil, box)
-      b:SetSize(224, 16)
-      b:SetPoint("TOPLEFT", 10, -58 - (k - 1) * 16)
+    for k = 1, SCH_ROWS do
+      local b = CreateFrame("Button", nil, body)
+      b:SetSize(208, 16)
+      b:SetPoint("TOPLEFT", 2, -(k - 1) * 16)
       b:SetHighlightTexture(HL, "ADD")
       b.selTex = b:CreateTexture(nil, "BACKGROUND")
       b.selTex:SetAllPoints()
@@ -135,16 +186,17 @@ local function BuildSchedina(v)
       b.mine = b:CreateTexture(nil, "OVERLAY")
       b.mine:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
       b.mine:SetSize(16, 16)
-      b.mine:SetPoint("RIGHT", b, "RIGHT", -52, 0)
-      b.name = H.Text(b, "GameFontHighlightSmall", "", 110)
+      b.mine:SetPoint("RIGHT", b, "RIGHT", -46, 0)
+      b.name = H.Text(b, "GameFontHighlightSmall", "", 100)
       b.name:SetPoint("LEFT", 6, 0)
       if b.name.SetWordWrap then b.name:SetWordWrap(false) end
       b.staked = H.Text(b, "GameFontHighlightSmall", "", 50, "RIGHT")
-      b.staked:SetPoint("RIGHT", b, "LEFT", 160, 0)
+      b.staked:SetPoint("RIGHT", b, "LEFT", 150, 0)
       b.quota = H.Text(b, "GameFontHighlightSmall", "", 50, "RIGHT")
       b.quota:SetPoint("RIGHT", -4, 0)
       b:SetScript("OnClick", function(self)
         if not self.guid or not TB.CanVote() then return end
+        if TB.Mine(self.guid) then r.err:SetText("Su te stesso (o su 'n alt tuo) nun se gioca.") return end
         sel[q.key] = self.guid
         Sound("IG_MAINMENU_OPTION_CHECKBOX_ON", 856)
         UI.Refresh()
@@ -153,10 +205,14 @@ local function BuildSchedina(v)
     end
     -- your bet
     r.mineLine = H.Text(box, "GameFontHighlight", "", 224)
-    r.mineLine:SetPoint("TOPLEFT", 12, -260)
+    r.mineLine:SetPoint("TOPLEFT", 12, -210)
     if r.mineLine.SetWordWrap then r.mineLine:SetWordWrap(false) end
     r.winLine = H.Text(box, "GameFontNormal", "", 224)
-    r.winLine:SetPoint("TOPLEFT", 12, -278)
+    r.winLine:SetPoint("TOPLEFT", 12, -228)
+    -- what the last click did, right where you clicked
+    r.err = H.Text(box, "GameFontRedSmall", "", 224)
+    r.err:SetPoint("TOPLEFT", 12, -246)
+    if r.err.SetWordWrap then r.err:SetWordWrap(false) end
     local function Place()
       local guid = sel[q.key]
       local ok, msg = TB.Bet(q.key, guid, r.stake:GetText())
@@ -165,7 +221,11 @@ local function BuildSchedina(v)
         sel[q.key] = nil
         Sound("LOOT_WINDOW_COIN_SOUND", 120)
         r.flash = (GetTime and GetTime() or 0) + 3
-      else Say(false, msg) end
+        r.err:SetText("|cff20ff20Giocata! Mo' nun se cambia più.|r")
+      else r.err:SetText(msg or "Nun se pò fà.") end
+      local token = {}
+      r.errToken = token
+      if C_Timer then C_Timer.After(8, function() if r.errToken == token then r.err:SetText("") end end) end
       UI.Refresh()
     end
     r.stakeLabel = H.Text(box, "GameFontNormalSmall", "Posta", 40)
@@ -284,12 +344,12 @@ local function Build()
   v.tabTomb:SetPoint("TOPLEFT", 0, 0)
   v.tabSch = H.TopTab(v, "Schedina", function() page = "schedina" end)
   v.tabSch:SetPoint("LEFT", v.tabTomb, "RIGHT", 2, 0)
-  v.tabRich = H.TopTab(v, "Li ricchi", function() page = "ricchi" end)
-  v.tabRich:SetPoint("LEFT", v.tabSch, "RIGHT", 2, 0)
   v.tabSfide = H.TopTab(v, "Sfide", function() page = "sfide" end)
-  v.tabSfide:SetPoint("LEFT", v.tabRich, "RIGHT", 2, 0)
+  v.tabSfide:SetPoint("LEFT", v.tabSch, "RIGHT", 2, 0)
   v.tabConti = H.TopTab(v, "Scontrini", function() page = "conti" end)
   v.tabConti:SetPoint("LEFT", v.tabSfide, "RIGHT", 2, 0)
+  v.tabRich = H.TopTab(v, "Li ricchi", function() page = "ricchi" end)
+  v.tabRich:SetPoint("LEFT", v.tabConti, "RIGHT", 2, 0)
   -- my piotte, top right
   local purse = CreateFrame("Frame", nil, v)
   purse:SetSize(200, 24)
@@ -360,12 +420,31 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
   local mine = TB.VotesOf(me, wk) or {}
   local closes = wk and wk >= 1 and not testing and TB.Closes(wk)
   local qs = TB.Questions(wk)
+  -- the timeline: green while open, grey while it's played, the spark where we are
+  if wk and wk >= 1 and ns.state and P.HasSettings(ns.state) then
+    local start = TB.WeekStart(wk)
+    local close, pay = TB.Closes(wk), start + M.WEEK
+    local W = 716
+    local function X(t) return math.floor(W * math.max(0, math.min(1, (t - start) / (pay - start))) + 0.5) end
+    local cx, nx = X(close), X(U.Now())
+    v.tlOpen:ClearAllPoints() v.tlOpen:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14, -22) v.tlOpen:SetWidth(math.max(1, cx))
+    v.tlShut:ClearAllPoints() v.tlShut:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14 + cx, -22) v.tlShut:SetWidth(math.max(1, W - cx))
+    v.tlNow:ClearAllPoints() v.tlNow:SetPoint("CENTER", v.tlBox, "TOPLEFT", 14 + nx, -26)
+    v.tlNow:SetShown(not testing)
+    local open = U.Now() < close
+    v.tlA:SetText((open and "|cff20ff20" or GREY) .. "Se gioca fino a " .. U.When(close - 60) .. "|r")
+    v.tlB:ClearAllPoints() v.tlB:SetPoint("TOP", v.tlBox, "TOPLEFT", 14 + math.floor((cx + W) / 2), -6)
+    v.tlB:SetText((not open and "|cffffd100" or GREY) .. "Chiusa: se gioca|r")
+    v.tlC:SetText(GREY .. "Se paga " .. U.When(pay) .. "|r")
+  end
   for _, r in ipairs(v.q) do
     r.title:SetText(qs[r.i] and qs[r.i].text or "")
+    r.swap:SetShown(ns.CanAdmin and ns.CanAdmin() and can and true or false)
     local status
+    -- the dates are in the timeline above
     if testing then status = "|cffff8000prova|r"
-    elseif can then status = "aperta fino a " .. U.When(closes)
-    else status = "chiusa, se paga a fine settimana" end
+    elseif can then status = ""
+    else status = GREY .. "chiusa|r" end
     r.status:SetText(status)
     local odds = TB.Odds(wk or 0, list, r.key)
     local placed = mine[r.key] and (mine["s" .. r.key] or 0) > 0 and mine[r.key] or nil
@@ -378,19 +457,14 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
       if x ~= y then return x < y end
       return tostring(a.name) < tostring(b.name)
     end)
-    if #order > ROWS then
-      for _, g in ipairs({ placed, picked }) do
-        local at
-        for k, m in ipairs(order) do if m.guid == g then at = k end end
-        if at and at > ROWS then local m = table.remove(order, at) table.insert(order, ROWS, m) end
-      end
-    end
+    r.body:SetHeight(math.max(10, math.min(#order, SCH_ROWS) * 16))
+    if UI.FitScroll then UI.FitScroll(r.scroll, math.min(#order, SCH_ROWS) * 16, 146) end
     for k, b in ipairs(r.rows) do
       local m = order[k]
       if m then
         local o = odds[m.guid]
         b.guid = m.guid
-        b.name:SetText(H.Colored(m))
+        b.name:SetText(H.Colored(m) .. (TB.Mine(m.guid) and (GREY .. " (tu)|r") or ""))
         b.staked:SetText(o.staked > 0 and (o.staked .. "") or (GREY .. "-|r"))
         b.quota:SetText(GOLD .. TB.Quota(o.q) .. "|r")
         b.selTex:SetShown(m.guid == picked)

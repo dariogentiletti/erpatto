@@ -30,7 +30,7 @@ local function Ping(sound)
 end
 
 function N.Banner(title, sub, color, sound, big)
-  if not (ns.db and ns.db.opts.toasts) then return end
+  if not (ns.db and ns.db.opts.toasts) or ns.alt then return end
   local c = color or { 1, 0.82, 0 }
   local hex = string.format("|cff%02x%02x%02x", math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255))
   local f = DEFAULT_CHAT_FRAME

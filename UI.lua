@@ -1046,6 +1046,26 @@ local function BuildWelcome()
   v.go = go
 end
 
+-- an alt of a member: nothing of the patto until this character joins as one of its own
+local function BuildAlt()
+  local v = NewView("alt")
+  local b = Box(v, 744, 375)
+  b:SetPoint("TOPLEFT", 0, 0)
+  local t = Text(b, "GameFontNormal", "Stai co' 'n alt")
+  t:SetPoint("TOPLEFT", 16, -16)
+  v.text = Text(b, "GameFontHighlight", "", 700)
+  v.text:SetPoint("TOPLEFT", 16, -44)
+  v.err = Text(b, "GameFontRedSmall", "", 500)
+  v.err:SetPoint("TOPLEFT", 16, -132)
+  v.join = Btn(b, "Entra co' 'sto personaggio", 210, function()
+    if not ns.state then return end
+    local ok, e = ns.JoinPatto(ns.state.code)
+    if ok == nil or ok == false then v.err:SetText(e or "Nun so' riuscito a entrà.") end
+    UI.Refresh()
+  end)
+  v.join:SetPoint("TOPLEFT", 16, -100)
+end
+
 local function BuildCreate()
   local v = NewView("create")
   local box = Box(v, 744, 375)
@@ -1890,9 +1910,10 @@ local function Build()
       x0 - ox, y0 - oy, x1 - ox, y1 - oy, x, y, w, h, "BACKGROUND", 0, tileX, tileY)
   end
   Art(0, 100, 0, 80, -10, -13, 100, 80)
-  -- the top between the portrait and the close box: the title strip and the rails as a one pixel cut drawn along
-  -- (column 170, where the art has no studs), the stone under the title repeated at its own size
-  Art(170, 171, 0, 34, 90, -13, W - 138, 34)
+  -- the top between the portrait and the close box: the title strip as the art has it (its stone, its rails),
+  -- repeated at its own size like the stone under it (a one pixel column stretched made streaks), and the
+  -- stone under the title the same way
+  ArtTile(100, 250, 0, 34, 90, -13, W - 138, 34, true, false)
   ArtTile(100, 250, 34, 72, 90, 21, W - 138, 38, true, false)
   Art(170, 171, 72, 80, 90, 59, W - 138, 8)
   Art(300, 352, 0, 80, W - 48, -13, 52, 80)
@@ -1961,6 +1982,7 @@ local function Build()
 
   BuildWelcome()
   BuildCreate()
+  BuildAlt()
   for _, x in ipairs(UI.extra) do x.build() end
   BuildWaiting()
   BuildCap()
@@ -2024,6 +2046,19 @@ function UI.Refresh()
       else
         views.welcome:Show()
       end
+      return
+    end
+    -- an alt sees nothing of the patto: only the way in, as a member of its own
+    if ns.alt then
+      for _, b in ipairs(tabs) do b:Hide() end
+      LayoutTabs()
+      f.SetTitle(P.HasSettings(state) and tostring(state.settings.name) or "Er Patto")
+      f.info:SetText("|cff9d9d9dStai co' 'n alt|r")
+      f.alert:SetText("")
+      local main = ns.state.members[ns.recordGuid]
+      views.alt.text:SetText("'Sto personaggio è 'n alt" .. (main and (" de " .. tostring(main.name)) or "") .. ". Co' l'alt nun vedi gnente der patto e nun pòi giocà a gnente.\n\n" ..
+        "Si vòi, entra co' 'sto personaggio: diventa 'n membro come l'artri, co' la squadra sua, er cap suo e le piotte sue. Er main nun pò scommette su de lui.")
+      views.alt:Show()
       return
     end
     local admin = ns.CanAdmin()
@@ -2143,7 +2178,7 @@ local function HudColor(r, g, b)
 end
 
 function UI.RefreshHUD()
-  local show = ns.db and ns.db.opts.hud and ns.state and P.HasSettings(ns.state)
+  local show = ns.db and ns.db.opts.hud and ns.state and P.HasSettings(ns.state) and not ns.alt
   if not show then
     if hud then hud:Hide() end
     return

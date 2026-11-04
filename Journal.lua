@@ -198,6 +198,8 @@ end
 -- experience: from quests and from everything else
 ----------------------------------------------------------------------
 local lastXp, lastXpMax, lastLevel
+local questXpAt = 0
+function J.OnQuestXp() questXpAt = U.Now() end
 function J.OnXp()
   local j = J.Get()
   if not j then return end
@@ -207,7 +209,11 @@ function J.OnXp()
     local gain
     if lv == lastLevel then gain = xp - lastXp
     elseif lv == lastLevel + 1 then gain = (lastXpMax - lastXp) + xp end
-    if gain and gain > 0 then Add(j.xp, "total", gain) end
+    if gain and gain > 0 then
+      Add(j.xp, "total", gain)
+      -- experience not from a quest: a mob killed (works where the target's death can't be read)
+      if U.Now() - questXpAt > 2 then ns.Fire("J_XpKill") end
+    end
   end
   lastXp, lastXpMax, lastLevel = xp, xpm, lv
 end
@@ -433,6 +439,7 @@ local handlers = {
   LOOT_OPENED = function() open.loot = true J.CheckDeath("target") J.OnLootOpened() end,
   CHAT_MSG_LOOT = function(msg) J.OnLootMessage(msg) end,
   PLAYER_XP_UPDATE = function() J.OnXp() end,
+  QUEST_TURNED_IN = function() J.OnQuestXp() end,
   PLAYER_LEVEL_UP = function(level) J.OnLevel(level) J.OnXp() end,
   PLAYER_MONEY = function() J.OnMoney() end,
   ZONE_CHANGED_NEW_AREA = function() J.OnZone() end,

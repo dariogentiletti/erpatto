@@ -26,6 +26,7 @@ local TB = {}
 ns.Tombola = TB
 
 TB.START = 20          -- piotte everyone starts with
+TB.MAX_STAKE = 25      -- at most per question of the schedina: a deal between two friends can't empty the bank
 TB.TEST_PIOTTE = 500   -- in test mode, piotte to try everything with (in the test book only)
 TB.SFOTTO = 3          -- the price of a sfottò
 TB.ICON = "Interface\\Icons\\INV_Misc_Bag_10_Red"
@@ -243,9 +244,10 @@ TB.Value = Value
 local questions = {}
 function TB.Questions(wk)
   wk = math.max(1, wk or Week() or 1)
-  local key = (ns.state and ns.state.code or "") .. ":q:" .. wk
+  local qc = ns.state and ns.state.settings and ns.state.settings.qc
+  local key = (ns.state and ns.state.code or "") .. ":q:" .. wk .. ":" .. (type(qc) == "table" and #qc or 0)
   if questions[key] then return questions[key] end
-  local rnd = Seeded(key)
+  local rnd = Seeded((ns.state and ns.state.code or "") .. ":q:" .. wk)
   local pool = {}
   for _, q in ipairs(TB.QPOOL) do if (q.wk or 1) <= wk then pool[#pool + 1] = q end end
   local out, rare = {}, false
@@ -256,8 +258,46 @@ function TB.Questions(wk)
       out[#out + 1] = { key = TB.QUESTIONS[#out + 1].key, id = q.id, stat = q.stat, text = q.text }
     end
   end
+  -- the capo's swaps (a question nobody can do, or a wrong one): the same on every computer, from the settings
+  for _, x in ipairs(type(ns.state and ns.state.settings.qc) == "table" and ns.state.settings.qc or {}) do
+    if x.wk == wk then
+      for _, q in ipairs(TB.QPOOL) do
+        if q.id == x.id then
+          for _, o in ipairs(out) do if o.key == x.k then o.id, o.stat, o.text = q.id, q.stat, q.text end end
+        end
+      end
+    end
+  end
   questions[key] = out
   return out
+end
+
+-- the capo changes a question of this week's schedina (once per slot a week), only while nobody has played on it
+function TB.SwapQuestion(qkey)
+  if not (ns.state and P.HasSettings(ns.state) and ns.CanAdmin and ns.CanAdmin()) or ns.alt then return false, "Solo er capo pò cambià le domande." end
+  local wk = TB.Week()
+  local qs = TB.Questions(wk)
+  for _, x in ipairs(type(ns.state.settings.qc) == "table" and ns.state.settings.qc or {}) do
+    if x.wk == wk and x.k == qkey then return false, "'Sta domanda l'hai già cambiata 'sta settimana." end
+  end
+  for _, m in ipairs(UI.Members()) do
+    local v = TB.VotesOf(m, wk)
+    if v and v[qkey] and (v["s" .. qkey] or 0) > 0 then return false, "Ce so' già giocate su 'sta domanda: nun se cambia più." end
+  end
+  local used = {}
+  for _, q in ipairs(qs) do used[q.id] = true end
+  local choices = {}
+  for _, q in ipairs(TB.QPOOL) do if not used[q.id] and (q.wk or 1) <= wk then choices[#choices + 1] = q end end
+  if #choices == 0 then return false, "Nun c'è 'n'antra domanda da mette." end
+  local new = choices[math.random(#choices)]
+  local ok, e = P.EditSettings(ns.state, ns.recordGuid, function(st)
+    local kept = {}
+    for _, x in ipairs(type(st.qc) == "table" and st.qc or {}) do if x.wk >= wk - 1 then kept[#kept + 1] = x end end
+    kept[#kept + 1] = { wk = wk, k = qkey, id = new.id }
+    st.qc = kept
+  end)
+  if not ok then return false, e end
+  return true, new
 end
 local function QuestionOf(wk, qkey)
   for _, q in ipairs(TB.Questions(wk)) do if q.key == qkey then return q end end
@@ -473,6 +513,20 @@ function TB.Balance()
   return math.max(0, total)
 end
 
+-- me or one of my own characters (an alt that joined, or my main seen from the alt): never a bet, a taja or a
+-- gufata on them, nobody plays on himself
+function TB.Mine(guid)
+  if not guid then return false end
+  if guid == ns.recordGuid then return true end
+  local all = ns.state and ns.state.members or {}
+  local me, other = all[ns.recordGuid], all[guid]
+  if not (me and other) then return false end
+  local function short(n) return (tostring(n or ""):match("^([^%s%-]+)")) or "" end
+  for _, a in ipairs(me.alts or {}) do if short(a.name) == short(other.name) then return true end end
+  for _, a in ipairs(other.alts or {}) do if short(a.name) == short(me.name) then return true end end
+  return false
+end
+
 -- the schedine won and played (questions): mine from the book, theirs as shared
 -- and the return on them, in %: (won - staked) / staked over the closed weeks; nil before the first one
 local function Staked(b)
@@ -509,12 +563,12 @@ function TB.CanVote()
   return U.Now() < TB.Closes(wk), wk
 end
 
--- la schedina closes on the first Monday 00:00 (Italian time) of the week: the weekend is there for whoever plays
--- only then, and the rest of the week (at least two days) is still to be played after it
+-- la schedina is open from the reset to Saturday night (the first Sunday 00:00, Italian time): Sunday, Monday and
+-- Tuesday are still to be played after it, and it's paid at the next reset
 function TB.Closes(wk)
   local start = TB.WeekStart(wk)
   local p = U.RomeParts(start)
-  local days = (8 - (p.wday or 1)) % 7
+  local days = (7 - (p.wday or 0)) % 7
   if days == 0 then days = 7 end
   return start + days * 86400
 end
@@ -530,6 +584,7 @@ function TB.Bet(qkey, guid, stake)
   for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key], new["q" .. q.key] = cur[q.key], cur["s" .. q.key], cur["q" .. q.key] end
   -- a giocata is final: no changing it later when the week tells who's ahead
   if (cur["s" .. qkey] or 0) > 0 and cur[qkey] then return false, "La giocata è fatta: nun se cambia più." end
+  if guid and TB.Mine(guid) then return false, "Su te stesso (o su 'n alt tuo) nun se gioca." end
   if guid then new[qkey] = guid end
   if not new[qkey] then return false, "Prima scegli su chi giocà." end
   local old = new["s" .. qkey] or 0
@@ -541,6 +596,7 @@ function TB.Bet(qkey, guid, stake)
   stake = stake or (old > 0 and old or math.min(5, TB.Balance() + old))
   local available = TB.Balance() + old
   if stake < 1 then return false, "Nun c'hai manco 'na piotta." end
+  if stake > TB.MAX_STAKE then return false, "Ar massimo " .. TB.MAX_STAKE .. " piotte pe' domanda." end
   if stake > available then return false, "Nun c'hai abbastanza piotte (" .. available .. ")." end
   new["s" .. qkey] = stake
   -- the odds of this moment are yours (counted without your own old bet)
@@ -581,7 +637,7 @@ end
 
 -- the odds of a question: for every member, what a piotta on them pays (x10, an integer), with the piotte already
 -- on them and how many played them. The patto's bets weigh as much as the form once there are HOUSE piotte down.
-local HOUSE, EDGE, MINQ, MAXQ = 30, 0.85, 11, 150
+local HOUSE, EDGE, MINQ, MAXQ = 30, 0.85, 11, 100
 function TB.Odds(wk, list, qkey, without)
   local q = QuestionOf(wk, qkey)
   local form, sumForm, staked, count, total = {}, 0, {}, {}, 0

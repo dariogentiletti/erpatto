@@ -706,6 +706,7 @@ end
 ----------------------------------------------------------------------
 function Home.ShowBulletin(force)
   local state = ns.state
+  if ns.alt then return end
   if not (state and P.HasSettings(state)) then if force then U.Say("ancora nun c'è un bollettino.") end return end
   local wk = M.WeekIndex(state.settings, U.Now()) - 1
   -- test mode: the bulletin of this (test) week, as it stands now

@@ -102,6 +102,18 @@ function P.CleanSettings(s)
     end
     c.tc = #tc > 0 and tc or nil
   end
+  -- the capo's swaps of schedina questions: week, slot a/b/c, the new question's id
+  if type(s.qc) == "table" then
+    local qc = {}
+    for i = 1, 9 do
+      local x = s.qc[i]
+      local k = type(x) == "table" and Str(x.k, 1)
+      if k and (k == "a" or k == "b" or k == "c") and Num(x.wk, 1, 260) and Str(x.id, 8) then
+        qc[#qc + 1] = { wk = math.floor(x.wk), k = k, id = Str(x.id, 8) }
+      end
+    end
+    c.qc = #qc > 0 and qc or nil
+  end
   if type(s.teams) == "table" then
     for i = 1, P.MAX_TEAMS do
       local t = s.teams[i]

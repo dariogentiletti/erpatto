@@ -144,7 +144,7 @@ check(not A.has('se gioca a piotte'), 'no explanation under the header')
 A.ns.Botteghino.Show('ricchi')
 check(A.has('Li ricchi') and A.has('Piotte') and not A.has('Sfotti'), 'Li ricchi page, no sfottò button there')
 A.ns.Botteghino.Show('schedina')
-check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Puntate'), 'Schedina page: the three questions with odds')
+check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Piotte'), 'Schedina page: the three questions with odds')
 
 # ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
 TB = A.ns.Tombola
@@ -162,30 +162,35 @@ bv = A.ns.UI._views.botteghino
 r1 = bv.q[1]
 check('10 su Pietro a ' in str(r1.mineLine.text) and 'Si vince' in str(r1.winLine.text) and r1.place.text == 'Giocata', 'the bet is shown with what it pays: ' + str(r1.mineLine.text) + ' / ' + str(r1.winLine.text))
 r1.place.Click(r1.place)
-check('nun se cambia' in str(bv.status.text), 'Punta on a giocata done says why: ' + str(bv.status.text))
+check('nun se cambia' in str(r1.err.text), 'Punta on a giocata done says why, under the payout: ' + str(r1.err.text))
 # click a member in the list, write the stake, Punta
 r2 = bv.q[2]
-row = [b for b in r2.rows.values() if b.shown and str(b.guid) == 'Player-1-AAA'][0]
+me_row = [b for b in r2.rows.values() if b.shown and str(b.guid) == 'Player-1-AAA'][0]
+me_row.Click(me_row)
+check('te stesso' in str(r2.err.text), 'no bet on yourself: ' + str(r2.err.text))
+row = [b for b in r2.rows.values() if b.shown and str(b.guid) == 'Player-1-BBB'][0]
 row.Click(row)
-check(row.selTex.shown and 'Su Dario a ' in str(r2.mineLine.text), 'clicking a member picks them: ' + str(r2.mineLine.text))
+check(row.selTex.shown and 'Su Pietro a ' in str(r2.mineLine.text), 'clicking a member picks them: ' + str(r2.mineLine.text))
 r2.stake.SetText(r2.stake, '3'); r2.stake.GetScript(r2.stake, 'OnTextChanged')(r2.stake)
 check('Si vince' in str(r2.winLine.text), 'the payout shows while you write the stake: ' + str(r2.winLine.text))
 r2.place.Click(r2.place)
-check(str(A.rec().vt.b) == 'Player-1-AAA' and A.rec().vt.sb == 3, 'Punta places it')
+check(str(A.rec().vt.b) == 'Player-1-BBB' and A.rec().vt.sb == 3, 'Punta places it')
 res = TB.Bet('c', None, 5)
 check(res[0] is False if isinstance(res, tuple) else res is False, 'no stake without a pick')
 big = TB.Bet('c', 'Player-1-AAA', 10000)
 check((big[0] if isinstance(big, tuple) else big) is False, 'cannot stake more than you have')
 qBefore = TB.Odds(1, A.ns.UI.Members(), 'a')[0]['Player-1-BBB'].q
-B.ns.Tombola.Bet('a', 'Player-1-BBB'); B.ns.Tombola.Bet('a', None, 5)
+selfbet = B.ns.Tombola.Bet('a', 'Player-1-BBB', 5)
+check((selfbet[0] if isinstance(selfbet, tuple) else selfbet) is False and 'te stesso' in str(selfbet[1]), 'Pietro cannot bet on himself')
+B.ns.Tombola.Bet('a', 'Player-1-AAA', 5)
 secs(10)
 check(str(B.ns.state.members['Player-1-AAA'].vt.a) == 'Player-1-BBB', 'the others see the bet')
 odds = TB.Odds(1, A.ns.UI.Members(), 'a')[0]
-check(odds['Player-1-BBB'].q <= qBefore and odds['Player-1-BBB'].staked == 15 and odds['Player-1-AAA'].q > odds['Player-1-BBB'].q,
+check(odds['Player-1-BBB'].staked == 10 and odds['Player-1-AAA'].staked == 5 and odds['Player-1-AAA'].q > odds['Player-1-BBB'].q,
   'more piotte on Pietro, he pays less; who nobody plays pays more: %s -> %s, Dario %s' % (qBefore, odds['Player-1-BBB'].q, odds['Player-1-AAA'].q))
 A.ns.Botteghino.Show('schedina')
 prow = [b for b in bv.q[1].rows.values() if b.shown and str(b.guid) == 'Player-1-BBB'][0]
-check(str(prow.staked.text) == '15' and prow.mine.shown, 'Pietro: 15 piotte on him, my check on him')
+check(str(prow.staked.text) == '10' and prow.mine.shown, 'Pietro: 10 piotte on him, my check on him')
 mineQ = A.rec().vt.qa
 T[0] = START + WEEK + 3600; secs(130)
 book = A.g.ErPattoDB.points[code]
@@ -550,7 +555,7 @@ secs(5)
 A.ns.Fun.Said('mo\' vado a pijà er boss', 'Dario')
 A.ns.Fun.OnDeath(); A.ns.T.OnDeath()
 secs(40)
-check(C.ns.Tombola.Balance() == balC + 5 and A.ns.Tombola.Balance() == balA - 5, 'Dario died: Gina gets half more, Dario pays 5: %s %s' % (C.ns.Tombola.Balance(), A.ns.Tombola.Balance()))
+check(C.ns.Tombola.Balance() == balC + 5 and A.ns.Tombola.Balance() == max(0, balA - 5), 'Dario died: Gina gets half more, Dario pays 5 (or what he has): %s %s' % (C.ns.Tombola.Balance(), A.ns.Tombola.Balance()))
 # li scontrini: every line adds up to the purse, and the gufata paid
 for x in (A, B, C):
     lines = list(x.ns.Tombola.Ledger().values())
@@ -630,6 +635,22 @@ cnt = collections.Counter('ahia' if A.lua.eval('math.random()') < 0.8 else 'bast
 A.ns.db.opts.testMode = False
 # the herald of a refusal mocks him
 cl = [str(x) for x in C.g.CHAT.values() if "s'è cagato sotto" in str(x)]
+# the capo changes a question nobody played; the others get the same one
+TBA = A.ns.Tombola
+wkq = TBA.Week()
+before = str(TBA.Questions(wkq)[1].text)
+sw = TBA.SwapQuestion('a')
+secs(10)
+after = str(TBA.Questions(wkq)[1].text)
+check((sw[0] if isinstance(sw, tuple) else sw) is True and before != after and str(B.ns.Tombola.Questions(wkq)[1].text) == after, 'the capo swapped a question: %s -> %s, the same for Pietro' % (before, after))
+again = TBA.SwapQuestion('a')
+check((again[0] if isinstance(again, tuple) else again) is False, 'once per question a week')
+nb = B.ns.Tombola.SwapQuestion('b')
+check((nb[0] if isinstance(nb, tuple) else nb) is False, 'only the capo')
+# a stake has a ceiling
+cap = TBA.Bet('b', 'Player-1-BBB', TBA.MAX_STAKE + 1)
+check((cap[0] if isinstance(cap, tuple) else cap) is False and 'massimo' in str(cap[1]), 'no more than %d piotte per question' % TBA.MAX_STAKE)
+# experience from a kill starts er karaoke as the target's death does
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)
