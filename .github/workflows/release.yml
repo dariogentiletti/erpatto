@@ -25,7 +25,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Tag from the commit message
+      # tag pushes: the packager as an action
+      - uses: BigWigsMods/packager@v2
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        with:
+          args: -g "1.60.1,12.1.5,12.1.0"
+      # a commit with [release vX.Y.Z]: make the tag (if it isn't there yet), then run the packager as if the tag
+      # had been pushed (a tag pushed by the job itself starts no other run)
+      - name: Tag from the commit message and package
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         env:
           MSG: ${{ github.event.head_commit.message }}
@@ -34,9 +41,10 @@ jobs:
           if [ -z "$v" ]; then echo "no version in the message"; exit 1; fi
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git tag -a "$v" -m "Er Patto $v"
-          git push origin "$v"
-      # WoW Forever (1.60.1) and retail together for now, so the addon can be tried on the live client too
-      - uses: BigWigsMods/packager@v2
-        with:
-          args: -g "1.60.1,12.1.5,12.1.0"
+          if ! git rev-parse -q --verify "refs/tags/$v" >/dev/null; then
+            git tag -a "$v" -m "Er Patto $v"
+            git push origin "$v"
+          fi
+          git checkout -q "$v"
+          curl -fsSL https://raw.githubusercontent.com/BigWigsMods/packager/v2/release.sh -o /tmp/release.sh
+          GITHUB_REF="refs/tags/$v" GITHUB_REF_NAME="$v" GITHUB_REF_TYPE=tag bash /tmp/release.sh -g "1.60.1,12.1.5,12.1.0"
