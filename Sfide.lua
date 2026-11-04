@@ -48,8 +48,8 @@ local SLACK = 60
 -- the order is the number in the records: new ones go at the end
 S.PENE = {
   { key = "img", name = "Er santino", ask = "Scritta", opt = true,
-    tip = "'Na figura sur su' schermo pe' tutta la gogna, co' la faccia e la scritta che sceji te; e in chat se chiama come la faccia (\"A Pecora\")." },
-  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...), 'na vorta ogni 10 minuti.",
+    tip = "'Na figura scarsa, grossa, piantata sur su' schermo pe' tutta la gogna: la sceji te (la pecora, er porcello...), co' la scritta sotto." },
+  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...) ogni vorta che te pare.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
@@ -57,10 +57,12 @@ S.PENE = {
     icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken" },
   { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
-  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto, e je s'inchina ogni vorta che lo punta e quanno je passa vicino.",
+  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e lo dice a tutti: \"Comandi, padrone mio!\".",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
-  { key = "mark", name = "Er teschio", tip = "Quanno sta in gruppo, fora da li dungeon, c'ha er teschio sopra la testa: lo vedono tutti.",
-    icon = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8" },
+  { key = "capro", name = "Er capro espiatorio", tip = "Ogni vorta che more quarcuno der patto, a tutti je compare scritto grosso che è córpa sua.",
+    icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
+  { key = "rana", name = "La rana", tip = "Ogni vorta che zompa, er personaggio suo fa \"cra cra\" in chat davanti a tutti.",
+    icon = "Interface\\Icons\\INV_Misc_Fish_02" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
@@ -486,7 +488,7 @@ S.BlockText = BlockText
 ----------------------------------------------------------------------
 -- who is a la gogna, with which pegno (and how many times each one went)
 ----------------------------------------------------------------------
-local gogne, nicks, verses, shame, criers, servants, atGogna = {}, {}, {}, {}, {}, {}, {}
+local gogne, nicks, verses, shame, criers, servants, atGogna, goats = {}, {}, {}, {}, {}, {}, {}, {}
 local series = {}
 local champion
 local test = {}
@@ -505,7 +507,7 @@ function S.Last() return series end
 function S.PegnoText(s, all)
   local pena = S.PENE[s.pena or 0]
   if not pena then return nil end
-  if pena.key == "img" then return pena.name .. ": " .. Figure(s.id, s.e).name .. (s.t and (", \"" .. s.t .. "\"") or "") end
+  if pena.key == "img" then return pena.name .. (s.t and (": \"" .. s.t .. "\"") or "") end
   if pena.key == "bee" then return pena.name .. " \"" .. tostring(s.t or "?") .. "\"" end
   if pena.key == "emote" then return pena.name .. ": " .. (S.EMOTES[s.e or 1] or S.EMOTES[1]).name:lower() end
   if pena.key == "servo" then return pena.name .. " de " .. Short((all or Members())[s.w]) end
@@ -519,9 +521,9 @@ function S.PegnoYou(s, all)
   local by = Short(all[s.w])
   if pena.key == "img" then
     local f = Figure(s.id, s.e)
-    return "Pe' tutta la gogna c'hai er santino tuo sur schermo: " .. f.name .. (s.t and (", \"" .. s.t .. "\"") or "") .. ". In chat l'amichi der patto te leggono [" .. f.name .. "], e la faccia sta accanto ar nome tuo."
+    return "Pe' tutta la gogna c'hai 'na figura grossa piantata sur schermo, scelta da " .. by .. (s.t and (": \"" .. s.t .. "\"") or "") .. ". La poi spostà, ma nun la poi levà."
   elseif pena.key == "pupo" then
-    return "Sei er burattino de " .. by .. ": quanno je pare, 'na vorta ogni 10 minuti, te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
+    return "Sei er burattino de " .. by .. ": ogni vorta che je pare te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
   elseif pena.key == "emote" then
@@ -529,9 +531,11 @@ function S.PegnoYou(s, all)
   elseif pena.key == "crier" then
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
-    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Ogni vorta che metti " .. by .. " ner mirino, e ogni tanto quanno je stai vicino, er personaggio tuo je s'inchina da solo."
-  elseif pena.key == "mark" then
-    return "Quanno stai in gruppo, fora da li dungeon, c'hai er teschio sopra la testa. Lo vedono tutti, pure chi nun c'ha l'addon."
+    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ogni mezzo minuto er personaggio tuo je s'inchina e lo dice a tutti (\"Comandi, padrone " .. by .. "!\"), e pure ogni vorta che lo metti ner mirino."
+  elseif pena.key == "capro" then
+    return "Sei er capro espiatorio: ogni vorta che more quarcuno der patto, a tutti je compare scritto grosso che è córpa tua."
+  elseif pena.key == "rana" then
+    return "Sei 'na rana: ogni vorta che zompi, er personaggio tuo fa \"cra cra\" in chat davanti a tutti."
   end
 end
 
@@ -552,9 +556,8 @@ local function Apply(s, all)
   keep(atGogna, s.l, { til = s.til, by = s.w, long = s.long, s = s })
   local why = "ha perso a la gogna co' " .. Short(all[s.w])
   local pena = S.PENE[s.pena or 0]
-  if pena and pena.key == "img" then
-    local f = Figure(s.id, s.e)
-    keep(gogne, s.l, { name = f.name, icon = f.icon, say = s.t or f.say, til = s.til, why = why, by = s.w })
+  if pena and pena.key == "capro" then
+    keep(goats, s.l, { til = s.til, by = s.w, from = s.te })
   elseif pena and pena.key == "bee" and s.t then
     keep(verses, s.l, { t = s.t, til = s.til, why = why, by = s.w })
   elseif pena and pena.key == "crier" then
@@ -565,7 +568,7 @@ local function Apply(s, all)
 end
 
 local function Rebuild()
-  gogne, nicks, verses, shame, criers, servants, atGogna = {}, {}, {}, {}, {}, {}, {}
+  gogne, nicks, verses, shame, criers, servants, atGogna, goats = {}, {}, {}, {}, {}, {}, {}, {}
   local all = Members()
   series = S.Series(all)
   local crowns = {}
@@ -585,7 +588,7 @@ local function Rebuild()
   -- test mode: a gogna of two minutes on me
   if test.s and ns.recordGuid and Now() < test.s.til then
     test.s.l = ns.recordGuid
-    for _, map in ipairs({ gogne, nicks, verses, criers, servants, atGogna }) do map[ns.recordGuid] = nil end
+    for _, map in ipairs({ gogne, nicks, verses, criers, servants, atGogna, goats }) do map[ns.recordGuid] = nil end
     Apply(test.s, all)
   end
 end
@@ -1049,6 +1052,12 @@ function S.Update()
         if cr and g.at >= cr.from and g.at < cr.til and Now() - g.at < 600 then
           News.Banner("È morto de novo " .. Short(m) .. "!", S.GraveText(g):gsub("^, ", "") .. ". Lo strillone de " .. Name(all, cr.by) .. ".", { 1, 0.5, 0.2 }, "evento")
         end
+        -- er capro espiatorio: whoever dies, it's his fault
+        local goat = S.Goat()
+        if goat and goat ~= guid and Now() - g.at < 600 then
+          News.Banner("È morto " .. Short(m) .. "!", "È córpa de " .. Name(all, goat) .. ".", { 1, 0.5, 0.2 }, "evento")
+          News.Add("È morto " .. GOLD .. Short(m) .. "|r. È córpa de " .. GOLD .. Name(all, goat) .. "|r, se sa.")
+        end
       end)
     end
   end
@@ -1295,7 +1304,7 @@ local pegno
 function S.ShowPegno(s)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 470, 276, "Hai vinto!", true)
+    pegno = Dialog("ErPattoPegno", 470, 314, "Hai vinto!", true)
     pegno.form = { p = 1, e = 1 }
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 420, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
@@ -1483,7 +1492,7 @@ function S.OpenSfotti(guid)
 end
 
 -- er burattino: the master picks an emote, the loser's character does it (once every ten minutes)
-S.PUPO_EVERY = 600
+S.PUPO_EVERY = 2 -- just against a double click
 S.PUPO = { { tok = "DANCE", name = "Balla" }, { tok = "CHICKEN", name = "Fa la gallina" }, { tok = "KNEEL", name = "S'inginocchia" },
   { tok = "CRY", name = "Piagne" }, { tok = "SILLY", name = "Fa lo scemo" }, { tok = "BOW", name = "S'inchina" },
   { tok = "FLEX", name = "Fa er bullo" }, { tok = "SURRENDER", name = "Se arrende" } }
@@ -1498,7 +1507,7 @@ function S.Pull(guid, i)
   local e = S.PUPO[i]
   if not e then return false end
   local left = (pulled[guid] or 0) + S.PUPO_EVERY - Now()
-  if left > 0 then return false, "Li fili se riposano: riprova tra " .. math.ceil(left / 60) .. " minuti." end
+  if left > 0 then return false, "Piano, 'n attimo." end
   pulled[guid] = Now()
   Send({ t = "pp", on = guid, e = i })
   return true, e
@@ -1574,16 +1583,16 @@ local function Left(t)
 end
 S.Left = Left
 local pic
--- er santino on the loser's screen: a parchment card in a dialog border, the face in a slot, its name and the line
+-- er santino on the loser's screen: the picture blown up big (it looks cheap on purpose), the line under it
 local card
 local function ShowSantino(g)
   local pena = g and S.PENE[g.s.pena or 0]
   if not (pena and pena.key == "img") then if card then card:Hide() end return end
   if not card then
-    card = CreateFrame("Frame", "ErPattoSantino", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    card:SetSize(168, 214)
-    local pos = ns.db.ui and ns.db.ui.santino
-    if type(pos) == "table" and pos[1] then card:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else card:SetPoint("LEFT", UIParent, "LEFT", 24, 80) end
+    card = CreateFrame("Frame", "ErPattoSantino", UIParent)
+    card:SetSize(220, 220)
+    local pos = ns.db.ui and ns.db.ui.santino2
+    if type(pos) == "table" and pos[1] then card:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else card:SetPoint("CENTER", UIParent, "CENTER", -360, 120) end
     card:SetFrameStrata("LOW")
     card:SetMovable(true) card:EnableMouse(true) card:SetClampedToScreen(true)
     card:RegisterForDrag("LeftButton")
@@ -1592,33 +1601,14 @@ local function ShowSantino(g)
       self:StopMovingOrSizing()
       local p, _, rp, x, y = self:GetPoint()
       ns.db.ui = ns.db.ui or {}
-      ns.db.ui.santino = { p, rp, x, y }
+      ns.db.ui.santino2 = { p, rp, x, y }
     end)
-    local bg = card:CreateTexture(nil, "BACKGROUND")
-    bg:SetTexture("Interface\\QuestFrame\\QuestBG")
-    bg:SetTexCoord(0, 0.58, 0, 0.66)
-    bg:SetPoint("TOPLEFT", 8, -8) bg:SetPoint("BOTTOMRIGHT", -8, 8)
-    if card.SetBackdrop then
-      card:SetBackdrop({ edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 24, insets = { left = 6, right = 6, top = 6, bottom = 6 } })
-    end
-    card.title = card:CreateFontString(nil, "OVERLAY", "QuestTitleFont")
-    card.title:SetPoint("TOP", 0, -18)
-    card.title:SetText("A la gogna")
-    card.title:SetTextColor(0.18, 0.11, 0.04)
     card.face = card:CreateTexture(nil, "ARTWORK")
-    card.face:SetSize(84, 84)
-    card.face:SetPoint("TOP", 0, -46)
-    local slot = card:CreateTexture(nil, "OVERLAY")
-    slot:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-    slot:SetSize(136, 136)
-    slot:SetPoint("CENTER", card.face)
-    card.who = card:CreateFontString(nil, "OVERLAY", "QuestFont")
-    card.who:SetPoint("TOP", card.face, "BOTTOM", 0, -10)
-    card.who:SetTextColor(0.18, 0.11, 0.04)
-    card.caption = card:CreateFontString(nil, "OVERLAY", "QuestFontNormalSmall")
-    card.caption:SetWidth(140)
-    card.caption:SetPoint("TOP", card.who, "BOTTOM", 0, -4)
-    card.caption:SetTextColor(0.29, 0.2, 0.1)
+    card.face:SetAllPoints()
+    card.caption = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    card.caption:SetWidth(260)
+    card.caption:SetPoint("TOP", card, "BOTTOM", 0, -6)
+    card.caption:SetShadowOffset(1, -1)
     card:SetScript("OnMouseUp", function(self, b)
       if self.moved then self.moved = false return end
       local x = S.AtGogna(ns.recordGuid)
@@ -1627,8 +1617,7 @@ local function ShowSantino(g)
   end
   local f = Figure(g.s.id, g.s.e)
   card.face:SetTexture(f.icon)
-  card.who:SetText(f.name)
-  card.caption:SetText(g.s.t or f.say)
+  card.caption:SetText(g.s.t or "")
   card:Show()
 end
 S.ShowSantino = ShowSantino
@@ -1822,33 +1811,50 @@ local function OnTarget()
   local ok, n = pcall(UnitName, "target")
   if ok and n and not U.IsSecret(n) and (n == master.name or n == Short(master)) then Emote("BOW", "target") end
 end
+S.SERVO_LINES = { "s'inchina: \"Comandi, padrone %s!\"", "s'inchina davanti ar padrone suo, %s.", "s'inchina: \"Er padrone mio è %s, er mejo der patto.\"",
+  "s'inchina: \"Pe' te, padrone %s, questo e artro.\"", "s'inchina e je lucida li stivali a %s." }
+local saidAt, saidN = 0, 0
+local function Say(text)
+  if SendChatMessage then pcall(SendChatMessage, text, "EMOTE") end
+end
+S.Say = Say
 local function NearBow()
   local master = Master()
   if not master then return end
   local now = GetTime and GetTime() or 0
-  if now - lastNear < 180 or (InCombatLockdown and InCombatLockdown()) then return end
+  if now - lastNear < 30 or (InCombatLockdown and InCombatLockdown()) then return end
   local u = UnitFor(master.name)
   local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
-  if near == true then lastNear = now Emote("BOW", u) end
+  if near == true then
+    lastNear = now
+    Emote("BOW", u)
+    -- every other bow, a line in the emote chat that everyone around reads
+    if now - saidAt >= 55 then
+      saidAt, saidN = now, saidN + 1
+      Say(S.SERVO_LINES[(saidN - 1) % #S.SERVO_LINES + 1]:format(Short(master)))
+    end
+  end
 end
--- er teschio: the skull marker on me while I'm in a group out of dungeons (put back if someone takes it off)
-local marked = false
-local function Skull()
+-- la rana: a jump, a croak (not more than one every eight seconds)
+local croakAt = 0
+local function OnJump()
   local g = S.AtGogna(ns.recordGuid)
   local pena = g and S.PENE[g.s.pena or 0]
-  local on = pena and pena.key == "mark"
-  if not (SetRaidTarget and GetRaidTargetIndex) then return end
-  if not on then
-    if marked then pcall(SetRaidTarget, "player", 0) marked = false end
-    return
-  end
-  local grouped = IsInGroup and IsInGroup()
-  local inside = IsInInstance and select(1, IsInInstance())
-  if not grouped or inside or (InCombatLockdown and InCombatLockdown()) then return end
-  local ok, idx = pcall(GetRaidTargetIndex, "player")
-  if ok and idx ~= 8 and pcall(SetRaidTarget, "player", 8) then marked = true end
+  if not (pena and pena.key == "rana") then return end
+  local now = GetTime and GetTime() or 0
+  if now - croakAt < 8 then return end
+  croakAt = now
+  Say("zompa e fa \"cra cra\".")
 end
-S.NearBow, S.Skull = NearBow, Skull
+S.OnJump = OnJump
+if hooksecurefunc then pcall(hooksecurefunc, "JumpOrAscendStart", function() pcall(OnJump) end) end
+S.NearBow = NearBow
+-- er capro espiatorio of the moment (the last one sent there), or nil
+function S.Goat()
+  local best
+  for guid, x in pairs(goats) do if Now() < x.til and (not best or x.from > best.from) then best = { guid = guid, from = x.from } end end
+  return best and best.guid
+end
 S.OnRevive, S.OnTarget = OnRevive, OnTarget
 
 -- test mode: my pegni for two minutes, the dialogs, a duel to bet on, to see how they look
@@ -1937,7 +1943,7 @@ ns.On("Live", function(from, data)
     local g = S.AtGogna(me)
     local pena = g and S.PENE[g.s.pena or 0]
     local e = S.PUPO[tonumber(data.e) or 0]
-    if g and pena and pena.key == "pupo" and g.by == from and e and Now() - (pulled.me or 0) >= S.PUPO_EVERY - 60 then
+    if g and pena and pena.key == "pupo" and g.by == from and e and Now() - (pulled.me or 0) >= 1 then
       pulled.me = Now()
       Emote(e.tok)
       S.Notice("Er burattino", GOLD .. Short(all[from]) .. "|r tira li fili: " .. e.name:lower() .. ".", 6)
@@ -2002,7 +2008,7 @@ ns.On("SelfChanged", function(state, reason) if reason ~= "pts" and reason ~= "s
 ns.On("Login", function()
   AddMenu()
   if C_Timer then
-    C_Timer.NewTicker(15, function() pcall(NearBow) pcall(Skull) end)
+    C_Timer.NewTicker(5, function() pcall(NearBow) end)
     C_Timer.After(10, S.Update)
     C_Timer.NewTicker(30, S.Update)
   end
