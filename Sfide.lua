@@ -1816,7 +1816,8 @@ function S.Karaoke(force)
   if not (pena and pena.key == "kara") then return false end
   local now = GetTime and GetTime() or 0
   if now - karaAt < 30 then return false end
-  if not force and math.random() >= S.KARAOKE_CHANCE then return false end
+  local chance = (ns.Tombola and ns.Tombola.Testing()) and 0.5 or S.KARAOKE_CHANCE
+  if not force and math.random() >= chance then return false end
   karaAt = now
   local i, sp = math.random(S.KARAOKE_SONGS), KaraSpeed()
   PlayKara(i, sp)
@@ -1858,13 +1859,26 @@ function S.TestGogna()
   local f = Fakes()
   testPena = testPena % #S.PENE + 1
   local pena = S.PENE[testPena]
-  test.s = { id = "prova:" .. testPena, w = f[1] or ns.recordGuid, pena = testPena, t = pena.key == "img" and "Ha perso co' Aldo" or (pena.key == "bee" and "bee" or nil),
+  test.s = { id = "prova:" .. testPena, w = f[1] or ns.recordGuid, pena = testPena, t = pena.key == "bee" and "bee" or nil,
     e = 1, te = Now(), til = Now() + 120 }
   Rebuild()
   S.ShowMyGogna()
   local all = Members()
   if ns.News then ns.News.Banner(Short(ns.MyRecord()) .. " va a la gogna!", S.PegnoText(test.s, all) .. ", pe' du' minuti (prova).", { 1, 0.5, 0.2 }, "evento") end
   S.ShowPena(test.s, all)
+  -- what the pegno does by itself, at once, so it can be seen and heard without anyone else
+  local master = Short(all[test.s.w])
+  local function Soon(fn) if C_Timer then C_Timer.After(1.5, fn) else fn() end end
+  if pena.key == "pupo" then
+    Soon(function() lastEmote = 0 Emote("DANCE") S.Notice("Er burattino", GOLD .. master .. "|r tira li fili: balli (prova).", 6) end)
+  elseif pena.key == "cry" then
+    Soon(function() lastEmote = 0 Emote("CRY") Say("piagne: \"nguee nguee\"") end)
+  elseif pena.key == "servo" then
+    Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINES[1]:format(master)) end)
+  elseif pena.key == "kara" then
+    karaAt = 0
+    Soon(function() S.Karaoke(true) end)
+  end
   if UI.Refresh then UI.Refresh() end
   if C_Timer then C_Timer.After(121, function() Rebuild() S.ShowMyGogna() UI.Refresh() end) end
   return pena.name
