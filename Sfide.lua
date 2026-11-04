@@ -48,7 +48,7 @@ local SLACK = 60
 -- the order is the number in the records: new ones go at the end
 S.PENE = {
   { key = "img", name = "Er santino", ask = "Scritta", opt = true,
-    tip = "'Na figura scarsa, grossa, piantata sur su' schermo pe' tutta la gogna: la sceji te (la pecora, er porcello...), co' la scritta sotto." },
+    tip = "Pe' tutta la gogna, sopra la testa der personaggio suo, in mezzo a lo schermo: la faccia che sceji te (la pecora, er porcello...) e scritto \"Dario me ha 'mpecorato\"." },
   { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...) ogni vorta che te pare.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
@@ -63,15 +63,15 @@ S.PENE = {
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
 S.FIGURE = {
-  { name = "A Pecora", icon = "Interface\\Icons\\Spell_Nature_Polymorph", say = "Ha perso e mo' fa bee." },
-  { name = "Er Porcello", icon = "Interface\\Icons\\Spell_Magic_PolymorphPig", say = "Bono solo pe' la porchetta." },
-  { name = "A Gallina", icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken", say = "Coccodè." },
-  { name = "Er Murloc", icon = "Interface\\Icons\\INV_Misc_Head_Murloc_01", say = "Mrglglglgl." },
-  { name = "Er Kobold", icon = "Interface\\Icons\\INV_Misc_Head_Kobold_01", say = "Nun me toccà la candela!" },
-  { name = "Er Gnoll", icon = "Interface\\Icons\\INV_Misc_Head_Gnoll_01", say = "Puzza da lontano." },
-  { name = "A Tartaruga", icon = "Interface\\Icons\\Ability_Hunter_Pet_Turtle", say = "Lento come la fame." },
-  { name = "Er Baccalà", icon = "Interface\\Icons\\INV_Misc_Fish_02", say = "Fermo come 'n baccalà." },
-  { name = "Er Cadavere", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", say = "Più morto che vivo." },
+  { name = "La pecora", icon = "Interface\\Icons\\Spell_Nature_Polymorph", say = "Ha perso e mo' fa bee.", verb = "'mpecorato" },
+  { name = "Er porcello", icon = "Interface\\Icons\\Spell_Magic_PolymorphPig", say = "Bono solo pe' la porchetta.", verb = "'mporcellato" },
+  { name = "La gallina", icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken", say = "Coccodè.", verb = "'ngallinato" },
+  { name = "Er murloc", icon = "Interface\\Icons\\INV_Misc_Head_Murloc_01", say = "Mrglglglgl.", verb = "'mmurlocato" },
+  { name = "Er kobold", icon = "Interface\\Icons\\INV_Misc_Head_Kobold_01", say = "Nun me toccà la candela!", verb = "'ncoboldato" },
+  { name = "Er gnoll", icon = "Interface\\Icons\\INV_Misc_Head_Gnoll_01", say = "Puzza da lontano.", verb = "'ngnollato" },
+  { name = "La tartaruga", icon = "Interface\\Icons\\Ability_Hunter_Pet_Turtle", say = "Lento come la fame.", verb = "'ntartarugato" },
+  { name = "Er baccalà", icon = "Interface\\Icons\\INV_Misc_Fish_02", say = "Fermo come 'n baccalà.", verb = "'mbaccalato" },
+  { name = "Er cadavere", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", say = "Più morto che vivo.", verb = "ammazzato" },
 }
 S.EMOTES = {
   { tok = "CHICKEN", name = "Fa la gallina" },
@@ -516,7 +516,8 @@ function S.PegnoYou(s, all)
   local by = Short(all[s.w])
   if pena.key == "img" then
     local f = Figure(s.id, s.e)
-    return "Pe' tutta la gogna c'hai 'na figura grossa piantata sur schermo, scelta da " .. by .. (s.t and (": \"" .. s.t .. "\"") or "") .. ". La poi spostà, ma nun la poi levà."
+    local f = Figure(s.id, s.e)
+    return "Pe' tutta la gogna c'hai " .. f.name:lower() .. " sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"" .. by .. " me ha " .. (f.verb or "'mpecorato") .. "\"" .. (s.t and (" e sotto \"" .. s.t .. "\"") or "") .. ". Nun la poi levà."
   elseif pena.key == "pupo" then
     return "Sei er burattino de " .. by .. ": ogni vorta che je pare te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
   elseif pena.key == "bee" then
@@ -1561,40 +1562,33 @@ local function Left(t)
 end
 S.Left = Left
 local pic
--- er santino on the loser's screen: the picture blown up big (it looks cheap on purpose), the line under it
+-- er santino: the face blown up over the loser's own character (on its head, in the middle of the screen, so it's
+-- in the way), "Dario me ha 'mpecorato" written over it, the winner's line under it. Clicks go through it.
 local card
 local function ShowSantino(g)
   local pena = g and S.PENE[g.s.pena or 0]
   if not (pena and pena.key == "img") then if card then card:Hide() end return end
   if not card then
     card = CreateFrame("Frame", "ErPattoSantino", UIParent)
-    card:SetSize(220, 220)
-    local pos = ns.db.ui and ns.db.ui.santino2
-    if type(pos) == "table" and pos[1] then card:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else card:SetPoint("CENTER", UIParent, "CENTER", -360, 120) end
-    card:SetFrameStrata("LOW")
-    card:SetMovable(true) card:EnableMouse(true) card:SetClampedToScreen(true)
-    card:RegisterForDrag("LeftButton")
-    card:SetScript("OnDragStart", function(self) self.moved = true self:StartMoving() end)
-    card:SetScript("OnDragStop", function(self)
-      self:StopMovingOrSizing()
-      local p, _, rp, x, y = self:GetPoint()
-      ns.db.ui = ns.db.ui or {}
-      ns.db.ui.santino2 = { p, rp, x, y }
-    end)
+    card:SetSize(128, 128)
+    card:SetPoint("CENTER", UIParent, "CENTER", 0, 70)
+    card:SetFrameStrata("BACKGROUND")
+    card:EnableMouse(false)
     card.face = card:CreateTexture(nil, "ARTWORK")
     card.face:SetAllPoints()
-    card.caption = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    card.caption:SetWidth(260)
-    card.caption:SetPoint("TOP", card, "BOTTOM", 0, -6)
+    card.who = card:CreateFontString(nil, "OVERLAY")
+    card.who:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
+    card.who:SetTextColor(1, 0.82, 0)
+    card.who:SetShadowOffset(2, -2)
+    card.who:SetPoint("BOTTOM", card, "TOP", 0, 8)
+    card.caption = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    card.caption:SetWidth(300)
     card.caption:SetShadowOffset(1, -1)
-    card:SetScript("OnMouseUp", function(self, b)
-      if self.moved then self.moved = false return end
-      local x = S.AtGogna(ns.recordGuid)
-      if b == "LeftButton" and x then S.ShowPena(x.s) end
-    end)
+    card.caption:SetPoint("TOP", card, "BOTTOM", 0, -6)
   end
   local f = Figure(g.s.id, g.s.e)
   card.face:SetTexture(f.icon)
+  card.who:SetText(Short(Members()[g.s.w]) .. " me ha " .. (f.verb or "'mpecorato"))
   card.caption:SetText(g.s.t or "")
   card:Show()
 end
