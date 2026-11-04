@@ -49,6 +49,13 @@ cl.Hide(cl)
 # the bulletin can be tried in test mode
 A.ns.Home.ShowBulletin(True)
 check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.text), 'test bulletin')
+bu = A.g.ErPattoBulletin
+txt = lambda rows: ' | '.join(str(l.text) for l in rows.values())
+check(str(bu.head.text) != '' and 'Settimana tranquilla' not in str(bu.head.text), 'the bulletin has a headline: ' + str(bu.head.text))
+check(str(bu.awards[1].label.text) == 'Er più veloce' and str(bu.rich[1].name.text).startswith('1. '), 'li premi and li ricchi')
+check('Morti in tutto' in txt(bu.dead) and 'Ultime parole' in txt(bu.dead), 'er cimitero with the last words: ' + txt(bu.dead))
+check(bu.cards[1].cells[1].box.shown and str(bu.cards[1].name.text) != '', 'la tombola: the little cards')
+check('?' in txt(bu.bets), 'la schedina: the questions and who won them: ' + txt(bu.bets))
 total, sc2, right, lines, won, res = TB.SimulateClose()
 check(total is not None and total >= sc2.points, 'simulated close: %s points, %s right' % (total, right))
 btn = bv.testBtn; btn.Click(btn)

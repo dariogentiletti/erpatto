@@ -196,7 +196,7 @@ end
 ----------------------------------------------------------------------
 X.INFO = {
   casa = { "Baretto", "Er cap tuo e che fà mo', chi è online, le notizie der patto e chi guida la settimana.",
-    "Ar primo login dopo er reset esce er Bollettino co' la settimana passata." },
+    "Ar primo login dopo er reset esce er Bollettino co' la settimana passata: li premi, li ricchi, er cimitero, la tombola, er Colosseo e la schedina." },
   pg = { "Personaggio", "Er personaggio tuo o de 'n amico (lo scegli a destra): equipaggiamento e piazzamenti ner patto.",
     "Er bottone Titolo sceje er titolo che mostri in chat davanti ar nome." },
   cap = { "Cap", "Ogni settimana c'è 'n livello massimo pe' squadra, che dipende da quante ore gioca. Nun lo superà.",

@@ -664,6 +664,9 @@ function UI.Members()
         ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
         nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
         pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk },
+        rip = { { at = U.Now() - i * 5400, lv = lv, k = ({ "mostro", "cascato", "mostro", "affogato", "pischello" })[i % 5 + 1],
+          by = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Kobold Vermin", "Young Wolf" })[i % 5 + 1], z = ({ "Elwynn Forest", "Westfall", "Redridge Mountains" })[i % 3 + 1],
+          w = ({ "tranquilli, ce penso io", "nun è niente", nil, "daje che è facile", "aspetta che bevo" })[i % 5 + 1] } },
         vt = { wk = wk, a = "FAKE-" .. ((i * 3) % 4 + 1), b = "FAKE-" .. ((i * 5) % 5 + 1), c = "FAKE-" .. ((i * 7) % 3 + 1), sa = (i % 3) * 5 + 1, sb = 5, sc = i % 2 == 0 and 10 or 1 },
       }
     end
