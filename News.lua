@@ -80,7 +80,7 @@ local SILLY = {
   pischello = "%s s'è fatto ammazzà da 'n %s",
 }
 
-local function Short(rec) return (tostring(rec.name or "?"):match("^(%S+)")) or "?" end
+local function Short(rec) return U.Short(rec and rec.name) end
 local function Hex(rec) return "|c" .. H.ClassHex(rec.cls) .. Short(rec) .. "|r" end
 local function T0(rec, k) return rec.stats and rec.stats.t and rec.stats.t[k] or 0 end
 

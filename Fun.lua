@@ -151,7 +151,7 @@ local lastWords
 F.WORDS_FRESH = 600
 function F.Said(msg, author)
   if type(msg) ~= "string" or U.IsSecret(msg) or type(author) ~= "string" or U.IsSecret(author) then return end
-  local me = UnitName and Plain(Safe(UnitName, "player"), "string")
+  local me = ns.myName or U.FullName("player")
   if not me or (author ~= me and author:match("^([^%-]+)") ~= me) then return end
   msg = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h(.-)|h", "%1"):gsub("|", "")
   if msg ~= "" then lastWords = { t = msg:sub(1, 80), at = U.Now() } end

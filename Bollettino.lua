@@ -16,7 +16,7 @@ ns.Bollettino = B
 local GREY, GOLD, GREEN, RED, WHITE = "|cff9d9d9d", "|cffffd100", "|cff20ff20", "|cffff4040", "|cffffffff"
 local ICON = "Interface\\Icons\\"
 local GOLDICON = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
-local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 local function Colored(m) return "|c" .. H.ClassHex(m.cls) .. Short(m) .. "|r" end
 local function W(m, wk, k)
   if ns.Tombola then return ns.Tombola.Weekly(m, wk)[k] or 0 end

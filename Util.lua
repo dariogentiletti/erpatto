@@ -54,6 +54,27 @@ function U.Plain(v, kind)
 end
 
 ----------------------------------------------------------------------
+-- names: on WoW Forever a character has a name and a surname ("Er Nia"), and UnitName gives them apart
+-- (name, surname); on retail the second value is the realm. The game's own NameUtil knows which.
+----------------------------------------------------------------------
+function U.FullName(unit)
+  if NameUtil and NameUtil.GetUnmodifiedUnitFullName and UnitNameUnmodified then
+    local ok, n = pcall(NameUtil.GetUnmodifiedUnitFullName, unit)
+    if ok and type(n) == "string" and not U.IsSecret(n) and n ~= "" then return n end
+  end
+  if not UnitName then return nil end
+  local ok, n = pcall(UnitName, unit)
+  return ok and U.Plain(n, "string") or nil
+end
+
+-- the name to show: no realm, no test mark ("Er Nia-Realm", "Dario (prova)" -> "Er Nia", "Dario")
+function U.Short(name)
+  if type(name) ~= "string" then return "?" end
+  local s = name:gsub(" %(prova%)$", ""):match("^([^%-]+)")
+  return s or name
+end
+
+----------------------------------------------------------------------
 -- time: always the game server's clock, shown in Italian time
 ----------------------------------------------------------------------
 function U.Now()

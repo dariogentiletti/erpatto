@@ -27,14 +27,21 @@ def step(n=1, dt=0.25):
     for _ in range(n):
         T[0] += dt
         for c in clients.values():
+            c.g.ROSTER = c.lua.table_from([c.lua.table_from({'name': d.name, 'guid': d.guid}) for d in clients.values()
+                if d.online and d.g.JOINED and d.g.JOINED == c.g.JOINED])
             c.g.NOWV = T[0]
             if c.online: c.g.RUN_TIMERS()
         for c in clients.values():
             if not c.online:
                 c.g.TAKE_OUTBOX(); continue
-            for m in c.g.TAKE_OUTBOX().values():
+            out = list(c.g.TAKE_OUTBOX().values())
+            if c.g.REFUSE_CHANNEL and any(m.kind == 'CHANNEL' for m in out):
+                c.ns.C.OnChannelNotice('NOT_ALLOWED_IN_CHANNEL', '', '', '7. ' + str(c.g.JOINED), '', '', 0, 7, c.g.JOINED)
+            for m in out:
                 for d in clients.values():
                     if d is c or not d.online: continue
+                    if m.kind == 'CHANNEL' and c.g.REFUSE_CHANNEL:
+                        continue
                     if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
                     elif m.kind == 'WHISPER' and m.target == d.name:
@@ -95,3 +102,32 @@ print('8) messaggi al secondo (max per client, limite 10):', {k: c.g.MAX_PER_SEC
 print('   online visti da Dario:', {n: A.ns.C.IsOnline(g) for n, g in [('Pietro','G-PIETRO'),('Jake','G-JAKE'),('Petra','G-PETRA')]})
 print('   statistiche Dario:', dict(A.ns.C.stats))
 print('errori:', {k: errs(c) for k, c in clients.items()})
+
+# 9) WoW Forever: the channel refuses addon messages; whoever is in it is found on its member list, and whispered
+def fails(ok, what): print(('OK   ' if ok else 'FAIL ') + what)
+for c in clients.values():
+    if c.online: c.logout()
+secs(5)
+E = Client('Er Gnomo', 'G-GNOMO'); F = Client('Er Nia', 'G-NIA'); G = Client('Er Martellone', 'G-MART')
+clients.update({'E': E, 'F': F, 'G': G})
+for c in (E, F, G): c.g.NOWV = T[0]; c.g.REFUSE_CHANNEL = True
+opts2 = E.lua.eval('''function(start) return { name = "Alien Racers", start = start, h20 = 25, h60 = 190, guid = "G-GNOMO", playerName = "Er Gnomo",
+  teams = { { name = "I Cesaroni", hours = 12 } }, teamIndex = 1 } end''')(START)
+E.state = E.ns.P.Create(opts2); code2 = E.state.code
+E.login(); secs(5)
+F.state = F.ns.P.Join(code2, 'G-NIA', 'Er Nia'); F.login(); secs(20)
+fails(F.ns.P.HasSettings(F.state) and 'G-NIA' in [str(k) for k in E.state.members.keys()],
+      'Forever: Er Nia joins with the code alone and both see each other (%s / %s)' % (summary(F), summary(E)))
+fails('sussurri' in str(F.ns.C.stats.mode) and not any(m == 'CHANNEL' for m in []), 'Forever: whispers to who is in the channel: ' + str(F.ns.C.stats.mode))
+G.state = G.ns.P.Join(code2, 'G-MART', 'Er Martellone'); G.login(); secs(25)
+fails(len(list(G.state.members.keys())) == 3 and len(list(E.state.members.keys())) == 3 and len(list(F.state.members.keys())) == 3,
+      'Forever: a third one joins, all three see all three')
+# a change in a record goes as the change only, and lands
+sizes = []
+orig = F.ns.C.SendSelf
+F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 4, 'zone': 'Mulgore'})); F.ns.C.MarkSelfDirty(0.1); secs(1)
+sent = [m for m in []]
+secs(10)
+fails(E.state.members['G-NIA'].lv == 4 and G.state.members['G-NIA'].zone == 'Mulgore' and (E.ns.C.stats.deltas or 0) >= 1, 'Forever: a ding arrives to both as a change of the record (changes applied: %s)' % E.ns.C.stats.deltas)
+fails(F.ns.U.Short('Er Nia-Realm') == 'Er Nia' and F.ns.U.Short('Dario (prova)') == 'Dario', 'names: realm and test mark go, the surname stays')
+print('errori Forever:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G))})

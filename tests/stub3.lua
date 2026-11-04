@@ -34,6 +34,12 @@ JOINED, CHANNEL_OK, INSTANCE = false, true, false
 JoinChannelByName = function(name, pw) if CHANNEL_OK then JOINED = name end end
 GetChannelName = function(name) if JOINED and JOINED == name then return 7, name end return 0 end
 LeaveChannelByName = function() JOINED = false end
+-- the channel's member list: the harness puts in ROSTER who else sits in the same channel ({ name, guid })
+ROSTER = {}
+GetNumDisplayChannels = function() return JOINED and 1 or 0 end
+GetChannelDisplayInfo = function(i) if JOINED and i == 1 then return JOINED, false, false, 7, #ROSTER, true, "CHANNEL_CATEGORY_CUSTOM" end end
+SetSelectedDisplayChannel = function() end
+C_ChatInfo.GetChannelRosterInfo = function(i, k) local r = ROSTER[k] if i == 1 and r then return r.name, false, false, r.guid end end
 IsInInstance = function() return INSTANCE, INSTANCE and "party" or "none" end
 DEFAULT_CHAT_FRAME = { AddMessage = function() end }
 ERR_CHAT_PLAYER_NOT_FOUND_S = "No player named '%s' is currently playing."

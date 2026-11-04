@@ -20,6 +20,7 @@ class Client:
         for f in FILES: load(open(os.path.join(ADDON, f)).read(), f)("ErPatto", self.ns)
         self.g = self.lua.globals()
         self.g.P_GUID, self.g.P_NAME = guid, name
+        self.guid = guid
         self.name = name
     def login(self, t):
         self.g.NOWV = t
@@ -36,6 +37,8 @@ def step(n=1, dt=0.25):
     for _ in range(n):
         T[0] += dt
         for c in clients:
+            c.g.ROSTER = c.lua.table_from([c.lua.table_from({'name': d.name, 'guid': d.guid}) for d in clients
+                if d.g.JOINED and d.g.JOINED == c.g.JOINED])
             c.g.NOWV = T[0]; c.g.RUN_TIMERS()
         for c in clients:
             for m in c.g.TAKE_OUTBOX().values():

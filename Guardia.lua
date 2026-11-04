@@ -21,7 +21,7 @@ G.KIND = { gilda = "online in gilda", gruppo = "in gruppo", chat = "scriveva in 
 local function Now() return U.Now() end
 local function Clock() return GetTime and GetTime() or 0 end
 local function Char() return UnitGUID and U.Plain(UnitGUID("player"), "string") or nil end
-local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 local function Ready() return ns.state and ns.db and P.HasSettings(ns.state) and not ns.alt and ns.recordGuid end
 
 ----------------------------------------------------------------------
@@ -116,10 +116,11 @@ local function LookGroup()
   local raid = IsInRaid and IsInRaid()
   for i = 1, raid and 40 or 4 do
     local u = (raid and "raid" or "party") .. i
-    local okn, n = pcall(UnitName, u)
-    if okn and n and not U.IsSecret(n) and names[n] then
+    local n = U.FullName(u)
+    local g = n and (names[n] or names[U.Short(n)])
+    if g then
       local okc, on = pcall(UnitIsConnected, u)
-      if okc and on == true then Saw(names[n], "gruppo") end
+      if okc and on == true then Saw(g, "gruppo") end
     end
   end
 end

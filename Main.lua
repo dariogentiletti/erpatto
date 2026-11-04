@@ -356,7 +356,7 @@ end
 handlers.PLAYER_LOGIN = function()
   if not ns.db then ns.InitDB() end
   ns.me = U.Plain(UnitGUID("player"), "string")
-  ns.myName = U.Plain((UnitName("player")), "string") or "?"
+  ns.myName = U.FullName("player") or "?"
   if not ns.me then U.Log("Errore", "GUID segreto o mancante") return end
   MyChar()
   local state, recordGuid, isAlt = ns.FindPatto()
@@ -412,6 +412,10 @@ handlers.UPDATE_BATTLEFIELD_STATUS = function(index) T.OnBattlefieldStatus(index
 handlers.PVP_MATCH_COMPLETE = function(winner) T.OnMatchComplete(winner) end
 handlers.UPDATE_BATTLEFIELD_SCORE = function() T.OnBattlefieldScore() end
 handlers.CHAT_MSG_ADDON = function(...) C.OnAddonMessage(...) end
+-- the patto's channel: its member list, and the notice that it refuses addon messages (WoW Forever)
+handlers.CHANNEL_ROSTER_UPDATE = function(index) C.OnRosterUpdate(index) end
+handlers.CHANNEL_COUNT_UPDATE = function(index) C.OnChannelCount(index) end
+handlers.CHAT_MSG_CHANNEL_NOTICE = function(...) C.OnChannelNotice(...) end
 handlers.PLAYER_MONEY = function() T.OnMoney() end
 handlers.MAIL_SHOW = function() T.SetMoneyBlock("mail", true) end
 handlers.MAIL_CLOSED = function() T.SetMoneyBlock("mail", false) end

@@ -318,7 +318,7 @@ local ADV = {
         if m.ne and m.ne.n then
           local a = agg[m.ne.n] or { name = m.ne.n, n = 0, who = {} }
           a.n = a.n + (m.ne.c or 0)
-          a.who[#a.who + 1] = tostring(m.name):match("^(%S+)") .. " (" .. (m.ne.c or 0) .. ")"
+          a.who[#a.who + 1] = U.Short(m.name) .. " (" .. (m.ne.c or 0) .. ")"
           agg[m.ne.n] = a
         end
       end
@@ -870,7 +870,7 @@ local function BuildCimitero(v)
       if not (x and S) then return end
       local all = S.Members()
       local pena = S.PENE[x.s.pena or 0]
-      local by = all[x.by] and tostring(all[x.by].name):match("^(%S+)") or "?"
+      local by = all[x.by] and U.Short(all[x.by].name) or "?"
       H.Tip(self, { pena and pena.name or "A la gogna", pena and pena.tip or ("Er pegno lo sta a sceje " .. by .. "."),
         "Ce l'ha mannato " .. by .. ", fino a " .. U.When(x.til) .. "." })
     end)

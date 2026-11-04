@@ -13,7 +13,7 @@ local GREY = "|cff9d9d9d"
 local GOLD = "|cffffd100"
 local page = "tombola"
 local sel = {} -- the member clicked in each question, before Punta
-local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 -- errors and confirmations in the page, under the purse, never in the chat
 local view
 local sayToken
@@ -322,7 +322,7 @@ end
 local function RefreshConti(v, list, byGuid)
   local m = contiOf and byGuid[contiOf]
   if contiOf and not m then contiOf = nil end
-  v.contiWho:SetText(m and tostring(m.name):match("^(%S+)") or "Tu")
+  v.contiWho:SetText(m and U.Short(m.name) or "Tu")
   local lines = TB.LedgerOf(m or ns.MyRecord())
   local put, took = 0, 0
   for _, x in ipairs(lines) do put = put + (x.s or 0) took = took + (x.g or 0) end

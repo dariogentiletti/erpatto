@@ -9,7 +9,7 @@ local Home = {}
 ns.Home = Home
 
 local GREY = "|cff9d9d9d"
-local function Short(m) return (tostring(m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 local function Colored(m) return "|c" .. H.ClassHex(m.cls) .. Short(m) .. "|r" end
 local function Gold(c) return ns.Money and ns.Money(c or 0, true) or string.format("%d oro", math.floor((c or 0) / 10000)) end
 local function Hours(sec) return U.Hours((sec or 0) / 3600) end

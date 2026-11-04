@@ -11,7 +11,7 @@ local H = UI.H
 local X = {}
 ns.Extras = X
 
-local function Short(m) return (tostring(m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 
 ----------------------------------------------------------------------
 -- versions: "0.10.2" -> comparable; "dev" (a copy from git) is never compared

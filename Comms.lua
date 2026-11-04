@@ -1,5 +1,7 @@
 -- Er Patto: talking to the other addons, with no internet.
--- Transport: a hidden chat channel named from the code (password-protected); if that fails, addon whispers to known members.
+-- Transport: a hidden chat channel named from the code (password-protected). Where the channel can't carry addon
+-- messages (WoW Forever answers NOT_ALLOWED_IN_CHANNEL) it is only the meeting place: its member list says who of
+-- the patto is online, and the messages go to each of them as addon whispers.
 -- Sync: everyone keeps a copy of everything and passes on what others are missing ("passaparola").
 -- Limits respected: 255-byte messages (chunked), ~1 message/s per prefix (token bucket), no sends inside instances.
 local ADDON, ns = ...
@@ -19,6 +21,8 @@ local queue, tokens, lastTick = {}, BUCKET_MAX, nil
 local partsIn = {}
 local seen, nameOf = {}, {}
 local whisperPeers = {} -- members who can only be reached by whisper (their channel failed)
+local chanBlocked = false -- the channel is there, but addon messages in it are refused: whispers to the roster
+local roster, rosterOK, displayIdx = {}, false, nil -- guid -> name of who is in the patto's channel now
 local recent = {}
 local helloReplyAt = {}
 local pendingSends = {}
@@ -66,6 +70,13 @@ local function HideChannel()
   end
 end
 
+-- WoW Forever (interface 1.6x): custom channels refuse addon messages
+local function ForeverClient()
+  if not GetBuildInfo then return false end
+  local toc = select(4, GetBuildInfo())
+  return type(toc) == "number" and toc >= 16000 and toc < 20000
+end
+
 function C.JoinChannel()
   if not chanName or type(JoinChannelByName) ~= "function" then C.stats.mode = "sussurri" return end
   if C.InLockdown() then return end
@@ -74,8 +85,9 @@ function C.JoinChannel()
     chanId = CurrentChannelId()
     if chanId then
       HideChannel()
-      C.stats.mode = "canale"
-      U.Log("Comms", "canale pronto", chanId)
+      C.stats.mode = chanBlocked and "sussurri a chi sta ner canale" or "canale"
+      U.Log("Comms", "canale pronto", chanId, chanBlocked and "(solo pe' trovasse: li messaggi vanno a sussurri)" or "")
+      C.RefreshRoster()
     else
       C.stats.mode = "sussurri"
       U.Log("Comms", "canale nun disponibile: uso li sussurri")
@@ -85,38 +97,155 @@ function C.JoinChannel()
 end
 
 ----------------------------------------------------------------------
+-- the channel's member list: who of the patto is online right now (everyone in it runs the addon)
+----------------------------------------------------------------------
+local function FindDisplay()
+  if not (chanName and GetNumDisplayChannels and GetChannelDisplayInfo) then return nil end
+  local okn, n = pcall(GetNumDisplayChannels)
+  if not okn or type(n) ~= "number" then return nil end
+  for i = 1, math.min(n, 60) do
+    local ok, name, header, _, number = pcall(GetChannelDisplayInfo, i)
+    if ok and not header and type(name) == "string" and not U.IsSecret(name) then
+      local low = name:lower()
+      if low == chanName or low:match("^%d+%.%s*(.+)$") == chanName or (chanId and number == chanId) then return i end
+    end
+  end
+  return nil
+end
+
+local newPeer -- set below: a hello to someone just arrived
+local function ReadRoster()
+  if not (displayIdx and C_ChatInfo and C_ChatInfo.GetChannelRosterInfo) then return end
+  local ok, _, _, _, _, count = pcall(GetChannelDisplayInfo, displayIdx)
+  count = ok and U.Plain(count, "number") or 0
+  local out, got = {}, 0
+  for k = 1, math.min(count, 80) do
+    local okr, name, _, _, guid = pcall(C_ChatInfo.GetChannelRosterInfo, displayIdx, k)
+    if okr and type(name) == "string" and type(guid) == "string" and not U.IsSecret(name) and not U.IsSecret(guid) then
+      out[guid] = name
+      got = got + 1
+    end
+  end
+  if got == 0 then return end
+  local now = Clock()
+  for g, name in pairs(out) do
+    if g ~= me then
+      nameOf[g] = name
+      seen[g] = seen[g] and math.max(seen[g], now) or now
+      if not roster[g] and rosterOK and newPeer then newPeer(g, name) end
+    end
+  end
+  if not rosterOK then U.Log("Comms", "lista der canale:", got, "presenti") end
+  roster, rosterOK = out, true
+end
+
+function C.RefreshRoster()
+  if not chanName then return end
+  displayIdx = FindDisplay()
+  if not displayIdx then return end
+  -- the game sends the list of the channel picked in the Chat Channels window; leave it alone while it's open
+  local open = ChannelFrame and ChannelFrame.IsShown and ChannelFrame:IsShown()
+  if not open and SetSelectedDisplayChannel then pcall(SetSelectedDisplayChannel, displayIdx) end
+  ReadRoster()
+end
+
+function C.OnRosterUpdate(index)
+  if displayIdx and index == displayIdx then ReadRoster() end
+end
+
+function C.OnChannelCount(index)
+  if displayIdx and index == displayIdx then C.RefreshRoster() end
+end
+
+-- "NOT_ALLOWED_IN_CHANNEL" for our channel: from now on the channel only says who is there
+function C.OnChannelNotice(notice, _, _, _, _, _, _, index, baseName)
+  if U.IsSecret(notice) or notice ~= "NOT_ALLOWED_IN_CHANNEL" or chanBlocked then return end
+  local mine = (type(baseName) == "string" and not U.IsSecret(baseName) and baseName:lower() == chanName)
+    or (chanId and index == chanId)
+  if not mine then return end
+  chanBlocked = true
+  C.stats.mode = "sussurri a chi sta ner canale"
+  U.Log("Comms", "er canale nun porta li messaggi de l'addon: mo' uso li sussurri")
+  C.RefreshRoster()
+  C_Timer.After(1.5, function() C.Hello() end)
+end
+
+----------------------------------------------------------------------
 -- sending
 ----------------------------------------------------------------------
 -- a quick message (X: a duel, a gufata, the strings pulled...) goes before the pieces of a record waiting to go
 local urgentAt = 0
-local function Push(kind, target, text, urgent)
+local function Push(kind, target, text, urgent, key)
   if #queue > 300 then C.stats.dropped = C.stats.dropped + 1 return end
   if urgent then
     urgentAt = math.min(urgentAt + 1, #queue + 1)
-    table.insert(queue, urgentAt, { kind, target, text })
+    table.insert(queue, urgentAt, { kind, target, text, key })
   else
-    queue[#queue + 1] = { kind, target, text }
+    queue[#queue + 1] = { kind, target, text, key }
   end
 end
 
-local function Enqueue(kind, target, body, urgent)
-  if #body <= MAXLEN then Push(kind, target, "!" .. body, urgent) return end
+-- a newer copy of the same thing to the same place (my record, the settings, a hello) replaces the one still waiting
+local function Supersede(key)
+  for i = #queue, 1, -1 do
+    if queue[i][4] == key then
+      table.remove(queue, i)
+      if i <= urgentAt then urgentAt = urgentAt - 1 end
+    end
+  end
+end
+
+local function Enqueue(kind, target, body, urgent, key)
+  if key then
+    -- a whole record also makes the changes still waiting useless
+    if key:sub(1, 2) == "M:" then Supersede("D:" .. key:sub(3) .. ">" .. tostring(target)) end
+    key = key .. ">" .. tostring(target)
+    Supersede(key)
+  end
+  if #body <= MAXLEN then Push(kind, target, "!" .. body, urgent, key) return end
   seq = seq % 999 + 1
   local size = MAXLEN - 14
   local n = math.ceil(#body / size)
   for i = 1, n do
-    Push(kind, target, "#" .. seq .. "~" .. i .. "~" .. n .. "~" .. body:sub((i - 1) * size + 1, i * size))
+    Push(kind, target, "#" .. seq .. "~" .. i .. "~" .. n .. "~" .. body:sub((i - 1) * size + 1, i * size), nil, key)
   end
 end
 
-local function Broadcast(body, urgent)
+-- who to whisper: who is in the patto's channel (when its list is known), and who wrote to us lately;
+-- without the list, hellos go to every member we know by name
+local function WhisperTargets(isHello)
+  local out, done = {}, {}
+  local function add(who)
+    if type(who) == "string" and who ~= "" and not done[who] then done[who] = true out[#out + 1] = who end
+  end
+  for g, who in pairs(roster) do if g ~= me then add(who) end end
+  local now = Clock()
+  -- whoever wrote to us lately, member or not yet (someone just come in with the code)
+  for g, t in pairs(seen) do
+    if g ~= me and nameOf[g] and now - t < ONLINE_WINDOW then add(nameOf[g]) end
+  end
+  for g, rec in pairs(state and state.members or {}) do
+    if g ~= me then
+      local who = nameOf[g] or rec.name
+      if seen[g] and now - seen[g] < ONLINE_WINDOW then add(who)
+      elseif isHello and not rosterOK then add(who) end
+    end
+  end
+  return out
+end
+
+local function Broadcast(body, urgent, key)
   chanId = CurrentChannelId()
+  if chanId and chanBlocked then
+    for _, who in ipairs(WhisperTargets(body:sub(1, 1) == "H")) do Enqueue("WHISPER", who, body, urgent, key) end
+    return
+  end
   if chanId then
-    Enqueue("CHANNEL", tostring(chanId), body, urgent)
+    Enqueue("CHANNEL", tostring(chanId), body, urgent, key)
     -- members stuck on whispers still need to hear us
     local now = Clock()
     for g, who in pairs(whisperPeers) do
-      if seen[g] and now - seen[g] < ONLINE_WINDOW then Enqueue("WHISPER", who, body, urgent) end
+      if seen[g] and now - seen[g] < ONLINE_WINDOW then Enqueue("WHISPER", who, body, urgent, key) end
     end
     return
   end
@@ -126,7 +255,7 @@ local function Broadcast(body, urgent)
   for g, rec in pairs(state and state.members or {}) do
     local who = nameOf[g] or rec.name
     if g ~= me and who and (isHello or (seen[g] and now - seen[g] < ONLINE_WINDOW)) then
-      Enqueue("WHISPER", who, body, urgent)
+      Enqueue("WHISPER", who, body, urgent, key)
     end
   end
 end
@@ -135,9 +264,19 @@ local function Body(kind, data)
   return kind .. "~" .. U.Serialize({ f = me, x = data })
 end
 
+-- what can be replaced by a newer copy while it waits: a member's record, the settings, the capi, the bans, a hello
+local function KeyOf(kind, data)
+  if kind == "M" then return type(data) == "table" and type(data.guid) == "string" and ("M:" .. data.guid) or nil end
+  if kind == "D" then return type(data) == "table" and type(data.g) == "string" and ("D:" .. data.g) or nil end
+  if kind == "H" or kind == "S" or kind == "A" or kind == "B" then return kind end
+  return nil
+end
+
 function C.Send(kind, data)
   if not state then return end
-  Broadcast(Body(kind, data), kind == "X")
+  Broadcast(Body(kind, data), kind == "X", KeyOf(kind, data))
+  -- my own whole record went out (from SendSelf or as an answer to a hello): the changes start from here
+  if kind == "M" and type(data) == "table" and data.guid == me then C.NoteFull(data) end
 end
 
 local function ResultIsThrottle(res)
@@ -207,16 +346,48 @@ end
 ----------------------------------------------------------------------
 -- sync protocol
 ----------------------------------------------------------------------
-function C.Hello()
-  if not state then return end
-  C.Send("H", { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
-    bv = state.bans.v or 0, d = P.Digest(state) })
+local function HelloData()
+  return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
+    bv = state.bans.v or 0, d = P.Digest(state) }
 end
 
+function C.Hello()
+  if not state then return end
+  C.Send("H", HelloData())
+end
+
+-- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
+newPeer = function(guid, name)
+  if not state or not chanBlocked then return end
+  Enqueue("WHISPER", name, Body("H", HelloData()), false, "H")
+end
+
+-- my record goes whole at most every five minutes; in between only what changed since the last whole one ("D").
+-- Whispered to each member one by one (WoW Forever), a whole record is 7-8 messages, a change 1-2.
+C.FULL_EVERY = 300
+local fullSer, fullUp, fullAt -- my record as last sent whole, field by field
+function C.NoteFull(rec)
+  fullSer, fullUp, fullAt = {}, rec.up, Clock()
+  for k, v in pairs(rec) do fullSer[k] = U.Serialize(v) end
+end
 function C.SendSelf()
   if not state or not state.members[me] then return end
   local rec = state.members[me]
   recent["M:" .. me .. ":" .. (rec.up or 0)] = Clock()
+  local now = Clock()
+  if fullSer and fullUp and rec.up and rec.up > fullUp and fullAt and now - fullAt < C.FULL_EVERY then
+    local ch, gone, size, total = {}, {}, 0, 0
+    for k, v in pairs(rec) do
+      local ser = U.Serialize(v)
+      total = total + #ser
+      if k ~= "up" and ser ~= fullSer[k] then ch[k] = v size = size + #ser end
+    end
+    for k in pairs(fullSer) do if rec[k] == nil then gone[#gone + 1] = k end end
+    if size < total * 0.6 then
+      C.Send("D", { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil })
+      return
+    end
+  end
   C.Send("M", rec)
 end
 
@@ -291,7 +462,7 @@ local function Handle(body, sender, channel)
   C.stats.received = C.stats.received + 1
   seen[from] = Clock()
   if type(sender) == "string" then nameOf[from] = sender end
-  if channel == "WHISPER" and type(sender) == "string" and CurrentChannelId() then
+  if channel == "WHISPER" and type(sender) == "string" and CurrentChannelId() and not chanBlocked then
     whisperPeers[from] = sender
   elseif channel == "CHANNEL" then
     whisperPeers[from] = nil
@@ -318,7 +489,24 @@ local function Handle(body, sender, channel)
   elseif kind == "X" then
     -- something happening now (a sfida thrown, a duel starting, a gufata): Sfide.lua shows it at once
     ns.Fire("Live", from, data)
-  elseif kind == "M" then
+  elseif kind == "D" then
+    -- what changed in someone's record since their last whole one: good on any copy at least that new
+    if type(data) == "table" and type(data.g) == "string" and data.g == from and type(data.c) == "table"
+      and type(data.b) == "number" and type(data.up) == "number" then
+      local cur = state.members[data.g]
+      if cur and (cur.up or 0) >= data.b and data.up > (cur.up or 0) then
+        local new = {}
+        for k, v in pairs(cur) do new[k] = v end
+        for k, v in pairs(data.c) do new[k] = v end
+        if type(data.r) == "table" then for _, k in ipairs(data.r) do if type(k) == "string" then new[k] = nil end end end
+        new.guid, new.up = data.g, data.up
+        data = new
+        kind = "M"
+        C.stats.deltas = (C.stats.deltas or 0) + 1
+      end
+    end
+  end
+  if kind == "M" then
     if type(data) == "table" and type(data.guid) == "string" then
       recent["M:" .. data.guid .. ":" .. tostring(data.up)] = Clock()
     end
@@ -434,9 +622,14 @@ function C.Start(st, myGuid, playerName)
   chanName, chanPw = P.ChannelName(st.code), P.ChannelPassword(st.code)
   chanId = nil
   queue, pendingSends, partsIn, whisperPeers = {}, {}, {}, {}
+  roster, rosterOK, displayIdx = {}, false, nil
+  chanBlocked = ForeverClient()
+  fullSer, fullUp, fullAt = nil, nil, nil
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
   if not helloTicker then helloTicker = C_Timer.NewTicker(HELLO_EVERY, function() C.Hello() end) end
+  -- the channel's list, once a minute (a dozen names at most to read)
+  if not C.rosterTicker then C.rosterTicker = C_Timer.NewTicker(60, function() if state and chanBlocked then C.RefreshRoster() end end) end
   if not C.filterSet and type(ChatFrame_AddMessageEventFilter) == "function" then
     ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", SystemFilter)
     C.filterSet = true
@@ -471,4 +664,7 @@ function C.LastSeen(guid)
 end
 
 function C.QueueSize() return #queue end
+function C.Queue() return queue end
+function C.Blocked() return chanBlocked end
+function C.Roster() return roster end
 function C.ChannelName() return chanName end

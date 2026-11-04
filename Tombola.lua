@@ -470,7 +470,7 @@ end
 local function Who(guid)
   local m = guid and ns.state and ns.state.members[guid]
   if not m then for _, x in ipairs(UI.Members()) do if x.guid == guid then m = x end end end
-  return m and (tostring(m.name):match("^(%S+)")) or "?"
+  return m and U.Short(m.name) or "?"
 end
 -- what a line is, in words
 function TB.LedgerText(x)
@@ -719,7 +719,7 @@ end
 local function Result(wk, rec, list, mine, sc, test)
   local byGuid = {}
   for _, m in ipairs(list) do byGuid[m.guid] = m end
-  local function Name(g) return byGuid[g] and (tostring(byGuid[g].name):match("^(%S+)")) or "?" end
+  local function Name(g) return byGuid[g] and U.Short(byGuid[g].name) or "?" end
   local won, right, details = TB.Payout(wk, list, mine or {})
   local bets = {}
   for _, d in ipairs(details) do
@@ -828,7 +828,7 @@ TB.SFOTTI = {
   "Er cap te guarda e ride.",
   "Te stai a fa' superà da tutti, pure da chi gioca cor gatto in braccio.",
 }
-local function ShortName(m) return m and (tostring(m.name):match("^(%S+)")) or "?" end
+local function ShortName(m) return m and U.Short(m.name) or "?" end
 -- three lines for guid, the ones about him first
 function TB.SfottiFor(guid)
   local list = UI.Members()
@@ -891,7 +891,7 @@ ns.On("Sfotto", function(from, data)
   if not text then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
   if not text or text == "" then return end
   local who = ns.state and ns.state.members[from]
-  local name = who and (tostring(who.name):match("^(%S+)")) or "Quarcuno"
+  local name = who and U.Short(who.name) or "Quarcuno"
   if ns.News then
     ns.News.Banner(name .. " te sfotte:", text, { 1, 0.5, 0.2 }, "evento")
     ns.News.Add("|cffffd100" .. name .. "|r t'ha sfottuto: " .. text)

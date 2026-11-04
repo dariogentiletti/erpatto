@@ -87,7 +87,7 @@ S.STATS = {
 
 local GREY, GOLD = "|cff9d9d9d", "|cffffd100"
 local function Now() return U.Now() end
-local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
+local function Short(m) return U.Short(m and m.name) end
 local function StatOf(key) for _, x in ipairs(S.STATS) do if x.key == key then return x end end end
 local function Hash(s) local h = 0 for i = 1, #s do h = (h * 31 + s:byte(i)) % 1000003 end return h end
 local function Figure(id, e) return S.FIGURE[tonumber(e) or 0] or S.FIGURE[(Hash(tostring(id)) % #S.FIGURE) + 1] end
@@ -646,6 +646,11 @@ local function UnitFor(name)
   for i = 1, 4 do tokens[#tokens + 1] = "party" .. i end
   for i = 1, 40 do tokens[#tokens + 1] = "raid" .. i end
   for i = 1, 40 do tokens[#tokens + 1] = "nameplate" .. i end
+  -- the full name first ("Er Nia" on Forever, where many share the first name), then the old way
+  for _, u in ipairs(tokens) do
+    local full = U.FullName(u)
+    if full and (full == name or U.Short(full) == U.Short(name)) then return u end
+  end
   for _, u in ipairs(tokens) do
     local ok, n = pcall(UnitName, u)
     if ok and n and not U.IsSecret(n) and (n == name or n == short) then return u end
@@ -659,8 +664,8 @@ local function StartTheDuel(guid, hint)
   if not StartDuel then return false, "Er duello nun pò partì." end
   local u
   if hint and UnitName then
-    local ok, n = pcall(UnitName, hint)
-    if ok and n and not U.IsSecret(n) and (n == m.name or n == Short(m)) then u = hint end
+    local n = U.FullName(hint)
+    if n and (n == m.name or U.Short(n) == Short(m)) then u = hint end
   end
   u = u or UnitFor(m.name)
   if not u then return false, Short(m) .. " nun è qui vicino: mettilo ner mirino e riprova." end
@@ -2313,10 +2318,7 @@ function S.OnEmote(token, target)
   if not Giampaolato() then return end
   Giampy(S.GIAMPY.cerbero)
   local name = (type(target) == "string" and not U.IsSecret(target) and target ~= "") and target or nil
-  if not name and UnitName then
-    local ok, n = pcall(UnitName, "target")
-    if ok and type(n) == "string" and not U.IsSecret(n) then name = n end
-  end
+  if not name then name = U.FullName("target") end
   if not name then return end
   for guid, m in pairs(Members()) do
     if guid ~= ns.recordGuid and (m.name == name or Short(m) == name or Short(m) == name:match("^([^%-]+)")) then Send({ t = "gy", to = guid }) end

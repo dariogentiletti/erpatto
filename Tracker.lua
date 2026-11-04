@@ -86,7 +86,7 @@ local function NoteChar(lv, cls)
   if not (ns.db and myGuid) then return end
   ns.db.chars = ns.db.chars or {}
   local c = ns.db.chars[myGuid] or {}
-  c.name = c.name or myName
+  c.name = myName or c.name
   if lv then c.lv = lv end
   if cls then c.cls = cls end
   ns.db.chars[myGuid] = c
@@ -107,7 +107,8 @@ function T.RefreshSelf(reason, levelOverride)
     return
   end
   if not Ready() then return end
-  local fields = { ver = ns.VERSION }
+  -- the name too: on Forever the first versions kept only the first name ("Er" instead of "Er Nia")
+  local fields = { ver = ns.VERSION, name = myName }
   if lv then fields.lv = lv end
   local xp, xpm = U.Plain(UnitXP("player"), "number"), U.Plain(UnitXPMax("player"), "number")
   if xp and xpm then fields.xp, fields.xpm = xp, xpm end
@@ -555,8 +556,8 @@ local function GroupedWithPatto()
   end
   local raid = IsInRaid and IsInRaid()
   for i = 1, raid and 40 or 4 do
-    local okn, n = pcall(UnitName, (raid and "raid" or "party") .. i)
-    if okn and n and not U.IsSecret(n) and names[n] then return true end
+    local n = U.FullName((raid and "raid" or "party") .. i)
+    if n and (names[n] or names[U.Short(n)]) then return true end
   end
   return false
 end
@@ -814,7 +815,7 @@ end
 -- recordGuid: the patto record this session writes (the main's, in alt mode); guid/playerName: the logged-in character
 function T.Start(st, recordGuid, guid, playerName, isAlt)
   state, me, myGuid, myName, altMode = st, recordGuid, guid, playerName, isAlt and true or false
-  myShort = playerName and playerName:match("^(%S+)") or playerName
+  myShort = playerName and U.Short(playerName) or playerName
   bg = nil
   lastMoney = U.Plain(GetMoney and GetMoney(), "number")
   moneyBlocked = {}
