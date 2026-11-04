@@ -62,7 +62,9 @@ S.PENE = {
   { key = "kara", name = "Er karaoke", tip = "A ogni mostro che ammazza parte 'na canzoncina (a vorte lenta, a vorte veloce, mai due insieme): la sente solo lui.",
     icon = "Interface\\Icons\\INV_Misc_Drum_01" },
   { key = "giampy", name = "Er Giampaolato", tip = "Ogni vorta che zompa se sente \"ahia!\" (o \"basta!\"); e quanno ringrazia quarcuno (/thanks) parte er Cerbero, pe' lui e pe' chi ha ringraziato.",
-    icon = "Interface\\Icons\\Spell_Holy_Silence" },
+    -- the gnome with the beard and the goggles where the client has it, the old gnome head otherwise
+    icon = (GetFileIDFromPath and GetFileIDFromPath("Interface\\Icons\\Achievement_Character_Gnome_Male") and "Interface\\Icons\\Achievement_Character_Gnome_Male")
+      or "Interface\\Icons\\INV_Misc_Head_Gnome_01" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
