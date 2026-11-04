@@ -351,22 +351,18 @@ peg.yes.Click(peg.yes)
 check('Scrivi' in str(peg.err.text), 'er verso needs its word')
 sanRow = [r for r in peg.pena.radios.values() if r.v == 1][0]
 sanRow.Click(sanRow)
-peg.pena.emote.Click(peg.pena.emote)
-check('porcello' in str(peg.pena.emote.text), 'the face of er santino is chosen: ' + str(peg.pena.emote.text))
-peg.pena.text.SetText(peg.pena.text, 'Ha perso tre vorte')
-peg.pena.text.GetScript(peg.pena.text, 'OnTextChanged')(peg.pena.text)
 peg.yes.Click(peg.yes)
 secs(5)
 pw = A.g.ErPattoPena
-check(pw is not None and pw.shown and 'santino' in str(pw.name.text) and 'Ha perso tre vorte' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
+check(pw is not None and pw.shown and 'pecora' in str(pw.name.text) and 'mpecorato' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
 card = A.g.ErPattoSantino
-check(card is not None and card.shown and str(card.who.text) == "Pietro me ha 'mporcellato" and 'tre vorte' in str(card.caption.text), 'er santino over Dario: ' + str(card and card.who.text))
+check(card is not None and card.shown and str(card.who.text) == "Pietro me ha 'mpecorato", 'la pecora over Dario: ' + str(card and card.who.text))
 gA = SC.AtGogna('Player-1-AAA')
 check(gA is not None and gA.til - T[0] > 6 * 86400, 'a la gogna for a week, Gina sees it')
 res = B.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Dario-Realm')
 check('Porcello' not in str(res), 'no animal name in chat: ' + str(res))
 check(str(SC.Champion()) == 'Player-1-BBB', 'Pietro sent Dario a la gogna: er Campione')
-check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'santino' in n for n in C.news()), 'news: the bella lost and er pegno')
+check(any('pure la bella' in n for n in C.news()) and any('Er pegno de' in n and 'pecora' in n for n in C.news()), 'news: the bella lost and er pegno')
 r1 = S.Gogna('Player-1-CCC')
 check(first(r1) is False and 'Stai a la gogna' in str(second(r1)), 'Dario a la gogna: no duelli a la gogna')
 check(SB.BlockText('Player-1-BBB', SB.Series(), SB.Members()) is None, 'Pietro won: he can throw another one at once, no daily limit')
@@ -390,7 +386,7 @@ peg.Hide(peg)
 T[0] += 1000; secs(40)
 g = A.ns.Sfide.AtGogna('Player-1-CCC')
 check(g is not None and 0 < g.til - T[0] < 86400 and g.s.pena == 1, 'Pietro didn\'t choose: Gina gets er santino for a day')
-check(shown(C, 'ErPattoPena') and 'santino' in str(C.g.ErPattoPena.name.text) and 'testa' in str(C.g.ErPattoPena.text.text), 'Gina is told about er santino')
+check(shown(C, 'ErPattoPena') and 'pecora' in str(C.g.ErPattoPena.name.text) and 'testa' in str(C.g.ErPattoPena.text.text), 'Gina is told about la pecora')
 C.g.ErPattoPena.Hide(C.g.ErPattoPena)
 # er piagnone
 T[0] += 86400 + 60; secs(5)
@@ -554,6 +550,13 @@ check(C.has('Scontrini') and C.has('Gufata su Dario') and C.has('Messe'), 'the S
 secs(30)
 lgA = [str(C.ns.Tombola.LedgerText(l)) for l in C.ns.Tombola.LedgerOf(C.ns.state.members['Player-1-AAA']).values()]
 check(any('Gufata de Gina' in t for t in lgA), 'and Gina can read Dario\'s: ' + str(lgA[:4]))
+# er karaoke: every song at every speed is there, and the speeds gather round 1x
+import collections
+media = os.path.join(ADDON, 'Media', 'karaoke')
+missing = [f'k{i}_{sp:03d}.ogg' for i in range(1, 5) for sp in (50, 70, 85, 100, 115, 130, 150) if not os.path.exists(os.path.join(media, f'k{i}_{sp:03d}.ogg'))]
+check(not missing, 'the karaoke files are all there: ' + str(missing))
+cnt = collections.Counter(int(A.ns.Sfide.KaraSpeed()) for _ in range(2000))
+check(cnt[100] > cnt[130] > cnt[150] and cnt[100] > cnt[70] > cnt[50], 'the speed: mostly 1x, rarely 0.5x or 1.5x: ' + str(sorted(cnt.items())))
 # the graveyard
 rip = A.rec().rip
 check(rip and 'boss' in str(rip[1].w), 'the gravestone keeps the last words')

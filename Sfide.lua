@@ -47,8 +47,8 @@ local SLACK = 60
 
 -- the order is the number in the records: new ones go at the end
 S.PENE = {
-  { key = "img", name = "Er santino", ask = "Scritta", opt = true,
-    tip = "Pe' tutta la gogna, sopra la testa der personaggio suo, in mezzo a lo schermo: la faccia che sceji te (la pecora, er porcello...) e scritto \"Dario me ha 'mpecorato\"." },
+  { key = "img", name = "La pecora",
+    tip = "Pe' tutta la gogna, sopra la testa der personaggio suo, in mezzo a lo schermo, 'na pecora co' scritto \"Dario me ha 'mpecorato\"." },
   { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...) ogni vorta che te pare.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
@@ -59,19 +59,13 @@ S.PENE = {
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
   { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e lo dice a tutti: \"Comandi, padrone mio!\".",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
+  { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente lui e chi der patto je sta vicino.",
+    icon = "Interface\\Icons\\INV_Misc_Drum_01" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
 S.FIGURE = {
   { name = "La pecora", icon = "Interface\\Icons\\Spell_Nature_Polymorph", say = "Ha perso e mo' fa bee.", verb = "'mpecorato" },
-  { name = "Er porcello", icon = "Interface\\Icons\\Spell_Magic_PolymorphPig", say = "Bono solo pe' la porchetta.", verb = "'mporcellato" },
-  { name = "La gallina", icon = "Interface\\Icons\\Spell_Magic_PolymorphChicken", say = "Coccodè.", verb = "'ngallinato" },
-  { name = "Er murloc", icon = "Interface\\Icons\\INV_Misc_Head_Murloc_01", say = "Mrglglglgl.", verb = "'mmurlocato" },
-  { name = "Er kobold", icon = "Interface\\Icons\\INV_Misc_Head_Kobold_01", say = "Nun me toccà la candela!", verb = "'ncoboldato" },
-  { name = "Er gnoll", icon = "Interface\\Icons\\INV_Misc_Head_Gnoll_01", say = "Puzza da lontano.", verb = "'ngnollato" },
-  { name = "La tartaruga", icon = "Interface\\Icons\\Ability_Hunter_Pet_Turtle", say = "Lento come la fame.", verb = "'ntartarugato" },
-  { name = "Er baccalà", icon = "Interface\\Icons\\INV_Misc_Fish_02", say = "Fermo come 'n baccalà.", verb = "'mbaccalato" },
-  { name = "Er cadavere", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", say = "Più morto che vivo.", verb = "ammazzato" },
 }
 S.EMOTES = {
   { tok = "CHICKEN", name = "Fa la gallina" },
@@ -503,7 +497,7 @@ function S.Last() return series end
 function S.PegnoText(s, all)
   local pena = S.PENE[s.pena or 0]
   if not pena then return nil end
-  if pena.key == "img" then return pena.name .. (s.t and (": \"" .. s.t .. "\"") or "") end
+  if pena.key == "img" then return pena.name end
   if pena.key == "bee" then return pena.name .. " \"" .. tostring(s.t or "?") .. "\"" end
   if pena.key == "servo" then return pena.name .. " de " .. Short((all or Members())[s.w]) end
   return pena.name
@@ -516,8 +510,9 @@ function S.PegnoYou(s, all)
   local by = Short(all[s.w])
   if pena.key == "img" then
     local f = Figure(s.id, s.e)
-    local f = Figure(s.id, s.e)
-    return "Pe' tutta la gogna c'hai " .. f.name:lower() .. " sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"" .. by .. " me ha " .. (f.verb or "'mpecorato") .. "\"" .. (s.t and (" e sotto \"" .. s.t .. "\"") or "") .. ". Nun la poi levà."
+    return "Pe' tutta la gogna c'hai 'na pecora sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"" .. by .. " me ha 'mpecorato\". Nun la poi levà."
+  elseif pena.key == "kara" then
+    return "Ogni tanto, quanno ammazzi 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce). La senti te e la sentono pure quelli der patto che te stanno vicino."
   elseif pena.key == "pupo" then
     return "Sei er burattino de " .. by .. ": ogni vorta che je pare te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
   elseif pena.key == "bee" then
@@ -704,7 +699,7 @@ function S.Pick(sid, p, t, e)
   if not pena then return false, "Scegli er pegno." end
   local text = Clean(t)
   if pena.ask and not pena.opt and not text then return false, "Scrivi " .. pena.ask:lower() .. "." end
-  local x = { id = sid, p = tonumber(p), t = pena.ask and text or nil, e = pena.key == "img" and (tonumber(e) or 1) or nil, at = Now() }
+  local x = { id = sid, p = tonumber(p), t = pena.ask and text or nil, e = nil, at = Now() }
   local keep = { x }
   for _, y in ipairs(MyList("gp")) do if #keep < 4 and y.id ~= sid then keep[#keep + 1] = y end end
   P.UpdateSelf(ns.state, ns.recordGuid, { gp = keep }, "sfide")
@@ -1261,14 +1256,7 @@ local function PenaPicker(parent, x, y, form)
     local row = w.radios[form.p or 0]
     if not (pena and row) then return end
     local x0 = 128
-    if pena.key == "img" then
-      local f = S.FIGURE[form.e or 1] or S.FIGURE[1]
-      w.face:SetTexture(f.icon) w.face:SetPoint("LEFT", row, "LEFT", x0, 0) w.face:Show()
-      w.emote:SetPoint("LEFT", w.face, "RIGHT", 4, 0) w.emote:SetText(f.name) w.emote:Show()
-      w.text:SetPoint("LEFT", w.emote, "RIGHT", 10, 0)
-      if not w.text:HasFocus() then w.text:SetText(form.t or "") end
-      w.text:Show()
-    elseif pena.ask then
+    if pena.ask then
       w.text:SetPoint("LEFT", row, "LEFT", x0 + 6, 0)
       if not w.text:HasFocus() then w.text:SetText(form.t or "") end
       w.text:Show()
@@ -1589,7 +1577,7 @@ local function ShowSantino(g)
   local f = Figure(g.s.id, g.s.e)
   card.face:SetTexture(f.icon)
   card.who:SetText(Short(Members()[g.s.w]) .. " me ha " .. (f.verb or "'mpecorato"))
-  card.caption:SetText(g.s.t or "")
+  card.caption:SetText("")
   card:Show()
 end
 S.ShowSantino = ShowSantino
@@ -1801,6 +1789,42 @@ local function NearBow()
   end
 end
 S.NearBow = NearBow
+-- er karaoke: 5% of the kills start one of the songs, at a speed drawn round 1x (0.5x to 1.5x, pitch with it);
+-- the patto in the same zone hears it too. The speeds are ready-made files (the game can't change a sound's speed).
+S.KARAOKE_CHANCE = 0.05
+S.KARAOKE_SONGS = 4
+S.KARAOKE_SPEEDS = { 50, 70, 85, 100, 115, 130, 150 }
+local karaAt = 0
+local function KaraFile(i, sp) return H.MEDIA .. "karaoke\\k" .. i .. "_" .. string.format("%03d", sp) .. ".ogg" end
+S.KaraFile = KaraFile
+-- a speed from a bell round 1x: Box-Muller, sd 0.2, cut at 0.5 and 1.5, the nearest ready-made one
+local function KaraSpeed()
+  local u1, u2 = math.max(1e-6, math.random()), math.random()
+  local z = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+  local x = math.max(0.5, math.min(1.5, 1 + 0.2 * z)) * 100
+  local best
+  for _, sp in ipairs(S.KARAOKE_SPEEDS) do if not best or math.abs(sp - x) < math.abs(best - x) then best = sp end end
+  return best
+end
+S.KaraSpeed = KaraSpeed
+local function PlayKara(i, sp)
+  if PlaySoundFile then pcall(PlaySoundFile, KaraFile(i, sp), "Master") end
+end
+function S.Karaoke(force)
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if not (pena and pena.key == "kara") then return false end
+  local now = GetTime and GetTime() or 0
+  if now - karaAt < 30 then return false end
+  if not force and math.random() >= S.KARAOKE_CHANCE then return false end
+  karaAt = now
+  local i, sp = math.random(S.KARAOKE_SONGS), KaraSpeed()
+  PlayKara(i, sp)
+  local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+  Send({ t = "ka", f = i, v = sp, z = z })
+  return true, i, sp
+end
+ns.On("J_Kill", function() pcall(S.Karaoke) end)
 -- er piagnone: a cry every two minutes (not in a fight); "nguee nguee" too when his winner is near. The look for
 -- the winner is cheap: the usual unit tokens, once every two minutes
 local cryAt = 0
@@ -1903,6 +1927,15 @@ ns.On("Live", function(from, data)
       S.ShowBet(data.a, data.b, data.g == 1)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
+    end
+  elseif data.t == "ka" and not ns.alt then
+    -- someone of the patto with er karaoke sang near me
+    local g = S.AtGogna(from)
+    local pena = g and S.PENE[g.s.pena or 0]
+    local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+    local i, sp = tonumber(data.f), tonumber(data.v)
+    if pena and pena.key == "kara" and data.z and z == data.z and i and i >= 1 and i <= S.KARAOKE_SONGS then
+      for _, x in ipairs(S.KARAOKE_SPEEDS) do if x == sp then PlayKara(i, sp) end end
     end
   elseif data.t == "pp" and data.on == me then
     local g = S.AtGogna(me)
