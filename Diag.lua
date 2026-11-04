@@ -521,7 +521,8 @@ local function BuildWindow()
 end
 
 local function Toggle()
-  if not frame then BuildWindow() end
+  -- a frame is shown when it's made: the first /patto diag just opens it
+  if not frame then BuildWindow() frame:Show() return end
   if frame:IsShown() then frame:Hide() else frame:Show() end
 end
 

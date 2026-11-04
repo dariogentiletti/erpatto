@@ -486,6 +486,8 @@ check(A.has('Libbero'), 'after the calendar ends the cap is lifted')
 # diagnostics window
 A.ns.Diag.Toggle(); A.ns.Diag.EnvReport()
 check(any('[Patto] codice' in str(x) for x in A.g.ErPattoDB.log.values()), 'diag report includes patto status')
+check(A.g.ErPattoDiagFrame.shown, 'one /patto diag opens the window')
+A.ns.Diag.Toggle()  # the log quotes the stub's raw values; close it before the "nil" check
 # leaving as capo with members is blocked, then transfer and leave
 A.ns.UI.Show('imp')
 lv = A.btn('Esci dar patto'); lv.Click(lv); lv.Click(lv)
