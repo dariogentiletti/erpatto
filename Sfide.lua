@@ -49,7 +49,7 @@ local SLACK = 60
 S.PENE = {
   { key = "img", name = "La pecora",
     tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, in mezzo a lo schermo suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
-  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) e dì a tutti che se fa tirà li fili; lui sente pure 'na canzoncina ar rallentatore.",
+  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) e dì a tutti che se fa tirà li fili; lui sente pure la musica der burattino.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
@@ -552,7 +552,7 @@ function S.PegnoYou(s, all)
   elseif pena.key == "giampy" then
     return "Sei giampaolato: ogni vorta che zompi senti \"ahia!\" (o \"basta!\"); e quanno ringrazi quarcuno (/thanks) parte er Cerbero, pe' te e pe' chi hai ringraziato, si è der patto."
   elseif pena.key == "pupo" then
-    return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' 'na canzoncina ar rallentatore."
+    return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' la musica der burattino."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
   elseif pena.key == "cry" then
@@ -900,7 +900,7 @@ function S.Herald(what, n, r, all, past)
     if n == 1 then
       ns.News.Banner("Duello a la gogna!", a .. " ha sfidato " .. b .. " a duello a la gogna. " .. b .. " ce sta a pensà...", { 1, 0.5, 0.2 }, "big")
     else
-      ns.News.Banner(n == 2 and "Rivincita!" or "La bella!", a .. " vole " .. (n == 2 and "la rivincita" or "la bella") .. " co' " .. b .. ". " .. b .. " ce sta a pensà...", { 1, 0.5, 0.2 },
+      ns.News.Banner(n == 2 and "Rivincita!" or "La bella!", a .. " vole " .. (n == 2 and "la rivincita" or "la bella") .. " co' " .. b .. ": si la riperde, er pegno je dura 'na settimana intera! " .. b .. " ce sta a pensà...", { 1, 0.5, 0.2 },
         H.MEDIA .. "duello\\dipiu.ogg")
     end
   elseif what == "ok" then
@@ -1491,8 +1491,8 @@ function S.ShowBet(a, b, gogna)
   if top and top > hh * 0.6 then bet:SetPoint("TOP", hud, "BOTTOM", 0, -56)
   else bet:SetPoint("TOP", UIParent, "TOP", 0, -90) end
   bet:Show()
-  -- the call to the arena: the ready check bell
-  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master") end
+  -- the call to the arena: the auction house bell (never a duel's sound, so nobody thinks he's been called)
+  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.AUCTION_WINDOW_OPEN) or 5274, "Master") end
   if C_Timer then C_Timer.After(60, function() if bet and bet.shownAt and (GetTime() - bet.shownAt) >= 59 then bet:Hide() end end) end
 end
 
@@ -2220,15 +2220,15 @@ local function PlayKara(i, sp)
   local now = GetTime and GetTime() or 0
   karaUntil = now + (S.KARAOKE_LENGTH[i] or 8) * 100 / sp + 1
 end
--- er burattino: the strings are pulled: the emote, the line everyone around reads, and for him alone one of the
--- songs at half speed
+-- er burattino: the strings are pulled: the emote, the line everyone around reads, and for him alone the music of
+-- the strings (Media/pupo, ten seconds)
+S.PUPO_SOUND = "pupo\\fili.ogg"
 function S.Puppet(e, master)
   if not e then return end
   lastEmote = 0
   Emote(e.tok)
   Say("se fa tirà li fili da " .. tostring(master) .. ".")
-  local now = GetTime and GetTime() or 0
-  if now >= karaUntil then PlayKara(math.random(S.KARAOKE_SONGS), 50) end
+  if PlaySoundFile then pcall(PlaySoundFile, H.MEDIA .. S.PUPO_SOUND, "Master") end
 end
 
 -- er Giampaolato: a jump plays "ahia" (four times in five) or "basta"; a /thanks plays er Cerbero for him and for

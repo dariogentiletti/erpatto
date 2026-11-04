@@ -264,15 +264,29 @@ local function Chrome(frame)
     if frame.HookScript and frame.OnBackdropSizeChanged then frame:HookScript("OnSizeChanged", frame.OnBackdropSizeChanged) end
   end
   if frame.SetBackdrop then frame:SetBackdrop(DIALOG) end
-  -- not see-through: a dark ground and the marble of the main window under the dialog box's own background
+  -- not see-through: the dark marble of the main window inside the border, laid again whenever the window changes
+  -- size (a dialog grows or shrinks with its text), and the dialog box's own black background left out
   if not frame.ground then
     frame.ground = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
     frame.ground:SetColorTexture(0.05, 0.05, 0.05, 1)
-    frame.ground:SetPoint("TOPLEFT", 11, -12)
-    frame.ground:SetPoint("BOTTOMRIGHT", -12, 11)
-    local w, h = frame:GetWidth(), frame:GetHeight()
-    if type(w) == "number" and type(h) == "number" and w > 40 and h > 40 then MarbleTiles(frame, 11, 12, w - 23, h - 23, "BACKGROUND", -7) end
+    frame.ground:SetPoint("TOPLEFT", 12, -12)
+    frame.ground:SetPoint("BOTTOMRIGHT", -12, 12)
+    frame.marble = {}
+    local lastW, lastH
+    local function Lay()
+      local w, h = frame:GetWidth(), frame:GetHeight()
+      if type(w) ~= "number" or type(h) ~= "number" or w <= 40 or h <= 40 then return end
+      w, h = math.floor(w + 0.5), math.floor(h + 0.5)
+      if w == lastW and h == lastH then return end
+      lastW, lastH = w, h
+      for _, t in ipairs(frame.marble) do t:Hide() end
+      frame.marble = MarbleTiles(frame, 12, 12, w - 24, h - 24, "BACKGROUND", -7) or {}
+    end
+    Lay()
+    if frame.HookScript then frame:HookScript("OnSizeChanged", Lay) end
+    frame.LayMarble = Lay
   end
+  if frame.SetBackdropColor then frame:SetBackdropColor(0, 0, 0, 0) end
   frame.stone = { Refit = function() end }
   return frame.stone
 end
