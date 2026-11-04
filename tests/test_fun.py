@@ -356,7 +356,15 @@ secs(5)
 pw = A.g.ErPattoPena
 check(pw is not None and pw.shown and 'pecora' in str(pw.name.text) and 'mpecorato' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
 card = A.g.ErPattoSantino
-check(card is not None and card.shown and str(card.who.text) == "Pietro me ha 'mpecorato", 'la pecora over Dario: ' + str(card and card.who.text))
+check(card is None or not card.shown, 'la pecora is not there all the time')
+A.ns.Sfide.SheepNow()
+card = A.g.ErPattoSantino
+check(card is not None and card.shown and str(card.who.text) == "Ricordate che Pietro te ha 'mpecorato", 'when it comes, over Dario: ' + str(card and card.who.text))
+secs(2)
+check(':' in str(card.caption.text), 'with the seconds left under it: ' + str(card.caption.text))
+clipA = A.g.ErPattoDuelloFinito
+check(clipA is not None and 'perso' in str(clipA.title.text).lower() and 'Pietro' in str(clipA.record.text), 'after the duels Dario got the loser\'s clip with the record: ' + str(clipA and clipA.record.text))
+check(B.g.ErPattoDuelloFinito is not None and 'vinto' in str(B.g.ErPattoDuelloFinito.title.text).lower(), 'Pietro the winner\'s one')
 gA = SC.AtGogna('Player-1-AAA')
 check(gA is not None and gA.til - T[0] > 6 * 86400, 'a la gogna for a week, Gina sees it')
 res = B.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Dario-Realm')
@@ -563,7 +571,7 @@ media = os.path.join(ADDON, 'Media', 'karaoke')
 missing = [f'k{i}_{sp:03d}.ogg' for i in range(1, 5) for sp in (50, 70, 85, 100, 115, 130, 150) if not os.path.exists(os.path.join(media, f'k{i}_{sp:03d}.ogg'))]
 check(not missing, 'the karaoke files are all there: ' + str(missing))
 cnt = collections.Counter(int(A.ns.Sfide.KaraSpeed()) for _ in range(2000))
-check(cnt[100] > cnt[130] > cnt[150] and cnt[100] > cnt[70] > cnt[50], 'the speed: mostly 1x, rarely 0.5x or 1.5x: ' + str(sorted(cnt.items())))
+check(150 < cnt[50] < 250 and 150 < cnt[150] < 250 and cnt[100] > cnt[85] > cnt[50], 'the speed: round 1x, 0.5x and 1.5x one time in ten each: ' + str(sorted(cnt.items())))
 # the graveyard
 rip = A.rec().rip
 check(rip and 'boss' in str(rip[1].w), 'the gravestone keeps the last words')

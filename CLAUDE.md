@@ -32,7 +32,8 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 
 Never:
 - textures made by us: only the game's own files (Media holds only the close button, and the karaoke songs the
-  user gave, as ogg at seven speeds in Media/karaoke)
+  user gave, as ogg at seven speeds in Media/karaoke, and the two duel clips the user gave, as frame sheets
+  plus ogg in Media/duello)
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)
 - Large/Huge fonts for headings (only the cap number may be GameFontNormalLarge)
 - card grids with big empty boxes, modern scroll bars, emblems or logos

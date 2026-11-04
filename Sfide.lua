@@ -48,7 +48,7 @@ local SLACK = 60
 -- the order is the number in the records: new ones go at the end
 S.PENE = {
   { key = "img", name = "La pecora",
-    tip = "Pe' tutta la gogna, sopra la testa der personaggio suo, in mezzo a lo schermo, 'na pecora co' scritto \"Dario me ha 'mpecorato\"." },
+    tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, sopra la testa der personaggio suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
   { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...) ogni vorta che te pare.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
@@ -510,7 +510,7 @@ function S.PegnoYou(s, all)
   local by = Short(all[s.w])
   if pena.key == "img" then
     local f = Figure(s.id, s.e)
-    return "Pe' tutta la gogna c'hai 'na pecora sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"" .. by .. " me ha 'mpecorato\". Nun la poi levà."
+    return "Ogni tanto (in media 'na vorta ogni mezz'ora), pe' 'n minuto, te compare 'na pecora sopra la testa der personaggio tuo, in mezzo a lo schermo, co' scritto \"Ricordate che " .. by .. " te ha 'mpecorato\". Nun la poi levà."
   elseif pena.key == "kara" then
     return "Ogni tanto, quanno ammazzi 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce). La senti te e la sentono pure quelli der patto che te stanno vicino."
   elseif pena.key == "pupo" then
@@ -1228,39 +1228,37 @@ function S.OfferRematch(s, all)
   if C_Timer then C_Timer.After(math.max(1, left), function() if offer.sid == s.id and not offer.sent then offer:Hide() end end) end
 end
 
--- er pegno chooser: a radio per pegno; next to the chosen one what it needs (the verse, the emote, the face and
--- the line of er santino)
+-- er pegno chooser: one red button per pegno (two columns), the chosen one stays lit; under them the word for er
+-- verso when that's the one
 local function PenaPicker(parent, x, y, form)
   local w = { radios = {} }
   for i, p in ipairs(S.PENE) do
-    local r = H.Radio(parent, p.name, function() form.p = i if w.Refresh then w.Refresh() end end)
-    r:SetPoint("TOPLEFT", x, y - (i - 1) * 18)
-    r.v = i
-    r:SetScript("OnEnter", function(self) H.Tip(self, { S.PENE[self.v].name, S.PENE[self.v].tip }) end)
-    r:SetScript("OnLeave", H.HideTip)
-    w.radios[i] = r
+    local b = H.Btn(parent, p.name, 180, function() form.p = i if w.Refresh then w.Refresh() end end, 22)
+    b:SetPoint("TOPLEFT", x + ((i - 1) % 2) * 190, y - math.floor((i - 1) / 2) * 26)
+    b.v = i
+    b:SetScript("OnEnter", function(self) H.Tip(self, { S.PENE[self.v].name, S.PENE[self.v].tip }) end)
+    b:SetScript("OnLeave", H.HideTip)
+    w.radios[i] = b
   end
-  w.text = H.Input(parent, 110, 30)
+  local rows = math.ceil(#S.PENE / 2)
+  w.label = H.Text(parent, "GameFontNormalSmall", "Er verso", 60)
+  w.label:SetPoint("TOPLEFT", x + 4, y - rows * 26 - 8)
+  w.text = H.Input(parent, 150, 30)
+  w.text:SetPoint("TOPLEFT", x + 70, y - rows * 26 - 4)
   w.text:SetScript("OnTextChanged", function(self) form.t = self:GetText() end)
-  w.emote = H.Btn(parent, "", 120, function()
-    local list = S.PENE[form.p or 0] and S.PENE[form.p].key == "img" and S.FIGURE or S.EMOTES
-    form.e = ((form.e or 1) % #list) + 1
-    if w.Refresh then w.Refresh() end
-  end, 18)
-  w.face = parent:CreateTexture(nil, "ARTWORK")
-  w.face:SetSize(18, 18)
+  w.emote = H.Btn(parent, "", 10, function() end, 18) w.emote:Hide() -- kept for the old callers
+  w.face = parent:CreateTexture(nil, "ARTWORK") w.face:Hide()
   function w.Refresh()
-    for _, r in ipairs(w.radios) do r:SetSelected((form.p or 0) == r.v) end
+    for _, b in ipairs(w.radios) do
+      if (form.p or 0) == b.v then b:LockHighlight() else b:UnlockHighlight() end
+    end
     local pena = S.PENE[form.p or 0]
-    w.text:ClearAllPoints() w.emote:ClearAllPoints() w.face:ClearAllPoints()
-    w.text:Hide() w.emote:Hide() w.face:Hide()
-    local row = w.radios[form.p or 0]
-    if not (pena and row) then return end
-    local x0 = 128
-    if pena.ask then
-      w.text:SetPoint("LEFT", row, "LEFT", x0 + 6, 0)
+    local ask = pena and pena.ask
+    w.label:SetShown(ask and true or false)
+    w.text:SetShown(ask and true or false)
+    if ask then
+      w.label:SetText(pena.ask)
       if not w.text:HasFocus() then w.text:SetText(form.t or "") end
-      w.text:Show()
     end
   end
   return w
@@ -1272,11 +1270,11 @@ local pegno
 function S.ShowPegno(s)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 470, 278, "Hai vinto!", true)
+    pegno = Dialog("ErPattoPegno", 440, 262, "Hai vinto!", true)
     pegno.form = { p = 1, e = 1 }
-    pegno.text = H.Text(pegno, "GameFontHighlight", "", 420, "CENTER")
+    pegno.text = H.Text(pegno, "GameFontHighlight", "", 400, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
-    pegno.pena = PenaPicker(pegno, 30, -76, pegno.form)
+    pegno.pena = PenaPicker(pegno, 36, -74, pegno.form)
     pegno.yes = H.Btn(pegno, "Ecco er pegno", 140, function()
       if pegno.sid == "prova" then Done(pegno, "Er pegno è fatto (prova).") return end
       local f = pegno.form
@@ -1285,7 +1283,7 @@ function S.ShowPegno(s)
     pegno.yes:SetPoint("BOTTOM", 0, 18)
     pegno.msg = H.Text(pegno, "GameFontNormal", "", 340, "CENTER")
     pegno.msg:SetPoint("CENTER", 0, -10)
-    pegno.controls = { pegno.yes, pegno.text, pegno.pena.text, pegno.pena.emote, pegno.pena.face }
+    pegno.controls = { pegno.yes, pegno.text, pegno.pena.text, pegno.pena.label }
     for _, r in ipairs(pegno.pena.radios) do pegno.controls[#pegno.controls + 1] = r end
   end
   Reset(pegno)
@@ -1310,7 +1308,7 @@ function S.ShowBet(a, b, gogna)
   if not bet then
     bet = Dialog("ErPattoScommessa", 320, 150, "Ar Colosseo!")
     bet:ClearAllPoints()
-    bet:SetPoint("RIGHT", UIParent, "RIGHT", -60, 60)
+    bet:SetPoint("TOP", UIParent, "TOP", 0, -90)
     H.CloseX(bet)
     bet.text = H.Text(bet, "GameFontHighlight", "", 290, "CENTER")
     bet.text:SetPoint("TOP", 0, -32)
@@ -1343,7 +1341,7 @@ function S.ShowBet(a, b, gogna)
   bet.stake:SetText("5")
   bet.shownAt = GetTime and GetTime() or 0
   bet:Show()
-  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960) end
+  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
   if C_Timer then C_Timer.After(60, function() if bet and bet.shownAt and (GetTime() - bet.shownAt) >= 59 then bet:Hide() end end) end
 end
 
@@ -1380,6 +1378,78 @@ function S.OpenDuel(guid, unit)
   duel.err:SetText(why or "")
   duel.yes:SetEnabled(not why)
 end
+
+----------------------------------------------------------------------
+-- after a duel with someone of the patto: a vanilla window with the clip (the winner's or the loser's, with its
+-- music), "Hai vinto!" or "Hai perso!" and the record between the two. The clips are frame sheets in Media/duello
+-- (256x144 frames, 4 by 7 on a 1024x1024 sheet, 12 a second): while it plays, one texture coordinate change per
+-- frame; nothing at all when it's closed.
+----------------------------------------------------------------------
+S.CLIPS = {
+  vinto = { sheets = 3, frames = 77, sound = "vinto.ogg" },
+  perso = { sheets = 1, frames = 24, sound = "perso.ogg" },
+}
+local clip
+function S.DuelClip(won, otherName, w, l)
+  local c = S.CLIPS[won and "vinto" or "perso"]
+  if not c then return end
+  if not clip then
+    clip = CreateFrame("Frame", "ErPattoDuelloFinito", UIParent)
+    clip:SetSize(420, 300)
+    clip:SetPoint("CENTER", UIParent, "CENTER", -340, 60)
+    clip:SetFrameStrata("DIALOG")
+    clip:EnableMouse(true) clip:SetMovable(true) clip:RegisterForDrag("LeftButton")
+    clip:SetScript("OnDragStart", clip.StartMoving)
+    clip:SetScript("OnDragStop", clip.StopMovingOrSizing)
+    H.Chrome(clip)
+    clip.title = H.DialogHeader(clip, "", 140)
+    H.CloseX(clip)
+    clip.screen = clip:CreateTexture(nil, "ARTWORK")
+    clip.screen:SetSize(384, 216)
+    clip.screen:SetPoint("TOP", 0, -30)
+    clip.record = H.Text(clip, "GameFontHighlight", "", 380, "CENTER")
+    clip.record:SetPoint("TOP", clip.screen, "BOTTOM", 0, -12)
+    clip.acc = 0
+    clip:SetScript("OnUpdate", function(self, el)
+      if not self.c then return end
+      self.t = self.t + (el or 0)
+      local i = math.floor(self.t * 12)
+      if i >= self.c.frames then
+        i = self.c.frames - 1
+        if self.t > self.c.frames / 12 + 4 then self:Hide() return end
+      end
+      if i == self.shown then return end
+      self.shown = i
+      local sheet, k = math.floor(i / 28) + 1, i % 28
+      local col, row = k % 4, math.floor(k / 4)
+      if sheet ~= self.sheet then
+        self.sheet = sheet
+        self.screen:SetTexture(H.MEDIA .. "duello\\" .. self.name .. sheet .. ".tga")
+      end
+      self.screen:SetTexCoord(col * 0.25, (col + 1) * 0.25, row * 144 / 1024, (row + 1) * 144 / 1024)
+    end)
+    clip:SetScript("OnHide", function(self) self.c = nil if self.handle and StopSound then pcall(StopSound, self.handle) end end)
+  end
+  clip.c, clip.name, clip.t, clip.shown, clip.sheet = c, won and "vinto" or "perso", 0, nil, nil
+  clip.title:SetText(won and "Hai vinto!" or "Hai perso!")
+  clip.record:SetText("Tu " .. GOLD .. (w or 0) .. "|r - " .. GOLD .. (l or 0) .. "|r " .. tostring(otherName))
+  clip:Show()
+  if PlaySoundFile then
+    local ok, willPlay, handle = pcall(PlaySoundFile, H.MEDIA .. "duello\\" .. c.sound, "Master")
+    clip.handle = ok and handle or nil
+  end
+end
+ns.On("J_Duel", function(name, won)
+  if not (ns.state and type(name) == "string") or ns.alt then return end
+  local other
+  for guid, m in pairs(ns.state.members) do
+    if guid ~= ns.recordGuid and (m.name == name or Short(m) == name or Short(m) == name:match("^([^%-]+)")) then other = m end
+  end
+  if not other then return end
+  local rec = ns.MyRecord and ns.MyRecord()
+  local h = rec and rec.h2h and (rec.h2h[name] or rec.h2h[other.name]) or {}
+  pcall(S.DuelClip, won, Short(other), h.w, h.l)
+end)
 
 -- my pegno, explained: what it does to me, until when, who sent me (once when it lands, and from the debuff)
 local pena
@@ -1551,12 +1621,21 @@ local function Left(t)
 end
 S.Left = Left
 local pic
--- er santino: the face blown up over the loser's own character (on its head, in the middle of the screen, so it's
--- in the way), "Dario me ha 'mpecorato" written over it, the winner's line under it. Clicks go through it.
+-- la pecora: now and then (one minute, on average once every half hour) a sheep over the loser's own character, in
+-- the middle of the screen, "Ricordate che Dario te ha 'mpecorato" over it and the seconds left under it. Clicks
+-- go through it. Cost: one random number every five seconds while a la gogna (5 s / 1800 s per tick, so on
+-- average once every 30 minutes), and a countdown four times a second only while it's up.
+S.SHEEP_FOR = 60
+S.SHEEP_EVERY = 1800
 local card
+local sheepUntil = 0
+local function SheepUp()
+  local now = GetTime and GetTime() or 0
+  return now < sheepUntil, sheepUntil - now
+end
 local function ShowSantino(g)
   local pena = g and S.PENE[g.s.pena or 0]
-  if not (pena and pena.key == "img") then if card then card:Hide() end return end
+  if not (pena and pena.key == "img") or not SheepUp() then if card then card:Hide() end return end
   if not card then
     card = CreateFrame("Frame", "ErPattoSantino", UIParent)
     card:SetSize(128, 128)
@@ -1571,16 +1650,38 @@ local function ShowSantino(g)
     card.who:SetShadowOffset(2, -2)
     card.who:SetPoint("BOTTOM", card, "TOP", 0, 8)
     card.caption = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    card.caption:SetWidth(300)
     card.caption:SetShadowOffset(1, -1)
     card.caption:SetPoint("TOP", card, "BOTTOM", 0, -6)
+    card.acc = 0
+    card:SetScript("OnUpdate", function(self, el)
+      self.acc = self.acc + (el or 0)
+      if self.acc < 0.25 then return end
+      self.acc = 0
+      local up, left = SheepUp()
+      if not up then self:Hide() return end
+      self.caption:SetText(string.format("%d:%02d", math.floor(left / 60), math.floor(left % 60)))
+    end)
   end
   local f = Figure(g.s.id, g.s.e)
   card.face:SetTexture(f.icon)
-  card.who:SetText(Short(Members()[g.s.w]) .. " me ha " .. (f.verb or "'mpecorato"))
-  card.caption:SetText("")
+  card.who:SetText("Ricordate che " .. Short(Members()[g.s.w]) .. " te ha " .. (f.verb or "'mpecorato"))
+  local _, left = SheepUp()
+  card.caption:SetText(string.format("%d:%02d", math.floor(left / 60), math.floor(left % 60)))
   card:Show()
 end
+-- the dice for the sheep, every five seconds while a la gogna with la pecora
+function S.SheepClock(now)
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if not (pena and pena.key == "img") then return end
+  now = now or (GetTime and GetTime() or 0)
+  if now < sheepUntil then return end
+  if math.random() < 5 / S.SHEEP_EVERY then
+    sheepUntil = now + S.SHEEP_FOR
+    ShowSantino(g)
+  end
+end
+function S.SheepNow(g) sheepUntil = (GetTime and GetTime() or 0) + S.SHEEP_FOR ShowSantino(g or S.AtGogna(ns.recordGuid)) end
 S.ShowSantino = ShowSantino
 
 function S.ShowMyGogna()
@@ -1823,42 +1924,68 @@ local function NearBow()
   end
 end
 S.NearBow = NearBow
--- er karaoke: 5% of the kills start one of the songs, at a speed drawn round 1x (0.5x to 1.5x, pitch with it);
--- the patto in the same zone hears it too. The speeds are ready-made files (the game can't change a sound's speed).
-S.KARAOKE_CHANCE = 0.05
+-- er karaoke: one kill in five starts one of the songs, and one plays anyway every ten minutes; never two at once.
+-- The speed: 0.5x and 1.5x one time in ten each (the jackpot, told in the chat), the rest round 1x. The pitch goes
+-- with the speed. The speeds are ready-made files (the game can't change a sound's speed). The patto in the same
+-- zone hears it too. Cost: one random number per kill and a look at the clock every five seconds.
+S.KARAOKE_CHANCE = 0.20
+S.KARAOKE_EVERY = 600
 S.KARAOKE_SONGS = 4
+S.KARAOKE_LENGTH = { 6.6, 7.8, 6.6, 22.9 } -- seconds at 1x
 S.KARAOKE_SPEEDS = { 50, 70, 85, 100, 115, 130, 150 }
-local karaAt = 0
+S.KARAOKE_WEIGHTS = { 10, 12, 16, 24, 16, 12, 10 } -- out of 100
+local karaAt, karaUntil = 0, 0
 local function KaraFile(i, sp) return H.MEDIA .. "karaoke\\k" .. i .. "_" .. string.format("%03d", sp) .. ".ogg" end
 S.KaraFile = KaraFile
--- a speed from a bell round 1x: Box-Muller, sd 0.2, cut at 0.5 and 1.5, the nearest ready-made one
 local function KaraSpeed()
-  local u1, u2 = math.max(1e-6, math.random()), math.random()
-  local z = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
-  local x = math.max(0.5, math.min(1.5, 1 + 0.2 * z)) * 100
-  local best
-  for _, sp in ipairs(S.KARAOKE_SPEEDS) do if not best or math.abs(sp - x) < math.abs(best - x) then best = sp end end
-  return best
+  local r, acc = math.random(100), 0
+  for k, wgt in ipairs(S.KARAOKE_WEIGHTS) do
+    acc = acc + wgt
+    if r <= acc then return S.KARAOKE_SPEEDS[k] end
+  end
+  return 100
 end
 S.KaraSpeed = KaraSpeed
 local function PlayKara(i, sp)
   if PlaySoundFile then pcall(PlaySoundFile, KaraFile(i, sp), "Master") end
+  local now = GetTime and GetTime() or 0
+  karaUntil = now + (S.KARAOKE_LENGTH[i] or 8) * 100 / sp + 1
+end
+-- the jackpot line, as a slot machine would say it
+local function Jackpot(sp)
+  local f = DEFAULT_CHAT_FRAME
+  if not (f and f.AddMessage) then return end
+  local what = sp < 100 and "|cffa335eeLA VERSIONE AR RALLENTATORE (0,5x)|r" or "|cffa335eeLA VERSIONE TURBO (1,5x)|r"
+  f:AddMessage("|cffff8000***  J A C K P O T  ***|r")
+  f:AddMessage("|cffffd100Daje! Hai trovato " .. what .. "|cffffd100, er pull più raro der karaoke: esce una vorta su dieci!|r")
+  f:AddMessage("|cffffd100Arza er volume, fatte 'n giro e gòdete 'sto capolavoro. Er banco t'aringrazia.|r")
 end
 function S.Karaoke(force)
   local g = S.AtGogna(ns.recordGuid)
   local pena = g and S.PENE[g.s.pena or 0]
   if not (pena and pena.key == "kara") then return false end
   local now = GetTime and GetTime() or 0
-  if now - karaAt < 30 then return false end
+  if now < karaUntil then return false end -- one at a time
   local chance = (ns.Tombola and ns.Tombola.Testing()) and 0.5 or S.KARAOKE_CHANCE
   if not force and math.random() >= chance then return false end
   karaAt = now
   local i, sp = math.random(S.KARAOKE_SONGS), KaraSpeed()
   PlayKara(i, sp)
+  if sp == 50 or sp == 150 then Jackpot(sp) end
   local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
   Send({ t = "ka", f = i, v = sp, z = z })
   return true, i, sp
 end
+-- the ten minutes without a song: one comes anyway
+local function KaraClock()
+  local g = S.AtGogna(ns.recordGuid)
+  local pena = g and S.PENE[g.s.pena or 0]
+  if not (pena and pena.key == "kara") then return end
+  local now = GetTime and GetTime() or 0
+  if karaAt == 0 then karaAt = now return end
+  if now - karaAt >= S.KARAOKE_EVERY then S.Karaoke(true) end
+end
+S.KaraClock = KaraClock
 ns.On("J_Kill", function() pcall(S.Karaoke) end)
 -- er piagnone: a cry every two minutes (not in a fight); "nguee nguee" too when his winner is near. The look for
 -- the winner is cheap: the usual unit tokens, once every two minutes
@@ -1903,14 +2030,16 @@ function S.TestGogna()
   -- what the pegno does by itself, at once, so it can be seen and heard without anyone else
   local master = Short(all[test.s.w])
   local function Soon(fn) if C_Timer then C_Timer.After(1.5, fn) else fn() end end
-  if pena.key == "pupo" then
+  if pena.key == "img" then
+    S.SheepNow()
+  elseif pena.key == "pupo" then
     Soon(function() lastEmote = 0 Emote("DANCE") S.Notice("Er burattino", GOLD .. master .. "|r tira li fili: balli (prova).", 6) end)
   elseif pena.key == "cry" then
     Soon(function() lastEmote = 0 Emote("CRY") Say("piagne: \"nguee nguee\"") end)
   elseif pena.key == "servo" then
     Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINES[1]:format(master)) end)
   elseif pena.key == "kara" then
-    karaAt = 0
+    karaAt, karaUntil = 0, 0
     Soon(function() S.Karaoke(true) end)
   end
   if UI.Refresh then UI.Refresh() end
@@ -1983,7 +2112,8 @@ ns.On("Live", function(from, data)
     local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
     local i, sp = tonumber(data.f), tonumber(data.v)
     if pena and pena.key == "kara" and data.z and z == data.z and i and i >= 1 and i <= S.KARAOKE_SONGS then
-      for _, x in ipairs(S.KARAOKE_SPEEDS) do if x == sp then PlayKara(i, sp) end end
+      local now = GetTime and GetTime() or 0
+      for _, x in ipairs(S.KARAOKE_SPEEDS) do if x == sp and now >= karaUntil then PlayKara(i, sp) end end
     end
   elseif data.t == "em" and type(data.x) == "string" and not ns.alt then
     local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
@@ -2063,7 +2193,7 @@ ns.On("SelfChanged", function(state, reason) if reason ~= "pts" and reason ~= "s
 ns.On("Login", function()
   AddMenu()
   if C_Timer then
-    C_Timer.NewTicker(5, function() pcall(NearBow) pcall(Crybaby) end)
+    C_Timer.NewTicker(5, function() pcall(NearBow) pcall(Crybaby) pcall(KaraClock) pcall(S.SheepClock) end)
     C_Timer.After(10, S.Update)
     C_Timer.NewTicker(30, S.Update)
   end
