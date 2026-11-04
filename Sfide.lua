@@ -59,10 +59,6 @@ S.PENE = {
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
   { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e lo dice a tutti: \"Comandi, padrone mio!\".",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
-  { key = "capro", name = "Er capro espiatorio", tip = "Ogni vorta che more quarcuno der patto, a tutti je compare scritto grosso che è córpa sua.",
-    icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01" },
-  { key = "rana", name = "La rana", tip = "Ogni vorta che zompa, er personaggio suo fa \"cra cra\" in chat davanti a tutti.",
-    icon = "Interface\\Icons\\INV_Misc_Fish_02" },
 }
 S.WAITING_ICON = "Interface\\Icons\\INV_Misc_QuestionMark" -- a la gogna, er pegno still to choose
 -- the faces of er santino (and their name in chat)
@@ -532,10 +528,6 @@ function S.PegnoYou(s, all)
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
     return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ogni mezzo minuto er personaggio tuo je s'inchina e lo dice a tutti (\"Comandi, padrone " .. by .. "!\"), e pure ogni vorta che lo metti ner mirino."
-  elseif pena.key == "capro" then
-    return "Sei er capro espiatorio: ogni vorta che more quarcuno der patto, a tutti je compare scritto grosso che è córpa tua."
-  elseif pena.key == "rana" then
-    return "Sei 'na rana: ogni vorta che zompi, er personaggio tuo fa \"cra cra\" in chat davanti a tutti."
   end
 end
 
@@ -556,9 +548,7 @@ local function Apply(s, all)
   keep(atGogna, s.l, { til = s.til, by = s.w, long = s.long, s = s })
   local why = "ha perso a la gogna co' " .. Short(all[s.w])
   local pena = S.PENE[s.pena or 0]
-  if pena and pena.key == "capro" then
-    keep(goats, s.l, { til = s.til, by = s.w, from = s.te })
-  elseif pena and pena.key == "bee" and s.t then
+  if pena and pena.key == "bee" and s.t then
     keep(verses, s.l, { t = s.t, til = s.til, why = why, by = s.w })
   elseif pena and pena.key == "crier" then
     keep(criers, s.l, { from = s.te, til = s.til, by = s.w })
@@ -1052,12 +1042,6 @@ function S.Update()
         if cr and g.at >= cr.from and g.at < cr.til and Now() - g.at < 600 then
           News.Banner("È morto de novo " .. Short(m) .. "!", S.GraveText(g):gsub("^, ", "") .. ". Lo strillone de " .. Name(all, cr.by) .. ".", { 1, 0.5, 0.2 }, "evento")
         end
-        -- er capro espiatorio: whoever dies, it's his fault
-        local goat = S.Goat()
-        if goat and goat ~= guid and Now() - g.at < 600 then
-          News.Banner("È morto " .. Short(m) .. "!", "È córpa de " .. Name(all, goat) .. ".", { 1, 0.5, 0.2 }, "evento")
-          News.Add("È morto " .. GOLD .. Short(m) .. "|r. È córpa de " .. GOLD .. Name(all, goat) .. "|r, se sa.")
-        end
       end)
     end
   end
@@ -1304,7 +1288,7 @@ local pegno
 function S.ShowPegno(s)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 470, 314, "Hai vinto!", true)
+    pegno = Dialog("ErPattoPegno", 470, 278, "Hai vinto!", true)
     pegno.form = { p = 1, e = 1 }
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 420, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
@@ -1835,26 +1819,8 @@ local function NearBow()
     end
   end
 end
--- la rana: a jump, a croak (not more than one every eight seconds)
-local croakAt = 0
-local function OnJump()
-  local g = S.AtGogna(ns.recordGuid)
-  local pena = g and S.PENE[g.s.pena or 0]
-  if not (pena and pena.key == "rana") then return end
-  local now = GetTime and GetTime() or 0
-  if now - croakAt < 8 then return end
-  croakAt = now
-  Say("zompa e fa \"cra cra\".")
-end
-S.OnJump = OnJump
-if hooksecurefunc then pcall(hooksecurefunc, "JumpOrAscendStart", function() pcall(OnJump) end) end
 S.NearBow = NearBow
--- er capro espiatorio of the moment (the last one sent there), or nil
-function S.Goat()
-  local best
-  for guid, x in pairs(goats) do if Now() < x.til and (not best or x.from > best.from) then best = { guid = guid, from = x.from } end end
-  return best and best.guid
-end
+
 S.OnRevive, S.OnTarget = OnRevive, OnTarget
 
 -- test mode: my pegni for two minutes, the dialogs, a duel to bet on, to see how they look
