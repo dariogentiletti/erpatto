@@ -196,7 +196,7 @@ end
 ----------------------------------------------------------------------
 X.INFO = {
   casa = { "Baretto", "Er cap tuo e che fà mo', chi è online, le notizie der patto e chi guida la settimana.",
-    "Ar primo login dopo er reset esce er Bollettino co' la settimana passata: li premi, li ricchi, er cimitero, la tombola, er Colosseo e la schedina." },
+    "Ar primo login dopo er reset esce er Bollettino co' la settimana passata: la settimana tua, li titoli, le piotte, li ricchi, er cimitero, er Colosseo, le tombole e la schedina." },
   pg = { "Personaggio", "Er personaggio tuo o de 'n amico (lo scegli a destra): equipaggiamento e piazzamenti ner patto.",
     "Er bottone Titolo sceje er titolo che mostri in chat davanti ar nome." },
   cap = { "Cap", "Ogni settimana c'è 'n livello massimo pe' squadra, che dipende da quante ore gioca. Nun lo superà.",
@@ -214,7 +214,7 @@ X.INFO = {
     "'Sta settimana e Da sempre cambiano er periodo contato." },
   botteghino = { "Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20, e ogni ora in gruppo co' quarcuno der patto te dà 'na piotta.",
     "Tombola: 'na cartella de 9 imprese a settimana, uguale pe' tutti. 1 piotta a casella, +2 a terno, +10 tombola. Si 'na casella nun se pò fà, er capo la pò cambià.",
-    "Schedina: tre domande nove ogni settimana (chi sale de più, chi pesca de più, chi more de più...). Punti su chi vince fino a la fine de la settimana: più piotte ce stanno sopra a uno, e più è avanti, meno paga; si vince pij la posta per la quota de quanno hai puntato.",
+    "Schedina: tre domande nove ogni settimana (chi sale de più, chi pesca de più, chi more de più...). Se gioca fino ar lunedì a mezzanotte (er weekend è pe' tutti), poi se conta tutta la settimana. La giocata è una sola pe' domanda e nun se cambia. Più piotte ce stanno sopra a uno, e più è avanti, meno paga: si vinci pij la posta per la quota de quanno hai puntato. La resa (Li ricchi) dice chi è bravo davero: vince de più chi azzecca dove nessuno punta.",
     "Li ricchi: chi c'ha più piotte. Sfotti (tasto destro su 'n amico): pe' 3 piotte je scrivi grosso sur su' schermo 'na frase fatta su li numeri sua, le morti, l'urtime parole, er livello...",
     "Sfide: sfidi 'n amico a chi fa de più (quest, sordi, pesci...) o a chi arriva prima ar livello, fino a la fine de la settimana. Chi vince se pija tutta la posta.",
     "La taja: piotte su la testa de quarcuno. Se le pija chi lo batte a duello.",
