@@ -309,6 +309,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if not ok then U.Log("Errore", "avventure", event, err) end
   end
 end)
+-- the combat log: on the new clients (the ones with secret values, Midnight rules) registering it is forbidden to
+-- addons and the game shows its "blocked" window at every login, so there it's left alone (falling and drowning
+-- are still found by IsFalling and the breath bar)
+if issecretvalue ~= nil then handlers.COMBAT_LOG_EVENT_UNFILTERED = nil end
 for ev in pairs(handlers) do
   if ev == "UNIT_SPELLCAST_SUCCEEDED" and frame.RegisterUnitEvent then pcall(frame.RegisterUnitEvent, frame, ev, "player")
   else pcall(frame.RegisterEvent, frame, ev) end

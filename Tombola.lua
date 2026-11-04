@@ -26,6 +26,7 @@ local TB = {}
 ns.Tombola = TB
 
 TB.START = 20          -- piotte everyone starts with
+TB.TEST_PIOTTE = 500   -- in test mode, piotte to try everything with (in the test book only)
 TB.SFOTTO = 3          -- the price of a sfottò
 TB.ICON = "Interface\\Icons\\INV_Misc_Bag_10_Red"
 TB.HEX = "|cffffffff"   -- piotte are white, as the vanilla counters; the red sack tells them from gold
@@ -298,11 +299,16 @@ end
 ----------------------------------------------------------------------
 -- the book: my piotte
 ----------------------------------------------------------------------
+-- the book of a patto; in test mode a book of its own (code .. ":prova"), so what you try never touches the real one
+function TB.BookKey()
+  return ns.state and (ns.state.code .. (TB.Testing() and ":prova" or "")) or nil
+end
 local function Book()
   if not (ns.db and ns.state) then return nil end
   ns.db.points = type(ns.db.points) == "table" and ns.db.points or {}
-  local b = ns.db.points[ns.state.code]
-  if type(b) ~= "table" then b = {} ns.db.points[ns.state.code] = b end
+  local key = TB.BookKey()
+  local b = ns.db.points[key]
+  if type(b) ~= "table" then b = {} ns.db.points[key] = b end
   b.weeks = type(b.weeks) == "table" and b.weeks or {}
   b.spent = b.spent or 0
   b.right = b.right or 0
@@ -362,6 +368,7 @@ function TB.Ledger()
   if not (b and rec) then return out end
   local start = ns.state.settings and ns.state.settings.start or 0
   out[#out + 1] = { at = start, k = "st", g = TB.START }
+  if TB.Testing() then out[#out + 1] = { at = start, k = "tp", g = TB.TEST_PIOTTE } end
   local hours = TB.GroupPiotte(rec)
   if hours > 0 then out[#out + 1] = { at = rec.up or U.Now(), k = "gp", g = hours } end
   local wk = Week() or 1
@@ -409,6 +416,7 @@ end
 function TB.LedgerText(x)
   local k = x.k
   if k == "st" then return "Le piotte de partenza" end
+  if k == "tp" then return "Le piotte de prova" end
   if k == "gp" then return "Ore in gruppo co' er patto: " .. (x.g or 0) end
   if k == "tb" then return "Tombola, settimana " .. tostring(x.w or "?") .. (x.open and " (finora)" or "") end
   if k == "sc" then return "Schedina, settimana " .. tostring(x.w or "?") end
@@ -450,7 +458,7 @@ function TB.Balance()
   local rec = ns.MyRecord and ns.MyRecord()
   if not (b and rec) then return TB.START end
   local wk = Week() or 0
-  local total = TB.START - b.spent + TB.GroupPiotte(rec)
+  local total = TB.START - b.spent + TB.GroupPiotte(rec) + (TB.Testing() and TB.TEST_PIOTTE or 0)
   for w, e in pairs(b.weeks) do if w < wk then total = total + (e.t or 0) + (e.w or 0) end end
   local now = TB.Score(rec, wk)
   total = total + (now and now.points or 0)
@@ -463,6 +471,12 @@ function TB.Balance()
     if t and t.wk == wk then for _, q in ipairs(TB.QUESTIONS) do total = total - StakeOf(t, q.key) end end
   end
   return math.max(0, total)
+end
+
+-- the schedine won and played (questions): mine from the book, theirs as shared
+function TB.SchedineOf(m)
+  if m.guid == ns.recordGuid then local b = Book() return b and b.right or 0, b and b.played or 0 end
+  return m.pts and m.pts.r or 0, m.pts and m.pts.n or 0
 end
 
 -- anybody's balance: theirs as shared, mine live
@@ -642,6 +656,8 @@ function TB.Update()
       b.weeks[prev] = { t = sc and sc.points or 0, w = won }
       if b.stakes and b.stakes[prev] then b.weeks[prev].s = b.stakes[prev] b.spent = b.spent + b.stakes[prev] b.stakes[prev] = nil end
       b.right = b.right + right
+      -- the schedine played (one per question with a stake), for the won/played count in Li ricchi
+      if mine then for _, q in ipairs(TB.Questions(prev)) do if (mine["s" .. q.key] or 0) > 0 and mine[q.key] then b.played = (b.played or 0) + 1 end end end
       if res.total > 0 or mine then closed[#closed + 1] = res end
     end
   end
@@ -650,8 +666,8 @@ function TB.Update()
   local now = TB.Score(rec, wk)
   local cur = rec.pts or {}
   local lg = Shared()
-  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) or Sig(lg) ~= Sig(rec.lg) then
-    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk }, lg = lg }, "pts")
+  if cur.t ~= bal or cur.wk ~= wk or cur.w ~= (now and now.points or 0) or cur.r ~= b.right or cur.n ~= (b.played or 0) or Sig(lg) ~= Sig(rec.lg) then
+    P.UpdateSelf(ns.state, ns.recordGuid, { pts = { t = bal, w = now and now.points or 0, wk = wk, r = b.right, n = b.played or 0 }, lg = lg }, "pts")
   end
   for _, res in ipairs(closed) do
     res.balance = bal

@@ -22,9 +22,10 @@ Use (the game's own files, drawn through the helpers in UI.lua):
 - lists: hover `Interface\Buttons\UI-Listbox-Highlight2`, selection `UI-FriendsFrame-HighlightBar-Blue`
 - tabs: bottom tabs and `H.TopTab`; no glow on mouseover (the user removed it), only the label turns white
 - scroll: only through `H.VanillaScroll` (old arrows, knob, rail); better no scroll at all when the content fits
-- announcements: plain big Friz Quadrata text with a shadow (like the zone text), nothing behind it
+- announcements (what happens to the patto): one line in the chat with the gold "[Er Patto]" in front and a soft ping;
+  the big ones (gogna, tombola, wipe, the crown) also in the game's raid warning letters. Never a window to close
 - backgrounds: the dark marble (the user chose it over the lighter header stone)
-- feedback: never in the chat; errors and confirmations go in the window they come from (a red line in the
+- feedback: never in the chat; errors and confirmations of a button go in the window it is in (a red line in the
   dialog, the status line of the page), a dialog that is done shows one line and closes by itself
 - sounds: a duello a la gogna or a rivincita asked of you plays the battleground horn (PVP_THROUGH_QUEUE)
 - explanations: only in the tooltip of the "i" (FriendsFrame\InformationIcon) at the top right of the window,

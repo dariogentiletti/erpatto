@@ -16,11 +16,16 @@ local sel = {} -- the member clicked in each question, before Punta
 local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
 -- errors and confirmations in the page, under the purse, never in the chat
 local view
+local sayToken
 local function Say(ok, msg, good)
   if not (view and view.status) then return end
-  if not ok and msg then view.status:SetText(msg)
-  elseif ok and good then view.status:SetText("|cff20ff20" .. good .. "|r")
+  if not ok then view.status:SetText(msg or "Nun se pò fà.")
+  elseif good then view.status:SetText("|cff20ff20" .. good .. "|r")
   else view.status:SetText("") end
+  -- it stays a while, then goes
+  local token = {}
+  sayToken = token
+  if C_Timer then C_Timer.After(8, function() if sayToken == token and view.status then view.status:SetText("") end end) end
   -- right next to the piotte, never over the tabs
   local w = view.purse and view.purse.GetStringWidth and view.purse:GetStringWidth() or 60
   view.status:ClearAllPoints()
@@ -36,6 +41,7 @@ local SEL = "Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue"
 
 local GREEN, RED = "|cff20ff20", "|cffff4040"
 ns.Botteghino = ns.Botteghino or {}
+ns.Botteghino.Say = Say
 -- the week closed: no window of its own any more, Er Bollettino tells it (with "La settimana tua")
 
 ----------------------------------------------------------------------
@@ -407,7 +413,8 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
     end
     if sel[r.key] then r.preview() end
     if not r.stake:HasFocus() then r.stake:SetText(stake > 0 and tostring(stake) or "") end
-    local open = (can and picked) and true or false
+    -- open while the schedina is: Punta without a name says what's missing
+    local open = can and true or false
     if r.stake.SetEnabled then r.stake:SetEnabled(open) end
     r.place:SetEnabled(open)
     r.place:SetText(placed and "Cambia" or "Punta")
@@ -430,14 +437,12 @@ local function RefreshRicchi(v, wk, list)
     if m then
       local pos = (m.guid == ns.recordGuid and myPos) or i
       local sc = TB.Card(wk) and TB.Score(m, wk)
-      local bets = TB.VotesOf(m, wk)
-      local n = 0
-      for _, q in ipairs(TB.QUESTIONS) do if bets and bets[q.key] and (bets["s" .. q.key] or 0) > 0 then n = n + 1 end end
+      local won, played = TB.SchedineOf(m)
       r.pos:SetText(pos .. "º")
       r.name:SetText(H.Colored(m) .. ((m.guid == ns.recordGuid) and (" " .. GOLD .. "(tu)|r") or ""))
       r.money:SetText(TB.TotalOf(m) .. " " .. TB.Coin(12))
       r.tomb:SetText(sc and (sc.cells .. "/9") or (GREY .. "-|r"))
-      r.sch:SetText(n > 0 and (n .. "/3 giocate") or (GREY .. "-|r"))
+      r.sch:SetText(played > 0 and (won .. " vinte su " .. played) or (GREY .. "-|r"))
       r.dare.guid = m.guid
       r.dare:SetShown(m.guid ~= ns.recordGuid and not m.fake)
     else

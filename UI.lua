@@ -643,6 +643,8 @@ function UI.Members()
       local st = M.Status(state.settings, team.id, U.Now())
       local cap = st and st.cap or 10
       local lv = math.max(1, math.min(60, cap + ((i * 7) % 5) - 3))
+      -- a few busy ones, so the tombola cards of the test have squares done
+      local f = (i % 4 == 0) and 4 or ((i % 4 == 1) and 2 or 1)
       list[#list + 1] = {
         guid = "FAKE-" .. i, name = n .. " (prova)", fake = true,
         ti = ns.Titles and ns.Titles.LIST[(i * 5) % #ns.Titles.LIST + 1].id or nil,
@@ -657,11 +659,11 @@ function UI.Members()
         wk = wk, zqw = { ["Westfall"] = i % 4 + 1 }, dgw = i % 2 == 0 and { ["The Deadmines"] = 1 } or {},
         stats = { t = { q = i * 9 % 50, dg = i % 6, dw = i % 4, dl = (i * 3) % 4, bw = i % 3, bl = (i + 1) % 3, ding = lv - 1, g = i * 123457 % 900000, dt = i % 5, pt = i * 9000, rk = i % 3, hk = i * 4 % 30, hn = i * 377 % 3000,
             fi = i * 13 % 70, he = i * 7 % 40, mi = i * 5 % 30, sk = i * 3 % 20, lb = i % 5, le = (i % 4 == 0) and 1 or 0, em = i % 3, nk = i % 6, tr = i * 9137 % 90000, fl = i % 7, hs = i % 5 },
-          w = { [wk] = { q = i * 3 % 20, dg = i % 3, dw = i % 2, dl = (i + 1) % 2, bw = i % 2, bl = 0, ding = i % 4, g = i * 23456 % 200000, dt = i % 2, pt = i * 2400, rk = i % 2, hk = i % 7, hn = i * 61 % 500,
-            fi = i * 3 % 15, he = i * 2 % 12, mi = i % 9, sk = i % 4, lb = i % 2, le = 0, em = i % 2, nk = i % 3, tr = i * 2311 % 25000, fl = i % 4, hs = i % 3 } } },
+          w = { [wk] = { q = (i * 3 % 20 + 5) * f, dg = (i % 3 + 1) * f, dw = (i % 2 + 1) * f, dl = (i + 1) % 2, bw = i % 2, bl = 0, ding = (i % 4) + f, g = (i * 23456 % 200000) * f, dt = i % 2, pt = i * 2400 * f, rk = i % 2 + (f > 2 and 1 or 0), hk = i % 7, hn = i * 61 % 500,
+            fi = (i * 3 % 15 + 2) * f, he = (i * 2 % 12) * f, mi = (i % 9) * f, sk = (i % 4) * f, lb = i % 2 + f - 1, le = 0, em = i % 2, nk = i % 3 + f, tr = (i * 2311 % 25000) * f, fl = i % 4, hs = i % 3 } } },
         ne = { n = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Hogger", "Riverpaw Gnoll" })[i % 5 + 1], c = i % 4 + 1 },
         nkl = { { n = "Hogger", c = i % 3 + 1 }, { n = "Bellygrub", c = i % 2 } },
-        pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk },
+        pts = { t = 20 + i * 7 % 40, w = i % 9, wk = wk, r = i % 4, n = i % 4 + 3 },
         rip = { { at = U.Now() - i * 5400, lv = lv, k = ({ "mostro", "cascato", "mostro", "affogato", "pischello" })[i % 5 + 1],
           by = ({ "Hogger", "Defias Pillager", "Murloc Raider", "Kobold Vermin", "Young Wolf" })[i % 5 + 1], z = ({ "Elwynn Forest", "Westfall", "Redridge Mountains" })[i % 3 + 1],
           w = ({ "tranquilli, ce penso io", "nun è niente", nil, "daje che è facile", "aspetta che bevo" })[i % 5 + 1] } },
@@ -1153,7 +1155,7 @@ local function BuildCap()
   scroll:SetPoint("TOPLEFT", 10, -50)
   scroll:SetPoint("BOTTOMRIGHT", -30, 8)
   local body = CreateFrame("Frame", nil, scroll)
-  body:SetSize(700, 10)
+  body:SetSize(330, 10)
   scroll:SetScrollChild(body)
   v.header = {}
   v.headerFrame = tb
@@ -1481,22 +1483,27 @@ local function BuildImp()
   -- one-click invite: they get a window with "Entra"
   v.invite = Input(b1, 150, 40, function(self)
     local name = self:GetText() or ""
-    if name ~= "" then ns.InviteFriend(name) self:SetText("") end
+    ns.InviteFriend(name, v.say) self:SetText("")
     self:ClearFocus()
   end)
   v.invite:SetPoint("TOPLEFT", 250, -52)
   Label(b1, "Invita 'n amico", v.invite)
   v.inviteBtn = Btn(b1, "Invita", 70, function()
     local name = v.invite:GetText() or ""
-    if name ~= "" then ns.InviteFriend(name) v.invite:SetText("") end
+    ns.InviteFriend(name, v.say) v.invite:SetText("")
   end, 20)
   v.inviteBtn:SetPoint("LEFT", v.invite, "RIGHT", 6, 0)
+  -- this page's status line: what a button did
+  v.msg = Text(b1, "GameFontRedSmall", "", 300, "RIGHT")
+  v.msg:SetPoint("TOPRIGHT", -150, -70)
+  if v.msg.SetWordWrap then v.msg:SetWordWrap(false) end
+  v.say = function(t, good) v.msg:SetText(good and ("|cff20ff20" .. t .. "|r") or t) end
   v.roles = Text(b1, "GameFontHighlightSmall", "", 480)
   v.roles:SetPoint("TOPLEFT", 12, -82)
   v.roles:SetJustifyV("TOP")
   v.link = Text(b1, "GameFontHighlightSmall", "", 240, "RIGHT")
   v.link:SetPoint("TOPRIGHT", -12, -14)
-  v.sync = Btn(b1, "Sincronizza mo'", 130, function() C.Hello() U.Say("ho chiesto l'aggiornamenti.") end)
+  v.sync = Btn(b1, "Sincronizza mo'", 130, function() C.Hello() v.say("Ho chiesto l'aggiornamenti a tutti.", true) end)
   v.sync:SetPoint("TOPRIGHT", -12, -40)
   v.diag = Btn(b1, "Diagnosi", 130, function() if ns.Diag then ns.Diag.Toggle() end end)
   v.diag:SetPoint("TOPRIGHT", -12, -66)
@@ -1511,7 +1518,7 @@ local function BuildImp()
     Check(b3, "Barretta cor cap sullo schermo (se trascina)", function() return o().hud end, function(x) o().hud = x end),
     Check(b3, "Avvisame si 'na quest me fa fa' ding oltre er cap", function() return o().questWarn end, function(x) o().questWarn = x end),
     Check(b3, "Titoli dell'amichi in chat davanti a quello che scriveno", function() return o().chatTitles ~= false end, function(x) o().chatTitles = x end),
-    Check(b3, "Annunci a schermo (ding, epici, morti ridicole, tombole)", function() return o().toasts end, function(x) o().toasts = x end),
+    Check(b3, "Annunci der patto (ding, epici, morti ridicole, tombole, gogne)", function() return o().toasts end, function(x) o().toasts = x end),
     Check(b3, "Sonoro co' l'annunci", function() return o().toastSound end, function(x) o().toastSound = x end),
     Check(b3, "Bottone su la minimappa", function() return o().minimap ~= false end, function(x) o().minimap = x end),
   }
@@ -1575,8 +1582,13 @@ end
 ----------------------------------------------------------------------
 local function BuildCapo()
   local v = NewView("capo")
-  local b1 = Box(v, 744, 146)
+  local b1 = Box(v, 744, 160)
   b1:SetPoint("TOPLEFT", 0, 0)
+  -- the page's status line: what happened, or what went wrong
+  v.err = Text(b1, "GameFontRedSmall", "", 440, "RIGHT")
+  v.err:SetPoint("TOPRIGHT", -12, -10)
+  if v.err.SetWordWrap then v.err:SetWordWrap(false) end
+  v.ok = function(text) v.err:SetText("|cff20ff20" .. text .. "|r") end
   local t1 = Text(b1, "GameFontNormal", "Ritmo de le squadre")
   t1:SetPoint("TOPLEFT", 12, -10)
   v.fromText = Text(b1, "GameFontHighlightSmall", "", 720)
@@ -1603,7 +1615,7 @@ local function BuildCapo()
       if nm ~= "" and nm ~= t.name then P.RenameTeam(ns.state, ns.me, t.id, nm:sub(1, 24)) end
       local ok, e = P.SetPace(ns.state, ns.me, t.id, h)
       v.err:SetText(ok and "" or (e or "Nun è andata."))
-      if ok then U.Say("ritmo de " .. t.name .. ": " .. h .. " ore a settimana, da la settimana " .. P.FirstEditableWeek(ns.state) .. ".") end
+      if ok then v.ok(t.name .. ": " .. h .. " ore a settimana, da la settimana " .. P.FirstEditableWeek(ns.state) .. ".") end
     end, 20)
     row.apply:SetPoint("TOPLEFT", 250, rowY(i) + 1)
     row.info = Text(b1, "GameFontHighlightSmall", "", 370)
@@ -1618,38 +1630,39 @@ local function BuildCapo()
     if nm == "" or not h or h < 1 or h > 100 then v.err:SetText("Squadra nova: nome e ore da 1 a 100.") return end
     local ok, e = P.AddTeam(ns.state, ns.me, nm:sub(1, 24), h)
     v.err:SetText(ok and "" or (e or "Nun è andata."))
-    if ok then v.addName:SetText("") v.addHours:SetText("") end
+    if ok then v.addName:SetText("") v.addHours:SetText("") v.ok("Squadra " .. nm:sub(1, 24) .. " aggiunta.") end
   end, 20)
   v.addHint = Text(b1, "GameFontDisableSmall", "Squadra nova (facortativa)", 300)
   v.rowY = rowY
 
-  local b2 = Box(v, 744, 124)
-  b2:SetPoint("TOPLEFT", 0, -150)
-  local t2 = Text(b2, "GameFontNormal", "Partenza e regole")
+  local b2 = Box(v, 368, 211)
+  b2:SetPoint("TOPLEFT", 0, -164)
+  local t2 = Text(b2, "GameFontNormal", "Partenza, regole e annuncio")
   t2:SetPoint("TOPLEFT", 12, -10)
-  v.startText = Text(b2, "GameFontHighlight", "", 360)
+  v.startText = Text(b2, "GameFontHighlightSmall", "", 340)
   v.startText:SetPoint("TOPLEFT", 16, -32)
   v.startBtn = Btn(b2, "Cambia partenza", 140, function()
     UI.PickDate(ns.state.settings.start, function(epoch)
       local ok, e = P.SetStart(ns.state, ns.me, epoch)
       v.err:SetText(ok and "" or (e or "Nun è andata."))
+      if ok then v.ok("Partenza cambiata: " .. U.When(epoch) .. ".") end
       UI.Refresh()
     end)
   end)
-  v.startBtn:SetPoint("TOPLEFT", 390, -28)
-  v.ah = Check(b2, "Li sordi de l'asta contano come sordi fatti (vale pe' tutti)", function() return ns.state and not ns.state.settings.noAh end,
+  v.startBtn:SetPoint("TOPLEFT", 14, -48)
+  v.ah = Check(b2, "Li sordi de l'asta contano come sordi fatti", function() return ns.state and not ns.state.settings.noAh end,
     function(on)
       local ok, e = P.SetAuctionGold(ns.state, ns.me, on)
       v.err:SetText(ok and "" or (e or "Nun è andata."))
     end)
-  v.ah:SetPoint("TOPLEFT", 12, -54)
-  v.test = Check(b2, "Modalità de prova (membri finti, li vedi solo te)", function() return ns.db.opts.testMode end, function(x) ns.db.opts.testMode = x end)
-  v.test:SetPoint("TOPLEFT", 420, -54)
+  v.ah:SetPoint("TOPLEFT", 12, -74)
+  v.test = Check(b2, "Modalità de prova (membri finti, solo pe' te)", function() return ns.db.opts.testMode end, function(x) ns.db.opts.testMode = x end)
+  v.test:SetPoint("TOPLEFT", 12, -96)
   -- the announcement everyone has to confirm once
   local al = Text(b2, "GameFontNormalSmall", "Annuncio:")
-  al:SetPoint("TOPLEFT", 16, -86)
-  v.ann = Input(b2, 420, 250)
-  v.ann:SetPoint("TOPLEFT", 84, -82)
+  al:SetPoint("TOPLEFT", 16, -130)
+  v.ann = Input(b2, 270, 250)
+  v.ann:SetPoint("TOPLEFT", 80, -126)
   v.annPost = Btn(b2, "Pubblica", 90, function()
     local text = strtrim and strtrim(v.ann:GetText() or "") or (v.ann:GetText() or "")
     if text == "" then v.err:SetText("Scrivi prima l'annuncio.") return end
@@ -1659,37 +1672,35 @@ local function BuildCapo()
       ns.db.annSeen = ns.db.annSeen or {}
       ns.db.annSeen[ns.state.code] = ns.state.settings.ann and ns.state.settings.ann.at
       v.ann:SetText("")
-      U.Say("annuncio pubblicato: lo vedono tutti appena entrano.")
+      v.ok("Annuncio pubblicato: lo vedono tutti appena entrano.")
     end
   end, 20)
-  v.annPost:SetPoint("LEFT", v.ann, "RIGHT", 8, 0)
+  v.annPost:SetPoint("TOPLEFT", 76, -150)
   -- see it as the others will, the first time they log in
   v.annPreview = Btn(b2, "Anteprima", 90, function() UI.ShowAnnouncement(true) end, 20)
   v.annPreview:SetPoint("LEFT", v.annPost, "RIGHT", 6, 0)
   -- the one that's live now; the little X in front of it takes it down
   v.annDel = CreateFrame("Button", nil, b2)
   v.annDel:SetSize(20, 20)
-  v.annDel:SetPoint("TOPLEFT", 80, -100)
+  v.annDel:SetPoint("TOPLEFT", 12, -176)
   v.annDel:SetNormalTexture(MEDIA .. "close-up.tga")
   v.annDel:SetPushedTexture(MEDIA .. "close-down.tga")
   v.annDel:SetHighlightTexture(MEDIA .. "close-hl.tga", "ADD")
   v.annDel:SetScript("OnClick", function()
     local ok, e = P.SetAnnouncement(ns.state, ns.me, nil)
     v.err:SetText(ok and "" or (e or "Nun è andata."))
-    if ok then U.Say("annuncio tolto.") end
+    if ok then v.ok("Annuncio tolto.") end
   end)
   v.annDel:SetScript("OnEnter", function(self) Tip(self, { "Togli l'annuncio" }) end)
   v.annDel:SetScript("OnLeave", HideTip)
-  v.annNow = Text(b2, "GameFontHighlightSmall", "", 620)
-  v.annNow:SetPoint("TOPLEFT", 102, -106)
-  if v.annNow.SetWordWrap then v.annNow:SetWordWrap(false) end
+  v.annNow = Text(b2, "GameFontHighlightSmall", "", 316)
+  v.annNow:SetPoint("TOPLEFT", 36, -180)
+  if v.annNow.SetMaxLines then v.annNow:SetMaxLines(2) end
 
-  local b3 = Box(v, 744, 97)
-  b3:SetPoint("TOPLEFT", 0, -278)
-  local t3 = Text(b3, "GameFontNormal", "Membri")
-  t3:SetPoint("TOPLEFT", 12, -10)
-  v.err = Text(b3, "GameFontRedSmall", "", 460, "RIGHT")
-  v.err:SetPoint("TOPRIGHT", -12, -10)
+  local b3 = Box(v, 372, 211)
+  b3:SetPoint("TOPLEFT", 372, -164)
+  v.memTitle = Text(b3, "GameFontNormal", "Membri")
+  v.memTitle:SetPoint("TOPLEFT", 12, -10)
   local scroll = CreateFrame("ScrollFrame", "ErPattoCapoScroll", b3, "UIPanelScrollFrameTemplate")
   VanillaScroll(scroll)
   scroll:SetPoint("TOPLEFT", 8, -30)
@@ -1750,7 +1761,7 @@ local function RefreshCapo(v)
   end
   v.annDel:SetShown(s.ann ~= nil)
   v.annNow:ClearAllPoints()
-  v.annNow:SetPoint("TOPLEFT", s.ann and 102 or 84, -106)
+  v.annNow:SetPoint("TOPLEFT", s.ann and 36 or 16, -180)
   v.annPreview:SetEnabled(s.ann ~= nil)
   local started = M.WeekIndex(s, U.Now()) >= 1
   v.startBtn:SetEnabled(not started)
@@ -1763,51 +1774,64 @@ local function RefreshCapo(v)
     local row = v.rows[i]
     if not row then
       row = CreateFrame("Frame", nil, v.body)
-      row:SetSize(700, 24)
-      row.name = Text(row, "GameFontHighlightSmall", "", 300)
+      row:SetSize(330, 22)
+      row.name = Text(row, "GameFontHighlightSmall", "", 150)
+      if row.name.SetWordWrap then row.name:SetWordWrap(false) end
       row.name:SetPoint("LEFT", 4, 0)
       -- played with the addon off: the details in the tooltip (Guardia.lua)
       row:SetScript("OnEnter", function(self)
-        if not self.off then return end
-        local lines = { "Addon spento" }
-        for k = 1, math.min(6, #self.off.lines) do lines[#lines + 1] = self.off.lines[k] end
+        local lines = { self.title or "?" , self.sub }
+        if self.off then
+          lines[#lines + 1] = "|cffff4040Addon spento:|r"
+          for k = 1, math.min(6, #self.off.lines) do lines[#lines + 1] = self.off.lines[k] end
+        end
         Tip(self, lines)
       end)
       row:SetScript("OnLeave", HideTip)
-      row.vice = Btn(row, "Fa' vice", 100, function(self)
+      row.vice = Btn(row, "Vice", 66, function(self)
         local on = not (ns.state.admins.vice or {})[self.guid]
-        P.SetVice(ns.state, ns.me, self.guid, on)
+        local ok, e = P.SetVice(ns.state, ns.me, self.guid, on)
+        local m = ns.state.members[self.guid]
+        if ok == false then v.err:SetText(e or "Nun è andata.")
+        else v.ok((m and m.name or "?") .. (on and " mo' è vice." or " nun è più vice.")) end
       end, 20)
-      row.vice:SetPoint("LEFT", 320, 0)
-      row.capo = ConfirmBtn(row, "Fa' capo", 120, function(self) P.TransferCapo(ns.state, ns.me, self.guid) end)
+      row.vice:SetPoint("LEFT", 156, 0)
+      row.capo = ConfirmBtn(row, "Capo", 52, function(self)
+        local m = ns.state.members[self.guid]
+        local ok, e = P.TransferCapo(ns.state, ns.me, self.guid)
+        if ok == false then v.err:SetText(e or "Nun è andata.") else v.ok("Er capo mo' è " .. (m and m.name or "?") .. ".") end
+      end)
       row.capo:SetHeight(20)
-      row.capo:SetPoint("LEFT", row.vice, "RIGHT", 6, 0)
-      row.ban = ConfirmBtn(row, "Caccia", 120, function(self)
+      row.capo:SetPoint("LEFT", row.vice, "RIGHT", 4, 0)
+      row.ban = ConfirmBtn(row, "Caccia", 54, function(self)
+        local m = ns.state.members[self.guid]
         local ok, e = P.Ban(ns.state, ns.me, self.guid)
-        if not ok then v.err:SetText(e or "") end
+        if not ok then v.err:SetText(e or "Nun è andata.") else v.ok((m and m.name or "?") .. " è fori dar patto.") end
       end)
       row.ban:SetHeight(20)
-      row.ban:SetPoint("LEFT", row.capo, "RIGHT", 6, 0)
+      row.ban:SetPoint("LEFT", row.capo, "RIGHT", 4, 0)
       v.rows[i] = row
     end
     row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", 0, -(i - 1) * 24)
+    row:SetPoint("TOPLEFT", 0, -(i - 1) * 22)
     local role = (m.guid == state.admins.capo) and " |cffffd100(capo)|r" or (((state.admins.vice or {})[m.guid]) and " |cffffd100(vice)|r" or "")
     local off = guard and guard[m.guid]
-    row.name:SetText(Colored(m) .. role .. (off and "  |cffff4040addon spento|r" or ("  |cff9d9d9d" .. P.TeamName(state, m.team) .. ", livello " .. tostring(m.lv or "?") .. "|r")))
+    row.name:SetText(Colored(m) .. role .. (off and " |cffff4040spento|r" or ""))
     row.off = off
-    row:EnableMouse(off ~= nil)
+    row.title, row.sub = tostring(m.name), P.TeamName(state, m.team) .. ", livello " .. tostring(m.lv or "?")
+    row:EnableMouse(true)
     local isSelf = m.guid == ns.me
     local isCapo = m.guid == state.admins.capo
     row.vice.guid, row.capo.guid, row.ban.guid = m.guid, m.guid, m.guid
-    row.vice:SetText(((state.admins.vice or {})[m.guid]) and "Togli vice" or "Fa' vice")
+    row.vice:SetText(((state.admins.vice or {})[m.guid]) and "Togli vice" or "Vice")
     row.vice:SetShown(capo and not isSelf)
     row.capo:SetShown(capo and not isSelf)
     row.ban:SetShown(not isSelf and not isCapo)
     row:Show()
   end
-  v.body:SetHeight(math.max(10, #list * 24))
-  UI.FitScroll(_G.ErPattoCapoScroll, #list * 24, 97 - 38)
+  v.body:SetHeight(math.max(10, #list * 22))
+  v.memTitle:SetText("Membri |cffffffff(" .. #list .. ")|r")
+  UI.FitScroll(_G.ErPattoCapoScroll, #list * 22, 211 - 38)
 end
 
 ----------------------------------------------------------------------
@@ -1966,7 +1990,7 @@ function UI.FitScroll(scroll, contentH, viewH)
   if not need and scroll.SetVerticalScroll then scroll:SetVerticalScroll(0) end
 end
 
-UI.H = { RedButton = RedButton, CloseX = CloseX, Dropdown = Dropdown, FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, DialogHeader = DialogHeader, Marble = Marble, VanillaScroll = VanillaScroll, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
+UI.H = { MarbleTiles = MarbleTiles, RedButton = RedButton, CloseX = CloseX, Dropdown = Dropdown, FitScroll = UI.FitScroll, Stone = Stone, Chrome = Chrome, DialogHeader = DialogHeader, Marble = Marble, VanillaScroll = VanillaScroll, Border = Border, MEDIA = MEDIA, Radio = Radio, BarColor = BarColor, Input = Input, Label = Label, TopTab = TopTab, Box = Box, Text = Text, Btn = Btn, Tip = Tip, HideTip = HideTip, Colored = Colored, StateText = StateText,
   Position = Position, CapBar = CapBar, NewView = NewView, StatOf = StatOf, Online = Online, Safe = Safe, ClassHex = ClassHex }
 function UI.IsShown(key) return f and f:IsShown() and current == key end
 
@@ -2078,6 +2102,9 @@ local function BuildHUD()
   hud.text = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   hud.text:SetPoint("TOP", 0, 5)
   hud.text:SetSize(185, 16)
+  -- how far over or under the cap: small, at the right end of the bar
+  hud.over = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hud.over:SetPoint("RIGHT", hud, "RIGHT", -4, 1)
   -- above the bar, small and light grey, only while you wait for the next cap ("Prossimo cap: 22, tra 2 giorni")
   hud.next = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   hud.next:SetPoint("BOTTOM", hud, "TOP", 0, 12)
@@ -2116,7 +2143,7 @@ function UI.RefreshHUD()
   local st = ns.MyStatus()
   local rec = ns.MyRecord()
   local now = U.Now()
-  local fill, text, nextText = 0, "", ""
+  local fill, text, nextText, over = 0, "", "", ""
   local tip = { "Er Patto" }
   if not st then
     HudColor(0.5, 0.5, 0.5)
@@ -2135,14 +2162,14 @@ function UI.RefreshHUD()
     local ps, d = M.PlayerState(lv, st.cap)
     if ps == "over" then
       HudColor(0.85, 0.15, 0.15)
-      fill, text = 1, "Cap " .. st.cap .. "  |cffff4040+" .. d .. "|r"
+      fill, text, over = 1, "Cap " .. st.cap, "|cffff4040+" .. d .. "|r"
     elseif ps == "at" then
       HudColor(0.1, 0.75, 0.1)
       fill, text = 1, "Cap " .. st.cap
     else
       HudColor(0.0, 0.39, 0.88)
       fill = math.max(0, math.min(1, (pos - from) / math.max(1, st.cap - from)))
-      text = "Cap " .. st.cap .. "  -" .. d
+      text, over = "Cap " .. st.cap, "-" .. d
     end
     -- above the bar: when the patto starts, or (once you're at this cap) the next one: "Prossimo cap: 22, tra 2 giorni"
     local function short(sec)
@@ -2167,6 +2194,7 @@ function UI.RefreshHUD()
   hud.tip = tip
   hud:SetValue(fill)
   hud.text:SetText(text)
+  hud.over:SetText(over)
   hud.next:SetText(nextText)
   hud.spark:ClearAllPoints()
   hud.spark:SetPoint("CENTER", hud, "LEFT", fill * 195, 0)

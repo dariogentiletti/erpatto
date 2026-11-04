@@ -117,12 +117,14 @@ local function Build()
     if l.SetWordWrap then l:SetWordWrap(false) end
     v.week[i] = l
   end
-  v.tomb = H.Text(d, "GameFontNormalSmall", "", 344)
-  v.tomb:SetPoint("TOPLEFT", 12, -136)
-  v.tombBtn = H.Btn(d, "Botteghino", 88, function() UI.Show("botteghino") end, 20)
-  v.tombBtn:SetPoint("BOTTOMLEFT", 12, 10)
+  -- my piotte of the week: from the tombola, and from all the rest (schedina, sfide, taje, gufate...)
+  v.tomb = H.Text(d, "GameFontHighlightSmall", "", 344)
+  v.tomb:SetPoint("TOPLEFT", 12, -134)
+  v.rest = H.Text(d, "GameFontHighlightSmall", "", 344)
+  v.rest:SetPoint("TOPLEFT", 12, -149)
+  -- (no Botteghino button: it's the tab right under)
   v.bullBtn = H.Btn(d, "Bollettino", 84, function() Home.ShowBulletin(true) end, 20)
-  v.bullBtn:SetPoint("LEFT", v.tombBtn, "RIGHT", 6, 0)
+  v.bullBtn:SetPoint("BOTTOMLEFT", 12, 10)
   v.shareBtn = H.Btn(d, "Condividi", 84, function() if ns.Extras then ns.Extras.ShowShare() end end, 20)
   v.shareBtn:SetPoint("LEFT", v.bullBtn, "RIGHT", 6, 0)
 end
@@ -240,7 +242,19 @@ local function Refresh(v)
   for i, l in ipairs(v.week) do l:SetText(lines[i] or "") end
   local TB = ns.Tombola
   local sc = TB and rec and TB.Score(rec)
-  v.tomb:SetText(sc and ("Tombola: " .. sc.cells .. "/9 caselle, +" .. sc.points .. (sc.full and " (TOMBOLA!)" or "") .. ".  " .. TB.Money(TB.Balance())) or "")
+  local GOLDC = "|cffffd100"
+  if sc then
+    v.tomb:SetText(GOLDC .. "Tombola:|r " .. sc.cells .. "/9 caselle" .. (sc.full and " |cff20ff20TOMBOLA!|r" or "") .. "  |cff20ff20+" .. sc.points .. "|r " .. TB.Coin(12))
+    -- the rest of the week, from li scontrini (an open bet counts what it took)
+    local from = TB.WeekStart(math.max(1, wk))
+    local net = 0
+    for _, x in ipairs(TB.Ledger()) do
+      if x.k ~= "st" and x.k ~= "tp" and x.k ~= "tb" and (x.at or 0) >= from then net = net + (x.g or 0) - (x.s or 0) end
+    end
+    v.rest:SetText(GOLDC .. "Er resto:|r schedina, sfide, taje, gufate  " .. (net > 0 and "|cff20ff20+" or net < 0 and "|cffff4040" or GREY) .. net .. "|r " .. TB.Coin(12))
+  else
+    v.tomb:SetText("") v.rest:SetText("")
+  end
   v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
 

@@ -99,6 +99,11 @@ S.Members = Members
 local function Piotte(n) return ns.Tombola and ns.Tombola.Piotte(n) or (n .. " piotte") end
 local function Span(long) return long and "'na settimana" or "'n giorno" end
 -- nothing goes to the chat: errors and confirmations are written in the window they come from
+-- why nothing can be done here: with an alt, or before joining a patto
+local function NoPlay()
+  if ns.alt then return false, "Co' 'n alt nun se pò: usa er personaggio der patto." end
+  return false, "Prima entra in un patto."
+end
 local function Report(d, ok, msg)
   if d and d.err then d.err:SetText(ok and "" or (msg or "Nun se pò.")) end
   return ok
@@ -116,8 +121,10 @@ S.Epic = Epic
 local function Store()
   if not (ns.db and ns.state) then return nil end
   ns.db.sfide = type(ns.db.sfide) == "table" and ns.db.sfide or {}
-  local s = ns.db.sfide[ns.state.code]
-  if type(s) ~= "table" then s = {} ns.db.sfide[ns.state.code] = s end
+  -- in test mode a book of its own, as the tombola's (Tombola.BookKey)
+  local key = ns.Tombola and ns.Tombola.BookKey and ns.Tombola.BookKey() or ns.state.code
+  local s = ns.db.sfide[key]
+  if type(s) ~= "table" then s = {} ns.db.sfide[key] = s end
   s.res = s.res or {}     -- id -> the result, once known
   s.book = s.book or {}   -- id -> { s = paid, got = back }
   s.told = s.told or {}   -- what we already announced
@@ -615,7 +622,7 @@ end
 -- send the game's duel request to a member (from a click: the game wants a hardware event); hint: a unit token
 local function StartTheDuel(guid, hint)
   local m = Members()[guid]
-  if not m then return false end
+  if not m then return false, "Nun è der patto." end
   if not StartDuel then return false, "Er duello nun pò partì." end
   local u
   if hint and UnitName then
@@ -646,7 +653,7 @@ end
 
 -- throw a duello a la gogna
 function S.Gogna(to, unit)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   if not all[to] or to == ns.recordGuid then return false, "Scegli chi sfidà." end
   local list = S.Series(all)
@@ -663,7 +670,7 @@ end
 
 -- the loser asks for la rivincita (or la bella), or says basta
 function S.Rematch(sid, basta)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local s = FindSeries(sid)
   if not (s and s.state == "rivincita" and s.last.l == ns.recordGuid) then return false, "Nun c'è più niente da chiede." end
   if not basta then
@@ -690,7 +697,7 @@ end
 
 -- the winner chooses er pegno
 function S.Pick(sid, p, t, e)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local s = FindSeries(sid)
   if not (s and s.state == "chiusa" and s.w == ns.recordGuid) then return false, "Nun c'è pegno da sceje." end
   if s.pick then return false, "Er pegno l'hai già scelto." end
@@ -724,7 +731,7 @@ end
 
 -- a sfida a piotte. o: { to, k ("s": who does more, "l": the race to the level), st (the counter), s (stake) }
 function S.Challenge(o)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   local other = all[o.to]
   if not other or o.to == ns.recordGuid then return false, "Scegli chi sfidà." end
@@ -749,10 +756,10 @@ function S.Challenge(o)
 end
 
 function S.Answer(id, yes, c)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   if not c then for _, x in ipairs(S.All()) do if x.id == id then c = x end end end
-  if not c or c.to ~= ns.recordGuid then return false end
+  if not c or c.to ~= ns.recordGuid then return false, "'Sta sfida nun è pe' te." end
   if Ans(c, all) then return false, "Hai già risposto." end
   if c.at and Now() - c.at > S.PENDING then return false, "'Sta sfida è scaduta." end
   if yes and c.s > Balance() then return false, "Nun c'hai abbastanza piotte pe' 'sta posta." end
@@ -769,7 +776,7 @@ function S.Answer(id, yes, c)
 end
 
 function S.Taja(on, stake)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   if not all[on] then return false, "Scegli su chi." end
   stake = math.floor(tonumber(stake) or 0)
@@ -785,7 +792,7 @@ function S.Taja(on, stake)
 end
 
 function S.Gufa(on, stake)
-  if not ns.state or ns.alt then return false end
+  if not ns.state or ns.alt then return NoPlay() end
   local all = Members()
   local m = all[on]
   if not m or on == ns.recordGuid then return false, "Scegli a chi gufà." end
@@ -821,7 +828,7 @@ end
 
 function S.Bet(a, b, pick, stake)
   local st = Store()
-  if not st then return false end
+  if not st then return NoPlay() end
   stake = math.floor(tonumber(stake) or 0)
   if stake < 1 then return false, "Punta armeno 'na piotta." end
   if stake > Balance() then return false, "Nun c'hai abbastanza piotte." end
@@ -942,7 +949,7 @@ function S.Update()
         if s.why == "no" then pre = GOLD .. Name(all, s.l) .. "|r nun ha dato " .. (#s.duels == 2 and "la bella" or "la rivincita") .. " a " .. GOLD .. Name(all, s.w) .. "|r. " end
         if s.why == "no" then line = pre .. line end
         News.Add(line .. ": a la gogna pe' " .. Span(s.long) .. ".")
-        News.Banner(title, Name(all, s.l) .. " va a la gogna pe' " .. Span(s.long) .. ". Er pegno lo sceje " .. Name(all, s.w) .. ".", { 1, 0.5, 0.2 }, "evento")
+        News.Banner(title, Name(all, s.l) .. " va a la gogna pe' " .. Span(s.long) .. ". Er pegno lo sceje " .. Name(all, s.w) .. ".", { 1, 0.5, 0.2 }, "evento", true)
       end)
       if s.pena then
         Tell(st, s.id .. ":pegno", function()
@@ -1039,7 +1046,7 @@ function S.Update()
     st.champ = champion
     if not quiet and News then
       News.Add(GOLD .. Name(all, champion) .. "|r è er novo Campione de la gogna" .. (was and all[was] and (": ha battuto " .. Name(all, was)) or "") .. ".")
-      News.Banner(Name(all, champion) .. " è er Campione!", "La corona è sua finché nun perde a la gogna.", nil, "evento")
+      News.Banner(Name(all, champion) .. " è er Campione!", "La corona è sua finché nun perde a la gogna.", nil, "evento", true)
     end
   end
   quiet = false
@@ -2264,10 +2271,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
     local addon, fn = ...
     if addon == ADDON then
-      U.Log("Bloccato", tostring(fn), debugstack and debugstack(2, 8, 0) or "")
-      ns.db.blocked = type(ns.db.blocked) == "table" and ns.db.blocked or {}
-      table.insert(ns.db.blocked, 1, { at = U.Now(), fn = tostring(fn), st = debugstack and tostring(debugstack(2, 8, 0)):sub(1, 600) or "" })
-      while #ns.db.blocked > 5 do table.remove(ns.db.blocked) end
+      U.Log("Bloccato", tostring(fn))
       if tostring(fn):find("Emote") then S.EmoteRefused() end
     end
   elseif event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
@@ -2401,6 +2405,10 @@ function S.Prefill(guid)
   if ns.Botteghino then ns.Botteghino.Show("sfide") end
 end
 
+-- the answers of the Sfide page go in the Botteghino's status line, by the piotte
+local function PageSay(ok, msg, good)
+  if ns.Botteghino and ns.Botteghino.Say then ns.Botteghino.Say(ok, msg or "Nun se pò fà.", good) end
+end
 function S.BuildPage(v)
   local p = CreateFrame("Frame", nil, v)
   p:SetAllPoints()
@@ -2428,11 +2436,9 @@ function S.BuildPage(v)
   p.go = H.Btn(a, "Sfida!", 100, function()
     local ok, msg = S.Challenge({ to = form.to, k = form.k, st = form.st, s = p.stake:GetText() })
     if ok then p.stake:SetText("") end
-    p.status:SetText(ok and ("|cff20ff20Mannata a " .. Short(Members()[form.to]) .. ".|r") or (msg or ""))
+    PageSay(ok, msg, "Sfida mannata a " .. Short(Members()[form.to] or {}) .. ".")
   end, 22)
   p.go:SetPoint("BOTTOMRIGHT", -12, 12)
-  p.status = H.Text(a, "GameFontRedSmall", "", 220)
-  p.status:SetPoint("BOTTOMLEFT", 14, 18)
   p.testGogna = H.Btn(a, "Prova: gogna", 92, function() S.TestGogna() end, 18)
   p.testGogna:SetPoint("TOPRIGHT", -10, -8)
   p.testClip = H.Btn(a, "Prova: filmato", 88, function() S.TestClip() end, 18)
@@ -2452,7 +2458,7 @@ function S.BuildPage(v)
   p.put = H.Btn(b, "Metti", 70, function()
     local ok, msg = S.Taja(form.on, p.taja:GetText())
     if ok then p.taja:SetText("") end
-    p.status:SetText(ok and "|cff20ff20Taja messa.|r" or (msg or ""))
+    PageSay(ok, msg, "Taja messa: " .. Piotte(tonumber(p.taja:GetText()) or 0) .. " su " .. Short(Members()[form.on] or {}) .. ".")
   end, 20)
   p.put:SetPoint("TOPRIGHT", -12, -34)
 
@@ -2487,9 +2493,9 @@ function S.BuildPage(v)
     r.state = H.Text(c, "GameFontHighlightSmall", "", 120, "RIGHT") r.state:SetPoint("TOPRIGHT", -14, y)
     r.what = H.Text(c, "GameFontDisableSmall", "", 350) r.what:SetPoint("TOPLEFT", 14, y - 13)
     if r.what.SetWordWrap then r.what:SetWordWrap(false) end
-    r.yes = H.Btn(c, "Ce sto", 58, function(self) local ok, msg = S.Answer(self.id, true) p.status:SetText(ok and "" or (msg or "")) end, 16)
+    r.yes = H.Btn(c, "Ce sto", 58, function(self) local ok, msg = S.Answer(self.id, true) PageSay(ok, msg, "Sfida accettata: in bocca ar lupo.") end, 16)
     r.yes:SetPoint("TOPRIGHT", -54, y - 12)
-    r.no = H.Btn(c, "No", 40, function(self) S.Answer(self.id, false) end, 16)
+    r.no = H.Btn(c, "No", 40, function(self) local ok, msg = S.Answer(self.id, false) PageSay(ok, msg, "Sfida rifiutata.") end, 16)
     r.no:SetPoint("TOPRIGHT", -12, y - 12)
     p.rows[i] = r
   end
@@ -2508,8 +2514,7 @@ function S.RefreshPage(v)
   p.what:SetText(WhatLabel(other))
   p.until_:SetText("piotte, fino a " .. U.Day(S.EndOf(Now())))
   p.on:SetText(form.on and all[form.on] and Short(all[form.on]) or "Scegli")
-  p.go:SetEnabled(form.to ~= nil and form.k ~= nil)
-  p.put:SetEnabled(form.on ~= nil)
+  -- the buttons stay clickable: a click without what's needed says what's missing
   -- the sfide: mine first
   local list = S.All()
   table.sort(list, function(a, b)

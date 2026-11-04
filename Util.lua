@@ -11,6 +11,29 @@ ns.PROTO = 1
 local U = {}
 ns.U = U
 
+-- what the game blocks or forbids to the addon (its "blocked" window): caught from the very first file, so even
+-- what happens while loading is kept; /patto bloccati shows it. The SavedVariables keep the last five.
+U.blocked = {}
+do
+  local f = CreateFrame and CreateFrame("Frame")
+  if f then
+    pcall(f.RegisterEvent, f, "ADDON_ACTION_BLOCKED")
+    pcall(f.RegisterEvent, f, "ADDON_ACTION_FORBIDDEN")
+    f:SetScript("OnEvent", function(_, event, addon, fn)
+      if addon ~= ADDON then return end
+      local st = debugstack and tostring(debugstack(2, 12, 0)) or ""
+      local x = { at = time and time() or 0, ev = event == "ADDON_ACTION_FORBIDDEN" and "proibito" or "bloccato", fn = tostring(fn), st = st:sub(1, 900) }
+      table.insert(U.blocked, 1, x)
+      if ns.db then
+        ns.db.blocked = type(ns.db.blocked) == "table" and ns.db.blocked or {}
+        table.insert(ns.db.blocked, 1, x)
+        while #ns.db.blocked > 5 do table.remove(ns.db.blocked) end
+      end
+      if ns.OnBlocked then pcall(ns.OnBlocked, x) end
+    end)
+  end
+end
+
 ----------------------------------------------------------------------
 -- secret values (Midnight rules): never compare, concatenate or print them directly
 ----------------------------------------------------------------------

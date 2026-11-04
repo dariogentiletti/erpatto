@@ -310,7 +310,7 @@ end
 local bull
 local COL, GAP, LEFT = 306, 8, 20
 local WIDTH = LEFT * 2 + COL * 3 + GAP * 2
-local HEIGHT = 676
+local HEIGHT = 690
 
 local function Title(box, text)
   local t = H.Text(box, "GameFontNormal", text, 260)
@@ -381,6 +381,13 @@ local function Build()
   bull:SetScript("OnDragStart", bull.StartMoving)
   bull:SetScript("OnDragStop", bull.StopMovingOrSizing)
   H.Chrome(bull)
+  -- not see-through: the dark marble of the main window under the dialog box border
+  local solid = bull:CreateTexture(nil, "BACKGROUND", nil, -8)
+  solid:SetColorTexture(0.05, 0.05, 0.05, 1)
+  solid:SetPoint("TOPLEFT", 11, -12)
+  solid:SetPoint("BOTTOMRIGHT", -12, 11)
+  if H.MarbleTiles then H.MarbleTiles(bull, 11, 12, WIDTH - 23, HEIGHT - 23, "BACKGROUND", -7) end
+  if bull.SetBackdropColor then bull:SetBackdropColor(0, 0, 0, 0) end
   bull.title = H.DialogHeader(bull, "", 300)
   H.CloseX(bull)
   local x = { LEFT, LEFT + COL + GAP, LEFT + 2 * (COL + GAP) }
@@ -399,7 +406,7 @@ local function Build()
   bull.face:SetSize(34, 34)
 
   -- la settimana tua: my card, my schedina, the rest of my piotte
-  local me = H.Box(bull, WIDTH - 2 * LEFT, 96)
+  local me = H.Box(bull, WIDTH - 2 * LEFT, 100)
   me:SetPoint("TOPLEFT", LEFT, -88)
   Title(me, "La settimana tua")
   bull.you = H.Text(me, "GameFontHighlightSmall", "", 520, "RIGHT")
@@ -407,7 +414,7 @@ local function Build()
   bull.myCells = {}
   for i = 1, 9 do
     local cell = me:CreateTexture(nil, "ARTWORK")
-    cell:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+    cell:SetTexture("Interface\\Buttons\\UI-EmptySlot-White")
     cell:SetSize(18, 18)
     cell:SetPoint("TOPLEFT", 16 + ((i - 1) % 3) * 17, -30 - math.floor((i - 1) / 3) * 17)
     local check = me:CreateTexture(nil, "OVERLAY")
@@ -437,7 +444,7 @@ local function Build()
   end
 
   -- row 1: li titoli, li ricchi, li sordi
-  local y1, h1 = -192, 166
+  local y1, h1 = -196, 166
   local ti = H.Box(bull, COL, h1)
   ti:SetPoint("TOPLEFT", x[1], y1)
   Title(ti, "Li titoli de la settimana")
@@ -452,23 +459,30 @@ local function Build()
     r.who:SetPoint("TOPLEFT", 158, y - 2)
     r.from = H.Text(ti, "GameFontDisableSmall", "", 70, "RIGHT")
     r.from:SetPoint("TOPRIGHT", -14, y - 2)
+    -- the mouse over a title tells what it is
+    r.hit = CreateFrame("Frame", nil, ti)
+    r.hit:SetSize(COL - 28, 16)
+    r.hit:SetPoint("TOPLEFT", 12, y)
+    r.hit:EnableMouse(true)
+    r.hit:SetScript("OnEnter", function(self) if self.t then H.Tip(self, { self.t.name, self.t.desc }) end end)
+    r.hit:SetScript("OnLeave", H.HideTip)
     bull.titles[i] = r
   end
 
   local ri = H.Box(bull, COL, h1)
   ri:SetPoint("TOPLEFT", x[2], y1)
-  Title(ri, "Li ricchi")
+  Title(ri, "Le piotte")
   local rh = H.Text(ri, "GameFontDisableSmall", "Settimana", 70, "RIGHT") rh:SetPoint("TOPRIGHT", -14, -13)
   bull.rich = Ranking(ri, 7, 92)
 
   local so = H.Box(bull, COL, h1)
   so:SetPoint("TOPLEFT", x[3], y1)
-  Title(so, "Li sordi de la settimana")
+  Title(so, "Li ricchi")
   Corner(so, "INV_Misc_Coin_01")
   bull.gold = Ranking(so, 7, 110)
 
   -- row 2: er cimitero, er Colosseo, le mejo tombole
-  local y2, h2 = -366, 122
+  local y2, h2 = -370, 132
   local ci = H.Box(bull, COL, h2)
   ci:SetPoint("TOPLEFT", x[1], y2)
   Title(ci, "Er cimitero")
@@ -491,7 +505,7 @@ local function Build()
     local left = 24 + (c - 1) * 94
     for i = 1, 9 do
       local cell = tb:CreateTexture(nil, "ARTWORK")
-      cell:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+      cell:SetTexture("Interface\\Buttons\\UI-EmptySlot-White")
       cell:SetSize(16, 16)
       cell:SetPoint("TOPLEFT", left + ((i - 1) % 3) * 15, -30 - math.floor((i - 1) / 3) * 15)
       local check = tb:CreateTexture(nil, "OVERLAY")
@@ -511,8 +525,8 @@ local function Build()
   if bull.tombLine.SetWordWrap then bull.tombLine:SetWordWrap(false) end
 
   -- row 3: la schedina, all across
-  local sc = H.Box(bull, WIDTH - 2 * LEFT, 94)
-  sc:SetPoint("TOPLEFT", LEFT, -496)
+  local sc = H.Box(bull, WIDTH - 2 * LEFT, 104)
+  sc:SetPoint("TOPLEFT", LEFT, -510)
   Title(sc, "La schedina")
   Corner(sc, "INV_Misc_Note_06")
   bull.bets = Lines(sc, 4, (WIDTH - 2 * LEFT) / 2 - 24)
@@ -528,11 +542,6 @@ local function Build()
   bull.foot:SetPoint("BOTTOMLEFT", 26, 24)
   bull.ok = H.Btn(bull, "Daje", 110, function() bull:Hide() end)
   bull.ok:SetPoint("BOTTOMRIGHT", -24, 16)
-  bull.shop = H.Btn(bull, "Ar Botteghino", 120, function()
-    bull:Hide()
-    if ns.Botteghino and ns.Botteghino.Show then pcall(ns.Botteghino.Show, "schedina") end
-  end)
-  bull.shop:SetPoint("RIGHT", bull.ok, "LEFT", -6, 0)
   if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoBulletin") end
 end
 
@@ -583,9 +592,10 @@ local function Fill(d, testing)
     local x = d.titles[i]
     if x then
       r.name:SetText(x.t.name) r.who:SetText(Colored(x.m) .. (x.more > 0 and (GREY .. " +" .. x.more .. "|r") or ""))
-      r.from:SetText(x.from and ("da " .. Short(x.from)) or "novo")
+      r.from:SetText(x.from and ("da " .. Short(x.from)) or "")
+      r.hit.t = x.t
     else
-      r.name:SetText(i == 1 and (GREY .. "Nessun titolo cambiato de mano.|r") or "") r.who:SetText("") r.from:SetText("")
+      r.name:SetText(i == 1 and (GREY .. "Nessun titolo cambiato de mano.|r") or "") r.who:SetText("") r.from:SetText("") r.hit.t = nil
     end
   end
   if #d.titles > #bull.titles then bull.titles[#bull.titles].from:SetText(GREY .. "e artri " .. (#d.titles - #bull.titles + 1) .. "|r") end

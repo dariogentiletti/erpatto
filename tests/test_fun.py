@@ -64,8 +64,7 @@ check(B.ns.P.HasSettings(B.ns.state) and 'Player-1-BBB' in [str(k) for k in A.ns
 # ---- a ding: everyone gets the banner and the news
 B.g.P_LEVEL = 5; B.g.FIRE('PLAYER_LEVEL_UP', 5)
 secs(10)
-ban = A.g.ErPattoBanner
-check(ban is not None and ban.shown and 'Pietro' in str(ban.title.text) and '5' in str(ban.title.text), 'ding banner on the other screen: ' + str(ban and ban.title.text))
+check(any('[Er Patto]' in str(m) and 'Pietro' in str(m) and '5' in str(m) for m in A.g.CHAT.values()), 'ding: one line in the chat on the other screen, no window')
 check(any('Pietro' in n and 'livello' in n for n in A.news()), 'ding in the news list')
 check(len(list(A.g.SOUNDS.values())) > 0, 'banner plays a sound')
 A.ns.db.opts.toasts = False
@@ -218,7 +217,7 @@ check(A.has('Er cap tuo') and A.has("Mo' online") and A.has('Notizie') and A.has
 check(A.has('Prossimo cap') or A.has('Cap '), 'Casa shows the cap')
 A.ns.Home.ShowBulletin(True)
 bull = A.g.ErPattoBulletin
-check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Li titoli de la settimana') and A.has('Li sordi de la settimana') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
+check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Li titoli de la settimana') and A.has('Le piotte') and A.has('Li ricchi') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
 
 # ---- invite: a player with no patto gets a window and joins in one click
 C = Client('Player-1-CCC', 'Gina'); clients.append(C)
@@ -460,6 +459,9 @@ check(first(again) and any('fa la gallina' in str(e) for e in list(B.g.CHAT.valu
 # the dropdowns of the Sfide page: pick a member, pick what, the labels change
 A.ns.Botteghino.Show('sfide')
 pg = A.ns.UI._views.botteghino.sfide
+bvw = A.ns.UI._views.botteghino
+pg.put.Click(pg.put)
+check('Scegli su chi' in str(bvw.status.text), 'Metti without a name: the reason by the piotte: ' + str(bvw.status.text))
 pg.who.GetScript(pg.who, 'OnClick')(pg.who)
 ch = A.g.ErPattoChoose
 row = [r for r in ch.rows.values() if 'Pietro' in str(r.text.text)][0]
@@ -579,7 +581,12 @@ check(any('R.I.P.' in n and 'boss' in n for n in B.news()), 'and the friends rea
 B.ns.UI.ShowProgress('rip')
 check(B.has('Cimitero') and B.has('R.I.P.') and B.has('Li più morti') and B.has('A la gogna'), 'Cimitero page')
 holders = A.ns.Titles.Holders()
-check(holders['pecore'] and (holders['pecore']['Player-1-BBB'] or holders['pecore']['Player-1-CCC']), 'A Re de le Pecore: who went most a la gogna')
+sb, scc = A.ns.Sfide.ShameOf('Player-1-BBB'), A.ns.Sfide.ShameOf('Player-1-CCC')
+hp = holders['pecore']
+if sb == scc:
+    check(hp is None, 'A Re de le Pecore: Pietro and Gina tie (%s), so nobody has it' % sb)
+else:
+    check(hp and len(list(hp.keys())) == 1, 'A Re de le Pecore: only the one who went most a la gogna')
 # la guardia: Dario plays an hour with the addon off (his /played grows, the addon wasn't there)
 GA = A.ns.Guardia
 GA.OnPlayed(50000)
@@ -599,7 +606,7 @@ secs(40)
 rep = A.ns.Guardia.Report()
 check(rep['Player-1-AAA'] is not None and rep['Player-1-CCC'] is not None and any('Pietro' in str(l) for l in rep['Player-1-CCC'].lines.values()), 'the capo\'s report has both')
 A.ns.UI.Show('capo')
-check(A.has('addon spento'), 'Capo, Membri: "addon spento" by their names')
+check(A.has('spento'), 'Capo, Membri: "addon spento" by their names')
 check(any('addon spento' in n for n in A.news()), 'and the capo reads it in the news')
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))

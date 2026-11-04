@@ -32,7 +32,7 @@ local function BestProfession(m)
   return best
 end
 
--- kind "top": the one (or ones, on a tie) with the highest value, if above zero
+-- kind "top": the one with the highest value, if above zero; nobody on a tie
 -- kind "check": a plain condition on the member
 Ti.LIST = {
   { id = "pariolino", name = "A Pariolino", kind = "top", value = function(m) return Stat(m, "g") end, desc = "Er primo der patto pe' sordi fatti." },
@@ -136,8 +136,11 @@ function Ti.Earned(list)
         local v = t.value(m, c) or 0
         if v > best then best = v end
       end
+      -- a "first of the patto" title is one person's only: on a tie nobody has it until one is ahead
       if best > 0 then
-        for _, m in ipairs(list) do if (t.value(m, c) or 0) == best then out[m.guid][t.id] = true end end
+        local who, n = nil, 0
+        for _, m in ipairs(list) do if (t.value(m, c) or 0) == best then who, n = m, n + 1 end end
+        if n == 1 then out[who.guid][t.id] = true end
       end
     else
       for _, m in ipairs(list) do

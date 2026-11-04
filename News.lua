@@ -1,5 +1,6 @@
 -- Er Patto: what happens in the patto, told to everyone.
---   * a banner in the middle-top of the screen with a sound when someone dings (and for epics, silly deaths, tombole)
+--   * a line in the chat with a soft ping when someone dings (and for epics, silly deaths, tombole); the big ones
+--     also in the raid warning letters
 --   * a news list (Baretto tab) built from the changes in everybody's records, kept between sessions
 --   * the invite window: someone asks you to join, one click and you're in
 -- Changes are found by comparing each record with the last copy seen (also across sessions), so a ding that arrives
@@ -10,84 +11,31 @@ local H = UI.H
 local N = {}
 ns.News = N
 
-local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
-local FONT = (STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF")
 local MAX_NEWS = 80
 
 ----------------------------------------------------------------------
--- the banner
+-- the announcements: what happens to the patto, as the old game told things. One line in the chat (the gold
+-- "[Er Patto]" in front, a soft ping), nothing to close; the big ones (a gogna, a tombola, a wipe, the crown) also
+-- go across the screen in the raid warning letters, which fade by themselves.
 ----------------------------------------------------------------------
-local banner
-local queue = {}
-
-local function BuildBanner()
-  -- as the vanilla zone text: big gold letters with a black shadow in the middle of the screen, a smaller white line
-  -- under them, nothing behind
-  banner = CreateFrame("Button", "ErPattoBanner", UIParent)
-  banner:SetSize(640, 92)
-  banner:SetPoint("TOP", 0, -150)
-  banner:SetFrameStrata("HIGH")
-  banner:Hide()
-  banner.title = banner:CreateFontString(nil, "OVERLAY")
-  banner.title:SetFont(FONT, 28, "")
-  banner.title:SetShadowColor(0, 0, 0, 1)
-  banner.title:SetShadowOffset(2, -2)
-  banner.title:SetPoint("TOP", 0, -10)
-  banner.title:SetWidth(620)
-  banner.sub = banner:CreateFontString(nil, "OVERLAY")
-  banner.sub:SetFont(FONT, 16, "")
-  banner.sub:SetShadowColor(0, 0, 0, 1)
-  banner.sub:SetShadowOffset(1, -1)
-  banner.sub:SetPoint("TOP", banner.title, "BOTTOM", 0, -6)
-  banner.sub:SetWidth(600)
-  banner.sub:SetTextColor(1, 1, 1)
-  banner:SetScript("OnClick", function(self) self.t = math.max(self.t or 0, 4.4) end)
-  banner:SetScript("OnUpdate", function(self, elapsed)
-    self.t = (self.t or 0) + (elapsed or 0)
-    local t = self.t
-    if t < 0.3 then self:SetAlpha(t / 0.3)
-    elseif t < 4.4 then self:SetAlpha(1)
-    elseif t < 5.0 then self:SetAlpha(1 - (t - 4.4) / 0.6)
-    else
-      self:Hide()
-      if #queue > 0 then N.ShowNext() end
-    end
-  end)
+local function Ping(sound)
+  if not (ns.db and ns.db.opts.toastSound and PlaySound) then return end
+  local kit = SOUNDKIT and ((sound == "big" and SOUNDKIT.RAID_WARNING) or SOUNDKIT.MAP_PING) or (sound == "big" and 8959 or 3175)
+  pcall(PlaySound, kit, "Master")
 end
 
-local function PlayEvent(sound)
-  if not (ns.db and ns.db.opts.toastSound) then return end
-  -- your own file first (Media\ding.ogg, Media\evento.ogg), then the game's level-up fanfare
-  if PlaySoundFile then
-    local ok, willPlay = pcall(PlaySoundFile, MEDIA .. (sound == "ding" and "ding.ogg" or "evento.ogg"), "Master")
-    if ok and willPlay then return end
-  end
-  if PlaySound then
-    local ok, willPlay = pcall(PlaySound, 888, "Master") -- LEVELUP
-    if ok and willPlay ~= false then return end
-    if SOUNDKIT and SOUNDKIT.READY_CHECK then pcall(PlaySound, SOUNDKIT.READY_CHECK, "Master") end
-  end
-end
-
-function N.ShowNext()
-  local e = table.remove(queue, 1)
-  if not e then return end
-  if not banner then BuildBanner() end
-  banner.title:SetText(e.title)
-  local c = e.color or { 1, 0.82, 0 }
-  banner.title:SetTextColor(c[1], c[2], c[3])
-  banner.sub:SetText(e.sub or "")
-  banner.t = 0
-  banner:SetAlpha(0)
-  banner:Show()
-  PlayEvent(e.sound)
-end
-
-function N.Banner(title, sub, color, sound)
+function N.Banner(title, sub, color, sound, big)
   if not (ns.db and ns.db.opts.toasts) then return end
-  if #queue >= 5 then return end
-  queue[#queue + 1] = { title = title, sub = sub, color = color, sound = sound }
-  if not (banner and banner:IsShown()) then N.ShowNext() end
+  local c = color or { 1, 0.82, 0 }
+  local hex = string.format("|cff%02x%02x%02x", math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255))
+  local f = DEFAULT_CHAT_FRAME
+  if f and f.AddMessage then
+    f:AddMessage("|cffffd100[Er Patto]|r " .. hex .. tostring(title) .. "|r" .. (sub and sub ~= "" and (" |cffffffff" .. tostring(sub) .. "|r") or ""))
+  end
+  if big and RaidNotice_AddMessage and RaidWarningFrame then
+    pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(title), { r = c[1], g = c[2], b = c[3] })
+  end
+  Ping(big and "big" or sound)
 end
 
 ----------------------------------------------------------------------
@@ -175,7 +123,7 @@ local function Wipe(rec, quiet)
   for _, d in ipairs(group) do s.wipes[key][d.g] = true end
   s.wipeCount = (s.wipeCount or 0) + 1
   N.Add("|cffff4040Wipe|r" .. (rec.dz and (" a " .. rec.dz) or "") .. ": " .. table.concat(names, ", "))
-  if not quiet then N.Banner("WIPE!", table.concat(names, ", ") .. (rec.dz and (" a " .. rec.dz) or ""), { 1, 0.3, 0.3 }, "evento") end
+  if not quiet then N.Banner("WIPE!", table.concat(names, ", ") .. (rec.dz and (" a " .. rec.dz) or ""), { 1, 0.3, 0.3 }, "evento", true) end
 end
 
 function N.WipeCount()
@@ -230,7 +178,7 @@ local function Diff(rec, old, quiet)
     if sc and sc.wk == old.tw then
       if sc.full and (old.tf or 0) == 0 then
         N.Add(name .. " ha fatto |cffffd100TOMBOLA|r!")
-        if not quiet then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento") end
+        if not quiet then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento", true) end
       elseif sc.lines > (old.tl or 0) then
         N.Add(name .. " ha fatto terno a la tombola")
         if not quiet then N.Banner(Short(rec) .. " ha fatto terno!", "'Na riga de la tombola completa.", nil, "evento") end
@@ -325,7 +273,7 @@ ns.On("Invited", function(code, pattoName, by)
   inv.code = code
   inv.text:SetText("|cffffffff" .. tostring(by) .. "|r te invita ner patto\n|cffffd100" .. tostring(pattoName or code) .. "|r")
   inv:Show()
-  PlayEvent("evento")
+  Ping("big")
 end)
 
 -- right click on a player: "Invita ner patto" (clients with the new menu system)

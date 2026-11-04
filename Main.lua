@@ -293,11 +293,11 @@ SlashCmdList.ERPATTO = function(raw)
     if ns.state then C.Hello() U.Say("ho chiesto l'aggiornamenti.") end
   elseif msg == "bloccati" then
     -- what the game blocked, and from where (to find it and fix it)
-    local list = ns.db.blocked or {}
+    local list = (#U.blocked > 0) and U.blocked or (ns.db.blocked or {})
     if #list == 0 then U.Say("er gioco nun ha bloccato gnente.") end
     for i = 1, math.min(3, #list) do
       local x = list[i]
-      U.Say(U.When(x.at) .. ": " .. tostring(x.fn))
+      U.Say(U.When(x.at) .. " (" .. tostring(x.ev or "bloccato") .. "): " .. tostring(x.fn))
       for l in tostring(x.st or ""):gmatch("[^\n]+") do
         local short = l:match("AddOns[/\\](.-%:%d+)") or l:sub(1, 90)
         U.Say("   " .. short)
@@ -311,22 +311,29 @@ SlashCmdList.ERPATTO = function(raw)
   end
 end
 
--- invite a player by name: they get a window to join in one click
-function ns.InviteFriend(name)
-  if not ns.state or ns.alt then U.Say("prima entra (o crea) 'n patto.") return end
+-- invite a player by name: they get a window to join in one click. out(text, good) writes where the button is
+-- (the Impostazioni page); from /patto the answer goes in the chat
+local inviteOut
+function ns.InviteFriend(name, out)
+  inviteOut = out
+  local function tell(t, good) if out then out(t, good) else U.Say(t) end end
+  if not ns.state or ns.alt then tell("Prima entra (o crea) 'n patto.") return end
   name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  if name == "" then return end
-  if not C.Invite(name) then U.Say("nun so' riuscito a manda l'invito a " .. name .. ".") return end
-  U.Say("invito mannato a |cffffffff" .. name .. "|r.")
+  if name == "" then tell("Scrivi er nome der personaggio.") return end
+  if not C.Invite(name) then tell("Nun so' riuscito a manda l'invito a " .. name .. ".") return end
+  tell("Invito mannato a " .. name .. ".", true)
   if C_Timer then
     C_Timer.After(8, function()
       for _, who in ipairs(C.PendingInvites(7)) do
-        U.Say(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice |cffffffff" .. ns.state.code .. "|r.")
+        tell(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice " .. ns.state.code .. ".")
       end
     end)
   end
 end
-ns.On("InviteArrived", function(who) U.Say("|cffffffff" .. who .. "|r ha ricevuto l'invito.") end)
+ns.On("InviteArrived", function(who)
+  local t = who .. " ha ricevuto l'invito."
+  if inviteOut then inviteOut(t, true) else U.Say(t) end
+end)
 
 function ErPatto_OnCompartmentClick()
   if ns.UI then ns.UI.Toggle() end
