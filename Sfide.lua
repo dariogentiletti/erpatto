@@ -49,7 +49,7 @@ local SLACK = 60
 S.PENE = {
   { key = "img", name = "La pecora",
     tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, in mezzo a lo schermo suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
-  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) e dì a tutti che se fa tirà li fili; lui sente pure la musica der burattino.",
+  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, 'na vorta ogni 5 minuti, je fai fà 'n'emote (balla, la gallina, s'inginocchia...) davanti a tutti, co' la musica der burattino. Si nun se ferma, je compare \"FERMATE!\" finché nun obbedisce; si scappa pe' 'n minuto, lo sa tutto er patto e tu li pòi ritirà subito.",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
@@ -552,7 +552,7 @@ function S.PegnoYou(s, all)
   elseif pena.key == "giampy" then
     return "Sei giampaolato: ogni vorta che zompi senti \"ahia!\" (o \"basta!\"); e quanno ringrazi quarcuno (/thanks) parte er Cerbero, pe' te e pe' chi hai ringraziato, si è der patto."
   elseif pena.key == "pupo" then
-    return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' la musica der burattino."
+    return "Sei er burattino de " .. by .. ": 'na vorta ogni 5 minuti te tira li fili, e er personaggio tuo balla, fa la gallina, s'inginocchia... davanti a tutti, co' la musica der burattino. Er gioco nun fa partì l'emote mentre te movi: finché nun te fermi, \"FERMATE!\"; si scappi pe' 'n minuto, lo sa tutto er patto."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
   elseif pena.key == "cry" then
@@ -2223,16 +2223,67 @@ end
 -- er burattino: the strings are pulled: the emote, the line everyone around reads, and for him alone the music of
 -- the strings (Media/pupo, ten seconds)
 S.PUPO_SOUND = "pupo\\fili.ogg"
-function S.Puppet(e, master)
-  if not e then return end
+-- The game cancels an emote while the character moves, and an addon can't stop him: so the strings wait. Until he
+-- stands still (half a second) the screen tells him "FERMATE!" every five seconds; then the emote, the line, the
+-- music. A minute without stopping and he's disobedient: the patto reads it, and his master may pull again at once.
+-- The master hears how it went. Cost: a look at the speed five times a second, only while the strings wait.
+S.PUPO_WAIT, S.PUPO_NAG = 60, 5
+local puppet -- { e, master, from, at, still, nag }
+local function Moving()
+  local ok, speed = pcall(GetUnitSpeed or function() return 0 end, "player")
+  if ok and type(speed) == "number" and not U.IsSecret(speed) and speed > 0 then return true end
+  return IsFalling and select(2, pcall(IsFalling)) == true or false
+end
+local function Shout(text)
+  if RaidNotice_AddMessage and RaidWarningFrame then pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 0.5, b = 0.2 }) end
+end
+local function Dance(p, obeyed)
+  puppet = nil
   lastEmote = 0
-  Emote(e.tok)
-  Say("se fa tirà li fili da " .. tostring(master) .. ".")
+  Emote(p.e.tok)
+  Say("se fa tirà li fili da " .. tostring(p.master) .. ".")
   if PlaySoundFile then pcall(PlaySoundFile, H.MEDIA .. S.PUPO_SOUND, "Master") end
-  -- on his screen, in the raid warning letters (the game doesn't let an addon stop a character: no freezing)
-  if RaidNotice_AddMessage and RaidWarningFrame then
-    pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(master) .. " te sta a tirà li fili: fa' er bravo burattino!", { r = 1, g = 0.5, b = 0.2 })
+  if p.from then Send({ t = "pr", to = p.from, ok = obeyed and 1 or 0, e = p.e.name }) end
+  if not obeyed then Send({ t = "pd", by = p.from }) S.Disobeyed(Short(ns.MyRecord()), p.master) end
+end
+local pupoTicker
+local function Check()
+  local p = puppet
+  if not p then
+    if pupoTicker and pupoTicker.Cancel then pupoTicker:Cancel() end
+    pupoTicker = nil
+    return
   end
+  local now = GetTime and GetTime() or 0
+  if Moving() then
+    p.still = nil
+    if now - p.at >= S.PUPO_WAIT then Dance(p, false) return end
+    if now - (p.nag or 0) >= S.PUPO_NAG then
+      p.nag = now
+      Shout(tostring(p.master) .. " te sta a tirà li fili: FERMATE!")
+      if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959, "Master") end
+    end
+  else
+    p.still = p.still or now
+    if now - p.still >= 0.5 then Dance(p, true) end
+  end
+end
+function S.Puppet(e, master, from)
+  if not e then return end
+  local now = GetTime and GetTime() or 0
+  puppet = { e = e, master = master, from = from, at = now }
+  if not Moving() then
+    -- already still: a breath, then it's done
+    puppet.still = now
+  end
+  Shout(tostring(master) .. " te sta a tirà li fili: fa' er bravo burattino!")
+  puppet.nag = now
+  if not pupoTicker and C_Timer and C_Timer.NewTicker then pupoTicker = C_Timer.NewTicker(0.2, function() pcall(Check) end) end
+end
+S.PuppetWaiting = function() return puppet end
+-- he didn't stop for a minute: the whole patto reads it
+function S.Disobeyed(name, master)
+  if ns.News then ns.News.Banner(tostring(name) .. " nun obbedisce ar burattinaio!", tostring(master) .. ", tira più forte.", { 1, 0.5, 0.2 }, "evento") end
 end
 
 -- er Giampaolato: a jump plays "ahia" (four times in five) or "basta"; a /thanks plays er Cerbero for him and for
@@ -2445,6 +2496,17 @@ ns.On("Live", function(from, data)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
     end
+  elseif data.t == "pr" and data.to == me then
+    -- my puppet: how it went
+    local name = Short(all[from] or { name = "?" })
+    if tonumber(data.ok) == 1 then
+      if ns.News then ns.News.Banner(name .. " ha obbedito", "Er burattino tuo: " .. tostring(data.e or "fatto"):lower() .. ".", { 1, 0.82, 0 }, "evento") end
+    else
+      pulled[from] = 0 -- he ran away: pull again at once
+      if ns.News then ns.News.Banner(name .. " è scappato", "Nun s'è fermato pe' 'n minuto: li fili li pòi ritirà subito.", { 1, 0.5, 0.2 }, "evento") end
+    end
+  elseif data.t == "pd" and data.by ~= me and from ~= me then
+    S.Disobeyed(Short(all[from] or { name = "?" }), Short(all[data.by] or { name = "?" }))
   elseif data.t == "gok" and type(data.id) == "string" then
     Accepted(data.id:sub(1, 40))
   elseif data.t == "gy" and data.to == ns.recordGuid and not ns.alt then
@@ -2461,7 +2523,7 @@ ns.On("Live", function(from, data)
     local e = S.PUPO[tonumber(data.e) or 0]
     if g and pena and pena.key == "pupo" and g.by == from and e and Now() - (pulled.me or 0) >= 1 then
       pulled.me = Now()
-      S.Puppet(e, Short(all[from]))
+      S.Puppet(e, Short(all[from]), from)
     end
   elseif data.t == "gf" and type(data.id) == "string" and type(data.on) == "string" then
     liveGf[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), on = data.on:sub(1, 60), s = math.floor(tonumber(data.s) or 0), at = tonumber(data.at) or Now(), by = from }
