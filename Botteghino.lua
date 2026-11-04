@@ -445,7 +445,7 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
       local p = U.RomeParts(at)
       local name = ({ "dom", "lun", "mar", "mer", "gio", "ven", "sab" })[(p.wday or 0) + 1]
       t:ClearAllPoints()
-      t:SetPoint("TOP", v.tlBox, "TOPLEFT", 14 + math.floor(W * (d - 0.5) / 7), -38)
+      t:SetPoint("TOP", v.tlBox, "TOPLEFT", 14 + math.floor(W * (d - 0.5) / 7), -36)
       t:SetText((d == today and "|cffffffff" or "") .. name .. (d == today and " (oggi)|r" or ""))
     end
   end
