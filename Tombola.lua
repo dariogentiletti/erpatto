@@ -312,12 +312,19 @@ local function Book()
 end
 TB.Book = Book
 
+-- my schedina in test mode (kept apart, and only for the patto it was played in)
+function TB.TestVotes()
+  local t = ns.db and ns.db.testVotes
+  if type(t) ~= "table" or not ns.state or t.code ~= ns.state.code then return nil end
+  return t
+end
+
 -- bets of a member for a week: their record (this week or last), or what we saw before; in test mode, mine are local
 function TB.VotesOf(m, wk)
   wk = wk or Week()
   if not m then return nil end
   if m.guid == ns.recordGuid and TB.Testing() then
-    local t = ns.db.testVotes
+    local t = TB.TestVotes()
     return (t and t.wk == wk) and t or nil
   end
   if m.vt and m.vt.wk == wk then return m.vt end
@@ -373,6 +380,14 @@ function TB.Ledger()
   local rest = (b.spent or 0) - stakesClosed - TB.SFOTTO * #sfo
   if rest > 0 then out[#out + 1] = { at = start, k = "fo", s = rest, g = 0 } end
   if ns.Sfide then for _, x in ipairs(ns.Sfide.Ledger()) do out[#out + 1] = x end end
+  if TB.Testing() then
+    local t = TB.TestVotes()
+    if t and t.wk == wk then
+      local sum = 0
+      for _, q in ipairs(TB.QUESTIONS) do sum = sum + StakeOf(t, q.key) end
+      if sum > 0 then out[#out + 1] = { at = U.Now(), k = "sc", w = wk, s = sum, open = 1 } end
+    end
+  end
   table.sort(out, function(x, y) return (x.at or 0) > (y.at or 0) end)
   return out
 end
@@ -444,7 +459,7 @@ function TB.Balance()
   -- le sfide and le taje (Sfide.lua)
   if ns.Sfide then total = total + ns.Sfide.Delta() end
   if TB.Testing() then
-    local t = ns.db.testVotes
+    local t = TB.TestVotes()
     if t and t.wk == wk then for _, q in ipairs(TB.QUESTIONS) do total = total - StakeOf(t, q.key) end end
   end
   return math.max(0, total)
@@ -496,6 +511,7 @@ function TB.Bet(qkey, guid, stake)
   local odds = TB.Odds(wk, UI.Members(), qkey, ns.recordGuid)
   new["q" .. qkey] = odds[new[qkey]] and odds[new[qkey]].q or 10
   if TB.Testing() then
+    new.code = ns.state.code
     ns.db.testVotes = new
     ns.Fire("Refresh")
     return true

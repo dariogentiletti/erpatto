@@ -2069,6 +2069,15 @@ function S.TestRematch()
   if not f[1] then return end
   S.OfferRematch({ id = "prova", n = 1, last = { w = f[1], l = ns.recordGuid, at = Now() } })
 end
+-- the clip after a duel, alone: one click the winner's, the next the loser's
+local testWon = false
+function S.TestClip()
+  testWon = not testWon
+  local f = {}
+  for guid, m in pairs(Members()) do if guid ~= ns.recordGuid then f[#f + 1] = Short(m) end end
+  S.DuelClip(testWon, f[1] or "Er compare", testWon and 4 or 2, testWon and 2 or 4)
+end
+
 function S.TestPegno()
   local f = Fakes()
   if not f[1] then return end
@@ -2336,6 +2345,8 @@ function S.BuildPage(v)
   p.status:SetPoint("BOTTOMLEFT", 14, 18)
   p.testGogna = H.Btn(a, "Prova: gogna", 92, function() S.TestGogna() end, 18)
   p.testGogna:SetPoint("TOPRIGHT", -10, -8)
+  p.testClip = H.Btn(a, "Prova: filmato", 88, function() S.TestClip() end, 18)
+  p.testClip:SetPoint("RIGHT", p.testGogna, "LEFT", -2, 0)
 
   -- put a taja: one line
   local b = H.Box(p, 360, 71)
@@ -2401,7 +2412,7 @@ function S.RefreshPage(v)
   local p = v.sfide
   local all = Members()
   local testing = ns.Tombola and ns.Tombola.Testing() and true or false
-  p.testGogna:SetShown(testing) p.testAsk:SetShown(testing) p.testBet:SetShown(testing) p.testPegno:SetShown(testing)
+  p.testGogna:SetShown(testing) p.testClip:SetShown(testing) p.testAsk:SetShown(testing) p.testBet:SetShown(testing) p.testPegno:SetShown(testing)
   local other = form.to and all[form.to]
   p.who:SetText(other and Short(other) or "Scegli")
   p.what:SetText(WhatLabel(other))

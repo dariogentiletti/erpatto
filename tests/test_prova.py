@@ -30,6 +30,22 @@ row = [x for x in r.rows.values() if x.shown and str(x.guid).startswith('FAKE')]
 row.Click(row)
 r.stake.SetText(r.stake, '4'); r.place.Click(r.place)
 check(A.g.ErPattoDB.testVotes.b == row.guid and A.g.ErPattoDB.testVotes.sb == 4 and 'Giocata!' in str(r.mineLine.text), 'click, stake, Punta: placed and confirmed: ' + str(r.mineLine.text))
+# the test stakes are in li scontrini too, and the balance matches them
+lg = list(TB.Ledger().values())
+inn = sum((x['s'] or 0) for x in lg); out = sum((x['g'] or 0) for x in lg)
+check(TB.Balance() >= 0 and TB.Balance() == out - inn and any(x['k'] == 'sc' and x['open'] for x in lg), 'test schedina listed: balance %s, ledger %s - %s' % (TB.Balance(), out, inn))
+# an old test schedina of another patto doesn't eat the piotte of a new one
+saved = A.g.ErPattoDB.testVotes
+A.g.ErPattoDB.testVotes.code = 'ALTRO'
+check(TB.TestVotes() is None and TB.Balance() == TB.Balance() and not any(x['k'] == 'sc' for x in TB.Ledger().values()), 'the old patto\'s test stakes are not counted: ' + str(TB.Balance()))
+A.g.ErPattoDB.testVotes.code = A.ns.state.code
+# the clip after a duel can be watched alone
+A.ns.Sfide.TestClip()
+cl = A.g.ErPattoDuelloFinito
+check(cl.shown and 'vinto' in str(cl.title.text), 'Prova: filmato, the winner\'s')
+A.ns.Sfide.TestClip()
+check(cl.shown and 'perso' in str(cl.title.text), 'and then the loser\'s')
+cl.Hide(cl)
 # the bulletin can be tried in test mode
 A.ns.Home.ShowBulletin(True)
 check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.text), 'test bulletin')
