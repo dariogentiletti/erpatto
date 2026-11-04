@@ -347,11 +347,12 @@ check(peg.shown and 'Dario' in str(peg.text.text) and 'settimana' in str(peg.tex
 check(shown(A, 'ErPattoAvviso') and 'sceje' in str(A.g.ErPattoAvviso.text.text), 'Dario is told he is a la gogna, er pegno to come')
 verRow = [r for r in peg.pena.radios.values() if r.v == 3][0]
 verRow.Click(verRow)
-peg.yes.Click(peg.yes)
+check(peg.shown and peg.pena.text.shown and peg.pena.go.shown, 'er verso: the click opens the box for its word, nothing given yet')
+peg.pena.go.Click(peg.pena.go)
 check('Scrivi' in str(peg.err.text), 'er verso needs its word')
 sanRow = [r for r in peg.pena.radios.values() if r.v == 1][0]
 sanRow.Click(sanRow)
-peg.yes.Click(peg.yes)
+check('fatto' in str(peg.msg.text), 'one click on la pecora gives it: ' + str(peg.msg.text))
 secs(5)
 pw = A.g.ErPattoPena
 check(pw is not None and pw.shown and 'pecora' in str(pw.name.text) and 'mpecorato' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
@@ -405,7 +406,6 @@ C.g.ErPattoRivincita.no.Click(C.g.ErPattoRivincita.no); secs(5)
 peg = B.g.ErPattoPegno
 row = [r for r in peg.pena.radios.values() if r.v == 4][0]
 row.Click(row)
-peg.yes.Click(peg.yes)
 secs(10)
 n0 = len([e for e in C.g.EMOTES.values() if 'CRY' in str(e)])
 secs(125)
@@ -429,7 +429,6 @@ peg = C.g.ErPattoPegno
 check(peg.shown, 'Gina chooses er pegno')
 row = [r for r in peg.pena.radios.values() if r.v == 6][0]
 row.Click(row)
-peg.yes.Click(peg.yes)
 secs(5)
 gB = A.ns.Sfide.AtGogna('Player-1-BBB')
 check(gB is not None and gB.til - T[0] < 86400 and str(SC.Champion()) == 'Player-1-CCC', 'Pietro a la gogna a day; Gina has the crown')
@@ -449,11 +448,10 @@ B.ns.Sfide.Forget()
 B.ns.Sfide.Update()
 check(B.g.ErPattoRivincita.shown, 'after a reload Pietro is offered la rivincita again')
 T[0] += 700; secs(40)
-check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.yes.shown, 'ten minutes passed: Gina chooses er pegno')
+check(C.g.ErPattoPegno.shown and C.g.ErPattoPegno.pena.radios[1].shown, 'ten minutes passed: Gina chooses er pegno')
 peg = C.g.ErPattoPegno
 row = [r for r in peg.pena.radios.values() if r.v == 2][0]
 row.Click(row)
-peg.yes.Click(peg.yes)
 secs(5)
 ok = SC.Pull('Player-1-BBB', 1)
 secs(3)

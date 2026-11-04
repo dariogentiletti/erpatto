@@ -1228,12 +1228,17 @@ function S.OfferRematch(s, all)
   if C_Timer then C_Timer.After(math.max(1, left), function() if offer.sid == s.id and not offer.sent then offer:Hide() end end) end
 end
 
--- er pegno chooser: one red button per pegno (two columns), the chosen one stays lit; under them the word for er
--- verso when that's the one
-local function PenaPicker(parent, x, y, form)
+-- er pegno chooser: one red button per pegno (two columns); a click gives that pegno at once (the tooltip says what
+-- it does). Er verso needs its word first: the click opens the box for it, Enter or "Daje" gives it.
+local function PenaPicker(parent, x, y, form, onPick)
   local w = { radios = {} }
+  local function go() if onPick then onPick() end end
   for i, p in ipairs(S.PENE) do
-    local b = H.Btn(parent, p.name, 180, function() form.p = i if w.Refresh then w.Refresh() end end, 22)
+    local b = H.Btn(parent, p.name, 180, function()
+      form.p = i
+      if w.Refresh then w.Refresh() end
+      if S.PENE[i].ask then w.text:SetFocus() else go() end
+    end, 22)
     b:SetPoint("TOPLEFT", x + ((i - 1) % 2) * 190, y - math.floor((i - 1) / 2) * 26)
     b.v = i
     b:SetScript("OnEnter", function(self) H.Tip(self, { S.PENE[self.v].name, S.PENE[self.v].tip }) end)
@@ -1246,16 +1251,20 @@ local function PenaPicker(parent, x, y, form)
   w.text = H.Input(parent, 150, 30)
   w.text:SetPoint("TOPLEFT", x + 70, y - rows * 26 - 4)
   w.text:SetScript("OnTextChanged", function(self) form.t = self:GetText() end)
+  w.text:SetScript("OnEnterPressed", function(self) self:ClearFocus() go() end)
+  w.go = H.Btn(parent, "Daje", 80, go, 22)
+  w.go:SetPoint("LEFT", w.text, "RIGHT", 8, 0)
   w.emote = H.Btn(parent, "", 10, function() end, 18) w.emote:Hide() -- kept for the old callers
   w.face = parent:CreateTexture(nil, "ARTWORK") w.face:Hide()
   function w.Refresh()
     for _, b in ipairs(w.radios) do
-      if (form.p or 0) == b.v then b:LockHighlight() else b:UnlockHighlight() end
+      if (form.p or 0) == b.v and S.PENE[b.v].ask then b:LockHighlight() else b:UnlockHighlight() end
     end
     local pena = S.PENE[form.p or 0]
     local ask = pena and pena.ask
     w.label:SetShown(ask and true or false)
     w.text:SetShown(ask and true or false)
+    w.go:SetShown(ask and true or false)
     if ask then
       w.label:SetText(pena.ask)
       if not w.text:HasFocus() then w.text:SetText(form.t or "") end
@@ -1270,26 +1279,24 @@ local pegno
 function S.ShowPegno(s)
   local all = Members()
   if not pegno then
-    pegno = Dialog("ErPattoPegno", 440, 262, "Hai vinto!", true)
-    pegno.form = { p = 1, e = 1 }
+    pegno = Dialog("ErPattoPegno", 440, 236, "Hai vinto!", true)
+    pegno.form = { p = 0, e = 1 }
     pegno.text = H.Text(pegno, "GameFontHighlight", "", 400, "CENTER")
     pegno.text:SetPoint("TOP", 0, -32)
-    pegno.pena = PenaPicker(pegno, 36, -74, pegno.form)
-    pegno.yes = H.Btn(pegno, "Ecco er pegno", 140, function()
+    pegno.pena = PenaPicker(pegno, 36, -74, pegno.form, function()
       if pegno.sid == "prova" then Done(pegno, "Er pegno è fatto (prova).") return end
       local f = pegno.form
       if Report(pegno, S.Pick(pegno.sid, f.p, f.t, f.e)) then Done(pegno, "Er pegno è fatto: " .. Name(Members(), pegno.l) .. " sta a la gogna.") end
     end)
-    pegno.yes:SetPoint("BOTTOM", 0, 18)
     pegno.msg = H.Text(pegno, "GameFontNormal", "", 340, "CENTER")
     pegno.msg:SetPoint("CENTER", 0, -10)
-    pegno.controls = { pegno.yes, pegno.text, pegno.pena.text, pegno.pena.label }
+    pegno.controls = { pegno.text, pegno.pena.text, pegno.pena.label, pegno.pena.go }
     for _, r in ipairs(pegno.pena.radios) do pegno.controls[#pegno.controls + 1] = r end
   end
   Reset(pegno)
   pegno.sid = s.id
   pegno.l = s.l
-  pegno.form.p, pegno.form.t, pegno.form.e = 1, nil, 1
+  pegno.form.p, pegno.form.t, pegno.form.e = 0, nil, 1
   pegno.text:SetText(GOLD .. Name(all, s.l) .. "|r va a la gogna pe' " .. Span(s.long) .. ".\nChe pegno je dai?")
   pegno.pena.Refresh()
   Only(pegno)
@@ -1380,10 +1387,10 @@ function S.OpenDuel(guid, unit)
 end
 
 ----------------------------------------------------------------------
--- after a duel with someone of the patto: a vanilla window with the clip (the winner's or the loser's, with its
--- music), "Hai vinto!" or "Hai perso!" and the record between the two. The clips are frame sheets in Media/duello
--- (256x144 frames, 4 by 7 on a 1024x1024 sheet, 12 a second): while it plays, one texture coordinate change per
--- frame; nothing at all when it's closed.
+-- after a duel with someone of the patto: the clip on its own (the winner's or the loser's, with its music) and
+-- under it a small vanilla box with "Hai vinto!" in green or "Hai perso!" in red and the record between the two.
+-- The clips are frame sheets in Media/duello (256x144 frames, 4 by 7 on a 1024x1024 sheet, 12 a second): while
+-- it plays, one texture coordinate change per frame; nothing at all when it's closed.
 ----------------------------------------------------------------------
 S.CLIPS = {
   vinto = { sheets = 3, frames = 77, sound = "vinto.ogg" },
@@ -1395,21 +1402,26 @@ function S.DuelClip(won, otherName, w, l)
   if not c then return end
   if not clip then
     clip = CreateFrame("Frame", "ErPattoDuelloFinito", UIParent)
-    clip:SetSize(420, 300)
+    clip:SetSize(320, 250)
     clip:SetPoint("CENTER", UIParent, "CENTER", -340, 60)
     clip:SetFrameStrata("DIALOG")
-    clip:EnableMouse(true) clip:SetMovable(true) clip:RegisterForDrag("LeftButton")
-    clip:SetScript("OnDragStart", clip.StartMoving)
-    clip:SetScript("OnDragStop", clip.StopMovingOrSizing)
-    H.Chrome(clip)
-    clip.title = H.DialogHeader(clip, "", 140)
-    H.CloseX(clip)
+    clip:SetMovable(true)
     clip.screen = clip:CreateTexture(nil, "ARTWORK")
-    clip.screen:SetSize(384, 216)
-    clip.screen:SetPoint("TOP", 0, -30)
-    clip.record = H.Text(clip, "GameFontHighlight", "", 380, "CENTER")
-    clip.record:SetPoint("TOP", clip.screen, "BOTTOM", 0, -12)
-    clip.acc = 0
+    clip.screen:SetSize(320, 180)
+    clip.screen:SetPoint("TOP", 0, 0)
+    clip.box = CreateFrame("Frame", nil, clip, "BackdropTemplate")
+    clip.box:SetSize(220, 64)
+    clip.box:SetPoint("TOP", clip.screen, "BOTTOM", 0, -4)
+    clip.box:EnableMouse(true) clip.box:RegisterForDrag("LeftButton")
+    clip.box:SetScript("OnDragStart", function() clip:StartMoving() end)
+    clip.box:SetScript("OnDragStop", function() clip:StopMovingOrSizing() end)
+    H.Chrome(clip.box)
+    local x = H.CloseX(clip.box)
+    if x and x.SetScript then x:SetScript("OnClick", function() clip:Hide() end) end
+    clip.title = H.Text(clip.box, "GameFontNormal", "", 180, "CENTER")
+    clip.title:SetPoint("TOP", 0, -16)
+    clip.record = H.Text(clip.box, "GameFontHighlightSmall", "", 180, "CENTER")
+    clip.record:SetPoint("TOP", clip.title, "BOTTOM", 0, -6)
     clip:SetScript("OnUpdate", function(self, el)
       if not self.c then return end
       self.t = self.t + (el or 0)
@@ -1432,6 +1444,7 @@ function S.DuelClip(won, otherName, w, l)
   end
   clip.c, clip.name, clip.t, clip.shown, clip.sheet = c, won and "vinto" or "perso", 0, nil, nil
   clip.title:SetText(won and "Hai vinto!" or "Hai perso!")
+  if won then clip.title:SetTextColor(0.1, 1, 0.1) else clip.title:SetTextColor(1, 0.1, 0.1) end
   clip.record:SetText("Tu " .. GOLD .. (w or 0) .. "|r - " .. GOLD .. (l or 0) .. "|r " .. tostring(otherName))
   clip:Show()
   if PlaySoundFile then
