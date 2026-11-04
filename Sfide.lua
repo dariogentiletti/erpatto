@@ -49,15 +49,15 @@ local SLACK = 60
 S.PENE = {
   { key = "img", name = "La pecora",
     tip = "Ogni tanto (in media 'na vorta ogni mezz'ora) pe' 'n minuto, sopra la testa der personaggio suo, 'na pecora co' scritto \"Ricordate che Dario te ha 'mpecorato\"." },
-  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui je fai fà 'n'emote (ballà, la gallina, inchinasse...) ogni vorta che te pare.",
+  { key = "pupo", name = "Er burattino", tip = "Tieni li fili: cor tasto destro su de lui, ogni vorta che te pare, ner chat der patto se legge che balla, fa la gallina, s'inchina...",
     icon = "Interface\\Icons\\Spell_Shadow_Charm" },
   { key = "bee", name = "Er verso", ask = "Verso", tip = "'Sta parola a la fine de tutto quello che scrive in chat.",
     icon = "Interface\\Icons\\Ability_Druid_DemoralizingRoar" },
-  { key = "cry", name = "Er piagnone", tip = "Ogni du' minuti er personaggio suo piagne davanti a tutti; e si je stai vicino, fa pure \"nguee nguee\" in chat.",
+  { key = "cry", name = "Er piagnone", tip = "Ogni du' minuti, ner chat der patto, se legge che piagne; e si je stai vicino, \"nguee nguee\".",
     icon = "Interface\\Icons\\Spell_Shadow_DeathScream" },
   { key = "crier", name = "Lo strillone", tip = "Ogni vorta che more, a tutto er patto je compare scritto grosso.",
     icon = "Interface\\Icons\\Ability_Warrior_BattleShout" },
-  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino s'inchina ogni mezzo minuto e, 'na vorta ogni dieci minuti, in chat: \"is the slave of\" er padrone.",
+  { key = "servo", name = "Er servo", tip = "In chat è \"servo de\" chi l'ha battuto; quanno je sta vicino, ner chat der patto se legge \"is the slave of\" er padrone, 'na vorta ogni dieci minuti.",
     icon = "Interface\\Icons\\Spell_Holy_SealOfSalvation" },
   { key = "kara", name = "Er karaoke", tip = "Ogni tanto, quanno ammazza 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce): la sente solo lui.",
     icon = "Interface\\Icons\\INV_Misc_Drum_01" },
@@ -514,15 +514,15 @@ function S.PegnoYou(s, all)
   elseif pena.key == "kara" then
     return "Ogni tanto, quanno ammazzi 'n mostro, parte 'na canzoncina (a vorte lenta, a vorte veloce). La senti te e la sentono pure quelli der patto che te stanno vicino."
   elseif pena.key == "pupo" then
-    return "Sei er burattino de " .. by .. ": ogni vorta che je pare te fa fà 'n'emote davanti a tutti (ballà, la gallina, inchinatte...)."
+    return "Sei er burattino de " .. by .. ": ogni vorta che je pare, ner chat der patto se legge che balli, fai la gallina, t'inchini..."
   elseif pena.key == "bee" then
     return "A la fine de tutto quello che scrivi in chat, l'amichi der patto leggono \"" .. tostring(s.t) .. "\"."
   elseif pena.key == "cry" then
-    return "Sei er piagnone: ogni du' minuti er personaggio tuo piagne da solo davanti a tutti, e quanno stai vicino a " .. by .. " fa pure \"nguee nguee\" in chat."
+    return "Sei er piagnone: ogni du' minuti, ner chat der patto, se legge che piagni; e quanno stai vicino a " .. by .. ", \"nguee nguee\"."
   elseif pena.key == "crier" then
     return "Ogni vorta che mori, a tutto er patto je compare scritto grosso sur su' schermo."
   elseif pena.key == "servo" then
-    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ogni mezzo minuto er personaggio tuo je s'inchina e, 'na vorta ogni dieci minuti, in chat se legge \"" .. ((ns.MyRecord and Short(ns.MyRecord())) or "") .. " is the slave of " .. by .. ".\"; e s'inchina pure ogni vorta che lo metti ner mirino."
+    return "In chat, davanti ar nome tuo, l'amichi der patto leggono [servo de " .. by .. "]. Quanno je stai vicino, ner chat der patto se legge \"" .. ((ns.MyRecord and Short(ns.MyRecord())) or "") .. " is the slave of " .. by .. ".\", 'na vorta ogni dieci minuti."
   end
 end
 
@@ -852,13 +852,6 @@ function S.What(c, all, ans)
   end
   local e = ans and ans.a == 1 and ans.e
   return w .. ", fino a " .. U.Day(e or S.EndOf(Now()))
-end
-
-local function Figuraccia(s, all)
-  local e = S.EMOTES[s.e or 1] or S.EMOTES[1]
-  local winner = all[s.w]
-  local perform = (C_ChatInfo and C_ChatInfo.PerformEmote) or DoEmote
-  if perform then pcall(perform, e.tok, winner and Short(winner) or nil) end
 end
 
 -- what happened, in one line: "Pietro ha perso pure la rivincita co' Dario"
@@ -1428,7 +1421,7 @@ function S.DuelClip(won, otherName, w, l)
       local i = math.floor(self.t * 12)
       if i >= self.c.frames then
         i = self.c.frames - 1
-        if self.t > self.c.frames / 12 + 4 then self:Hide() return end
+        if self.t > self.c.frames / 12 + 0.5 then self:Hide() return end
       end
       if i == self.shown then return end
       self.shown = i
@@ -1446,6 +1439,13 @@ function S.DuelClip(won, otherName, w, l)
   clip.title:SetText(won and "Hai vinto!" or "Hai perso!")
   if won then clip.title:SetTextColor(0.1, 1, 0.1) else clip.title:SetTextColor(1, 0.1, 0.1) end
   clip.record:SetText("Tu " .. GOLD .. (w or 0) .. "|r - " .. GOLD .. (l or 0) .. "|r " .. tostring(otherName))
+  -- on top, in the middle: under the cap bar when the bar is up there
+  clip:ClearAllPoints()
+  local hud = _G.ErPattoHUD
+  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
+  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
+  if top and top > h * 0.6 then clip:SetPoint("TOP", hud, "BOTTOM", 0, -56)
+  else clip:SetPoint("TOP", UIParent, "TOP", 0, -80) end
   clip:Show()
   if PlaySoundFile then
     local ok, willPlay, handle = pcall(PlaySoundFile, H.MEDIA .. "duello\\" .. c.sound, "Master")
@@ -1651,7 +1651,7 @@ local function ShowSantino(g)
   if not card then
     card = CreateFrame("Frame", "ErPattoSantino", UIParent)
     card:SetSize(128, 128)
-    card:SetPoint("CENTER", UIParent, "CENTER", 0, 70)
+    card:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     card:SetFrameStrata("BACKGROUND")
     card:EnableMouse(false)
     card.face = card:CreateTexture(nil, "ARTWORK")
@@ -1661,8 +1661,10 @@ local function ShowSantino(g)
     card.who:SetTextColor(1, 0.82, 0)
     card.who:SetShadowOffset(2, -2)
     card.who:SetPoint("BOTTOM", card, "TOP", 0, 8)
-    card.caption = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    card.caption:SetShadowOffset(1, -1)
+    card.caption = card:CreateFontString(nil, "OVERLAY")
+    card.caption:SetFont("Fonts\\FRIZQT__.TTF", 18, "OUTLINE")
+    card.caption:SetTextColor(1, 1, 1)
+    card.caption:SetShadowOffset(2, -2)
     card.caption:SetPoint("TOP", card, "BOTTOM", 0, -6)
     card.acc = 0
     card:SetScript("OnUpdate", function(self, el)
@@ -1969,18 +1971,14 @@ local Say
 local function Build() return GetBuildInfo and select(2, GetBuildInfo()) or "?" end
 local function EmoteBlocked() return ns.db and type(ns.db.noEmote) == "table" and ns.db.noEmote[Build()] end
 local trying = false
-local function Emote(tok, target)
+-- the game's emotes (C_ChatInfo.PerformEmote / DoEmote) are "AllowedWhenUntainted": an addon calling them gets
+-- the game's "blocked" window. So the addon never calls them: the emote is a line in the emote colour, in my
+-- chat and in the chat of the patto in the same zone (only who has the addon reads it)
+local function Emote(tok)
   local now = GetTime and GetTime() or 0
   if now - lastEmote < 2 then return end
   lastEmote = now
-  local perform = (C_ChatInfo and C_ChatInfo.PerformEmote) or DoEmote
-  if not perform or EmoteBlocked() then
-    if Say and S.EMOTE_TEXT[tok] then Say(S.EMOTE_TEXT[tok]) end
-    return
-  end
-  trying = true
-  pcall(perform, tok, target)
-  trying = false
+  if Say and S.EMOTE_TEXT[tok] then Say(S.EMOTE_TEXT[tok]) end
 end
 S.Emote = Emote
 -- the game said no: remember it for this build
@@ -2002,7 +2000,7 @@ local function OnTarget()
   local master = Master()
   if not (master and UnitName) then return end
   local ok, n = pcall(UnitName, "target")
-  if ok and n and not U.IsSecret(n) and (n == master.name or n == Short(master)) then Emote("BOW", "target") end
+  -- nothing on targeting him any more: the line comes when he's near (NearBow), once every ten minutes
 end
 -- what er servo says, in the emote colour, when his master is near: at most once every ten minutes
 S.SERVO_LINE = "is the slave of %s."
@@ -2031,7 +2029,6 @@ local function NearBow()
   local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
   if near == true then
     lastNear = now
-    Emote("BOW", u)
     -- he comes near (or stays): "X is the slave of Aldo.", once every ten minutes at most
     if saidAt == 0 or now - saidAt >= S.SERVO_EVERY then
       saidAt, saidN = now, saidN + 1
@@ -2113,11 +2110,10 @@ local function Crybaby()
   if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
   cryAt = now
   lastEmote = 0
-  Emote("CRY")
   local master = Members()[g.by]
   local u = master and UnitFor(master.name)
   local near = u and CheckInteractDistance and select(2, pcall(CheckInteractDistance, u, 4))
-  if near == true then Say("piagne: \"nguee nguee\"") end
+  if near == true then Say("piagne: \"nguee nguee\"") else Emote("CRY") end
 end
 S.Crybaby = Crybaby
 
@@ -2149,9 +2145,9 @@ function S.TestGogna()
   elseif pena.key == "pupo" then
     Soon(function() lastEmote = 0 Emote("DANCE") S.Notice("Er burattino", GOLD .. master .. "|r tira li fili: balli (prova).", 6) end)
   elseif pena.key == "cry" then
-    Soon(function() lastEmote = 0 Emote("CRY") Say("piagne: \"nguee nguee\"") end)
+    Soon(function() lastEmote = 0 Say("piagne: \"nguee nguee\"") end)
   elseif pena.key == "servo" then
-    Soon(function() lastEmote = 0 Emote("BOW") Say(S.SERVO_LINE:format(master)) end)
+    Soon(function() lastEmote = 0 Say(S.SERVO_LINE:format(master)) end)
   elseif pena.key == "kara" then
     karaAt, karaUntil = 0, 0
     Soon(function() S.Karaoke(true) end)

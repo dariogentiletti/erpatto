@@ -1,5 +1,6 @@
 -- Er Patto: Er Bollettino, the week told like a paper. It opens by itself at the first login after the weekly
--- reset (and from the Baretto). One big vanilla window: the headline (and your own week) on top, then the boxes:
+-- reset (and from the Baretto). One big vanilla window: the headline, then la settimana tua (your card, your
+-- schedina, the rest of your piotte), then the boxes:
 -- li titoli de la settimana, li ricchi (piotte), li sordi (gold made in the week), er cimitero, er Colosseo,
 -- le mejo tombole, la schedina.
 -- Cost: everything is counted once, when the window opens (a few loops over the members and their last ten
@@ -271,11 +272,34 @@ function B.Data(wk, testing)
     local rank, mineR
     for i, r in ipairs(rich) do if r.m == me then rank, mineR = i, r end end
     local parts = {}
-    if rank then parts[#parts + 1] = rank .. "° pe' piotte (" .. (mineR.week >= 0 and "+" or "") .. mineR.week .. ")" end
+    if rank then parts[#parts + 1] = "In tutto " .. Signed(mineR.week) .. " " .. Coin() .. ", " .. rank .. "° de " .. #rich end
     parts[#parts + 1] = "+" .. Plural(W(me, wk, "ding"), "livello", "livelli")
     parts[#parts + 1] = math.floor(W(me, wk, "g") / 10000) .. " oro"
     parts[#parts + 1] = Plural(W(me, wk, "dt"), "morte", "morti")
     d.you = table.concat(parts, ", ")
+    -- la tombola mia, la schedina mia, and every other piotta of the week (sfide, taje, gufate, Colosseo, sfottò)
+    local TB = ns.Tombola
+    local my = { sc = TB and TB.Score(me, wk), bets = {}, rest = {}, week = mineR and mineR.week or 0, rank = rank, of = #rich }
+    local v = TB and TB.VotesOf(me, wk)
+    if TB then
+      local _, _, lines = TB.Payout(wk, list, v or {})
+      for _, x in ipairs(lines) do
+        local pick = v and v[x.q.key] and byGuid[v[x.q.key]]
+        my.bets[#my.bets + 1] = { text = x.q.text, pick = pick, stake = x.mine, got = x.got, nobody = x.nobody, right = pick and x.winners[pick.guid] }
+      end
+      local KIND = { sf = "Sfide", tj = "Taje", tjw = "Taje", gu = "Gufate", gut = "Gufate", sb = "Ar Colosseo", fo = "Sfottò" }
+      local ORDER = { "Sfide", "Taje", "Gufate", "Ar Colosseo", "Sfottò" }
+      local sum, open = {}, {}
+      for _, x in ipairs(TB.Ledger()) do
+        local k = KIND[x.k]
+        if k and (x.at or 0) >= from and (x.at or 0) < to then
+          if x.g == nil then open[k] = (open[k] or 0) + 1 sum[k] = sum[k] or 0
+          else sum[k] = (sum[k] or 0) + (x.g or 0) - (x.s or 0) end
+        end
+      end
+      for _, k in ipairs(ORDER) do if sum[k] then my.rest[#my.rest + 1] = { k = k, net = sum[k], open = open[k] } end end
+    end
+    d.my = my
   end
   return d
 end
@@ -286,7 +310,7 @@ end
 local bull
 local COL, GAP, LEFT = 306, 8, 20
 local WIDTH = LEFT * 2 + COL * 3 + GAP * 2
-local HEIGHT = 590
+local HEIGHT = 676
 
 local function Title(box, text)
   local t = H.Text(box, "GameFontNormal", text, 260)
@@ -347,7 +371,8 @@ end
 local function Build()
   bull = CreateFrame("Frame", "ErPattoBulletin", UIParent, "BackdropTemplate")
   bull:SetSize(WIDTH, HEIGHT)
-  bull:SetPoint("CENTER", 0, 20)
+  bull:SetPoint("CENTER", 0, 0)
+  bull:SetClampedToScreen(true)
   bull:SetFrameStrata("DIALOG")
   bull:SetToplevel(true)
   bull:EnableMouse(true)
@@ -361,7 +386,7 @@ local function Build()
   local x = { LEFT, LEFT + COL + GAP, LEFT + 2 * (COL + GAP) }
 
   -- the headline, and your week
-  local hd = H.Box(bull, WIDTH - 2 * LEFT, 62)
+  local hd = H.Box(bull, WIDTH - 2 * LEFT, 52)
   hd:SetPoint("TOPLEFT", LEFT, -30)
   bull.face = Icon(hd, 40)
   bull.face:SetPoint("LEFT", 12, 0)
@@ -371,17 +396,53 @@ local function Build()
   bull.headSub = H.Text(hd, "GameFontHighlightSmall", "", WIDTH - 120)
   bull.headSub:SetPoint("TOPLEFT", 64, -30)
   if bull.headSub.SetWordWrap then bull.headSub:SetWordWrap(false) end
-  bull.you = H.Text(hd, "GameFontHighlightSmall", "", WIDTH - 120)
-  bull.you:SetPoint("TOPLEFT", 64, -45)
-  if bull.you.SetWordWrap then bull.you:SetWordWrap(false) end
+  bull.face:SetSize(34, 34)
+
+  -- la settimana tua: my card, my schedina, the rest of my piotte
+  local me = H.Box(bull, WIDTH - 2 * LEFT, 96)
+  me:SetPoint("TOPLEFT", LEFT, -88)
+  Title(me, "La settimana tua")
+  bull.you = H.Text(me, "GameFontHighlightSmall", "", 520, "RIGHT")
+  bull.you:SetPoint("TOPRIGHT", -14, -12)
+  bull.myCells = {}
+  for i = 1, 9 do
+    local cell = me:CreateTexture(nil, "ARTWORK")
+    cell:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+    cell:SetSize(18, 18)
+    cell:SetPoint("TOPLEFT", 16 + ((i - 1) % 3) * 17, -30 - math.floor((i - 1) / 3) * 17)
+    local check = me:CreateTexture(nil, "OVERLAY")
+    check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    check:SetSize(18, 18)
+    check:SetPoint("CENTER", cell)
+    bull.myCells[i] = { box = cell, check = check }
+  end
+  bull.myTomb = {}
+  for i = 1, 3 do
+    local l = H.Text(me, "GameFontHighlightSmall", "", 150)
+    l:SetPoint("TOPLEFT", 80, -32 - (i - 1) * 15)
+    bull.myTomb[i] = l
+  end
+  bull.myBets = {}
+  for i = 1, 4 do
+    local l = H.Text(me, "GameFontHighlightSmall", "", 400)
+    l:SetPoint("TOPLEFT", 240, -32 - (i - 1) * 15)
+    if l.SetWordWrap then l:SetWordWrap(false) end
+    bull.myBets[i] = l
+  end
+  bull.myRest = {}
+  for i = 1, 4 do
+    local l = H.Text(me, "GameFontHighlightSmall", "", 250)
+    l:SetPoint("TOPLEFT", 670, -32 - (i - 1) * 15)
+    bull.myRest[i] = l
+  end
 
   -- row 1: li titoli, li ricchi, li sordi
-  local y1, h1 = -98, 184
+  local y1, h1 = -192, 166
   local ti = H.Box(bull, COL, h1)
   ti:SetPoint("TOPLEFT", x[1], y1)
   Title(ti, "Li titoli de la settimana")
   bull.titles = {}
-  for i = 1, 8 do
+  for i = 1, 7 do
     local r = {}
     local y = -30 - (i - 1) * 18
     r.name = H.Text(ti, "GameFontNormalSmall", "", 140)
@@ -398,16 +459,16 @@ local function Build()
   ri:SetPoint("TOPLEFT", x[2], y1)
   Title(ri, "Li ricchi")
   local rh = H.Text(ri, "GameFontDisableSmall", "Settimana", 70, "RIGHT") rh:SetPoint("TOPRIGHT", -14, -13)
-  bull.rich = Ranking(ri, 8, 92)
+  bull.rich = Ranking(ri, 7, 92)
 
   local so = H.Box(bull, COL, h1)
   so:SetPoint("TOPLEFT", x[3], y1)
   Title(so, "Li sordi de la settimana")
   Corner(so, "INV_Misc_Coin_01")
-  bull.gold = Ranking(so, 8, 110)
+  bull.gold = Ranking(so, 7, 110)
 
   -- row 2: er cimitero, er Colosseo, le mejo tombole
-  local y2, h2 = -290, 122
+  local y2, h2 = -366, 122
   local ci = H.Box(bull, COL, h2)
   ci:SetPoint("TOPLEFT", x[1], y2)
   Title(ci, "Er cimitero")
@@ -450,8 +511,8 @@ local function Build()
   if bull.tombLine.SetWordWrap then bull.tombLine:SetWordWrap(false) end
 
   -- row 3: la schedina, all across
-  local sc = H.Box(bull, WIDTH - 2 * LEFT, 100)
-  sc:SetPoint("TOPLEFT", LEFT, -420)
+  local sc = H.Box(bull, WIDTH - 2 * LEFT, 94)
+  sc:SetPoint("TOPLEFT", LEFT, -496)
   Title(sc, "La schedina")
   Corner(sc, "INV_Misc_Note_06")
   bull.bets = Lines(sc, 4, (WIDTH - 2 * LEFT) / 2 - 24)
@@ -489,7 +550,33 @@ local function Fill(d, testing)
     bull.head:SetText("Settimana tranquilla")
     bull.headSub:SetText("Nun s'è mosso nessuno.")
   end
-  bull.you:SetText(d.you and (GOLD .. "La settimana tua:|r " .. d.you .. ".") or "")
+  bull.you:SetText(d.you or "")
+  local my = d.my or { bets = {}, rest = {} }
+  local sc = my.sc
+  for i, cell in ipairs(bull.myCells) do cell.check:SetShown(sc and sc.done[i] and true or false) end
+  local tl = {}
+  if sc then
+    tl[1] = "Tombola: " .. (sc.full and (GREEN .. "TOMBOLA!|r ") or "") .. GOLD .. "+" .. sc.points .. "|r " .. Coin()
+    tl[2] = GREY .. Plural(sc.cells, "casella", "caselle") .. ", " .. Plural(sc.lines, "terno", "terni") .. "|r"
+  else tl[1] = GREY .. "Nessuna cartella.|r" end
+  for i, l in ipairs(bull.myTomb) do l:SetText(tl[i] or "") end
+  local bl = {}
+  local played = false
+  for _, b in ipairs(my.bets) do
+    if b.pick then
+      played = true
+      local res = b.nobody and (GREY .. "nessuno, ridate|r") or b.right and (GREEN .. "+" .. b.got .. "|r " .. Coin()) or (RED .. "-" .. b.stake .. "|r " .. Coin())
+      bl[#bl + 1] = b.text .. " " .. Colored(b.pick) .. GREY .. " (" .. b.stake .. ")|r  " .. res
+    end
+  end
+  if not played then bl[1] = GREY .. "La schedina nun l'hai giocata.|r" end
+  for i, l in ipairs(bull.myBets) do l:SetText(bl[i] or "") end
+  local rl = {}
+  for _, x in ipairs(my.rest) do
+    rl[#rl + 1] = x.k .. ": " .. Signed(x.net) .. " " .. Coin() .. (x.open and (GREY .. " (" .. x.open .. " in ballo)|r") or "")
+  end
+  if #rl == 0 then rl[1] = GREY .. "Gnente sfide, taje o gufate.|r" end
+  for i, l in ipairs(bull.myRest) do l:SetText(rl[i] or "") end
 
   -- li titoli
   for i, r in ipairs(bull.titles) do

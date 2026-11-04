@@ -15,7 +15,7 @@ A.ns.db.opts.testMode = True
 check(TB.Testing() is True and TB.Week() == 1 and TB.Card() is not None, 'test mode: week 1 card before the start')
 A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
 bv = A.ns.UI._views.botteghino
-check(A.has('(prova') and bv.testBtn.shown and A.has('Schedina'), 'Botteghino in test mode, with the close button')
+check(A.has('(prova') and A.has('Schedina') and A.has('Casella = +1, terno = +2, tombola = +10'), 'Botteghino in test mode, the legend under the card')
 # what I do now counts: a duel lost, two quests
 A.ns.T.Bump('dl'); A.ns.T.Bump('q', 80); A.ns.T.Bump('dg', 6); A.ns.T.Bump('fl', 10); A.ns.T.Bump('dw', 5); A.ns.T.Bump('fi', 50)
 sc = TB.Score(A.rec())
@@ -55,16 +55,14 @@ check(str(bu.head.text) != '' and 'Settimana tranquilla' not in str(bu.head.text
 check(str(bu.titles[1].name.text).startswith('A ') and str(bu.rich[1].name.text).startswith('1. ') and 'INV_Misc_Bag_10_Red' in str(bu.rich[1].val.text), 'li titoli, li ricchi with the piotta: ' + str(bu.titles[1].name.text))
 check(str(bu.gold[1].name.text).startswith('1. ') and 'GoldIcon' in str(bu.gold[1].val.text), 'li sordi de la settimana: ' + str(bu.gold[1].val.text))
 check('Duelli a la gogna' in txt(bu.arena) or 'Nessun duello a la gogna' in txt(bu.arena), 'er Colosseo tells the duelli a la gogna: ' + txt(bu.arena))
-check('La settimana tua' in str(bu.you.text), 'your own week: ' + str(bu.you.text))
+check('In tutto' in str(bu.you.text) and bu.myCells[1].box.shown, 'your own week, with your card: ' + str(bu.you.text))
+check(any('Chi' in str(l.text) and '(' in str(l.text) for l in bu.myBets.values()), 'your schedina, pick by pick: ' + ' | '.join(str(l.text) for l in bu.myBets.values()))
+check(str(bu.myTomb[1].text).startswith('Tombola: '), 'your tombola: ' + str(bu.myTomb[1].text))
 check('Morti in tutto' in txt(bu.dead) and 'Er più scemo' in txt(bu.dead) and 'Ultime parole' in txt(bu.dead), 'er cimitero with the last words: ' + txt(bu.dead))
 check(bu.cards[1].cells[1].box.shown and str(bu.cards[1].name.text) != '', 'la tombola: the little cards')
 check('?' in txt(bu.bets), 'la schedina: the questions and who won them: ' + txt(bu.bets))
 total, sc2, right, lines, won, res = TB.SimulateClose()
 check(total is not None and total >= sc2.points, 'simulated close: %s points, %s right' % (total, right))
-btn = bv.testBtn; btn.Click(btn)
-ch = A.g.ErPattoChiusura
-check(ch and ch.shown and '(prova)' in str(ch.title.text) and "C'avresti" in str(ch.balance.text), 'close button: the closing window, in test mode')
-check(any('chiusa (prova)' in str(n.t) for n in A.ns.News.List().values()), 'and a line in the news')
 TB.Update()
 check(A.rec().pts is None, 'no real piotte written in test mode')
 A.ns.db.opts.testMode = False

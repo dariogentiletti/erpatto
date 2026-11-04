@@ -535,15 +535,13 @@ local function ClassHex(cls)
   return "ffffffff"
 end
 
--- the name in its class colour; at the gogna, its icon in front
--- the name in its class colour; with a penitenza, its icon in front and the nickname after (never instead)
+-- the name in its class colour, the nickname after (never instead); no pegno icon in front (too small to read,
+-- the user removed it: who is a la gogna is in Progresso, Cimitero)
 local function Colored(rec, plain)
   local base = "|c" .. ClassHex(rec.cls) .. tostring(rec.name) .. "|r"
   if plain or not ns.Sfide then return base end
-  -- a la gogna: the face of er pegno in front (the mask's animal, or the pegno's icon), the nickname after
-  local g = ns.Sfide.AtGogna(rec.guid)
   local n = ns.Sfide.NickOf(rec)
-  return (g and ("|T" .. ns.Sfide.PegnoIcon(g.s) .. ":0|t ") or "") .. base .. (n and (" |cffff8040\"" .. n.t .. "\"|r") or "")
+  return base .. (n and (" |cffff8040\"" .. n.t .. "\"|r") or "")
 end
 
 local function StateText(lv, cap)

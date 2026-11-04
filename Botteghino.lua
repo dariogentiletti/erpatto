@@ -34,120 +34,9 @@ end
 local HL = "Interface\\Buttons\\UI-Listbox-Highlight2"
 local SEL = "Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue"
 
-----------------------------------------------------------------------
--- the closing window: one vanilla dialog per closed week
-----------------------------------------------------------------------
-local closing
-local waiting = {}
 local GREEN, RED = "|cff20ff20", "|cffff4040"
-
-local function BuildClosing()
-  local f = CreateFrame("Frame", "ErPattoChiusura", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  f:SetSize(440, 336)
-  f:SetPoint("CENTER", 0, 90)
-  f:SetFrameStrata("DIALOG")
-  f:SetToplevel(true)
-  f:SetClampedToScreen(true)
-  f:EnableMouse(true)
-  f:SetMovable(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  if f.SetBackdrop then
-    f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } })
-  end
-  f.title = H.DialogHeader(f, "", 200)
-  f.sub = H.Text(f, "GameFontHighlight", "", 390, "CENTER")
-  f.sub:SetPoint("TOP", 0, -32)
-
-  local function Head(y, label)
-    local l = H.Text(f, "GameFontNormal", label, 250)
-    l:SetPoint("TOPLEFT", 26, y)
-    local r = H.Text(f, "GameFontHighlight", "", 130, "RIGHT")
-    r:SetPoint("TOPRIGHT", -26, y)
-    return l, r
-  end
-  f.tombHead, f.tombMoney = Head(-58, "La Tombola")
-  f.tombLine = H.Text(f, "GameFontHighlightSmall", "", 380)
-  f.tombLine:SetPoint("TOPLEFT", 26, -78)
-  f.schHead, f.schMoney = Head(-102, "La Schedina")
-  f.rows = {}
-  for i = 1, #TB.QUESTIONS do
-    local y = -124 - (i - 1) * 36
-    local r = {}
-    r.q = H.Text(f, "GameFontNormal", "", 270)
-    r.q:SetPoint("TOPLEFT", 26, y)
-    r.res = H.Text(f, "GameFontHighlight", "", 110, "RIGHT")
-    r.res:SetPoint("TOPRIGHT", -26, y)
-    r.detail = H.Text(f, "GameFontHighlightSmall", "", 388)
-    r.detail:SetPoint("TOPLEFT", 26, y - 16)
-    if r.detail.SetWordWrap then r.detail:SetWordWrap(false) end
-    f.rows[i] = r
-  end
-  f.total = H.Text(f, "GameFontNormal", "", 390, "CENTER")
-  f.total:SetPoint("TOP", 0, -240)
-  f.balance = H.Text(f, "GameFontHighlight", "", 390, "CENTER")
-  f.balance:SetPoint("TOP", 0, -268)
-  f.ok = H.Btn(f, "Daje", 120, function() f:Hide() end)
-  f.ok:SetPoint("BOTTOM", 0, 20)
-  H.CloseX(f)
-  f:SetScript("OnHide", function()
-    if #waiting > 0 and C_Timer then C_Timer.After(0.3, function() ns.Botteghino.ShowClosing(table.remove(waiting, 1)) end) end
-  end)
-  if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoChiusura") end
-  f:Hide()
-  closing = f
-end
-
-local function Signed(n) return n > 0 and (GREEN .. "+" .. n .. "|r") or (n < 0 and (RED .. n .. "|r") or "0") end
-
-local function FillClosing(f, res)
-  f.title:SetText("Settimana " .. res.wk .. " chiusa" .. (res.test and " (prova)" or ""))
-  f.sub:SetText(res.test and "|cffff8000Prova: nun vale|r" or "")
-  local sc = res.tomb
-  f.tombMoney:SetText(Signed(sc.points) .. " " .. TB.Coin(16))
-  f.tombLine:SetText("Caselle |cffffffff" .. (sc.cells or 0) .. "/9|r, terni |cffffffff" .. (sc.lines or 0) .. "|r" ..
-    (sc.full and "  |cffffd100TOMBOLA!|r" or ""))
-  f.schMoney:SetText(res.played and (Signed(res.won) .. " " .. TB.Coin(16)) or (GREY .. "nun hai giocato|r"))
-  for i, r in ipairs(f.rows) do
-    local b = res.bets[i]
-    r.q:SetText(b and b.text or "")
-    if not b then r.res:SetText("") r.detail:SetText("")
-    else
-      local who = #b.winners > 0 and table.concat(b.winners, ", ") or "nessuno"
-      local detail = "Ha vinto: |cffffffff" .. who .. "|r"
-      if b.pick then detail = detail .. ".  Tu: |cffffffff" .. b.pick .. "|r, " .. b.stake .. " a " .. TB.Quota(b.quota) end
-      r.detail:SetText(detail)
-      if not b.pick or b.stake == 0 then r.res:SetText(GREY .. "gnente|r")
-      elseif b.nobody then r.res:SetText(GREY .. "ridate " .. b.stake .. "|r")
-      elseif b.got > 0 then r.res:SetText(GREEN .. "+" .. b.got .. "|r")
-      else r.res:SetText(RED .. "persa|r") end
-    end
-  end
-  f.total:SetText((res.total > 0 and ("|cffffd100+" .. TB.Piotte(res.total) .. "|r") or (GREY .. "Gnente 'sta vorta|r")))
-  if res.balance then
-    f.balance:SetText((res.test and "C'avresti " or "Mo' c'hai ") .. TB.Money(res.balance))
-  else f.balance:SetText("") end
-end
-
 ns.Botteghino = ns.Botteghino or {}
-function ns.Botteghino.ShowClosing(res)
-  if not res then return end
-  if not closing then BuildClosing() end
-  if closing:IsShown() then waiting[#waiting + 1] = res return end
-  -- not in the middle of a fight
-  if not res.test and UnitAffectingCombat and UnitAffectingCombat("player") and C_Timer then
-    C_Timer.After(5, function() ns.Botteghino.ShowClosing(res) end)
-    return
-  end
-  FillClosing(closing, res)
-  closing:Show()
-  if ns.db and ns.db.opts.toastSound and PlaySound and SOUNDKIT and SOUNDKIT.IG_QUEST_LIST_COMPLETE then
-    pcall(PlaySound, SOUNDKIT.IG_QUEST_LIST_COMPLETE)
-  end
-end
-ns.On("WeekClosed", function(res) ns.Botteghino.ShowClosing(res) end)
+-- the week closed: no window of its own any more, Er Bollettino tells it (with "La settimana tua")
 
 ----------------------------------------------------------------------
 -- build
@@ -192,8 +81,8 @@ local function BuildTombola(v)
     v.cells[i] = c
   end
   -- under the card: how it pays, in one line
-  v.pays = H.Text(p, "GameFontHighlightSmall", "Casella " .. TB.Piotte(1) .. ", terno +2, tombola +10", 470, "CENTER")
-  v.pays:SetPoint("TOPLEFT", 10, -326)
+  v.pays = H.Text(p, "GameFontDisableSmall", "Casella = +1, terno = +2, tombola = +10", 470)
+  v.pays:SetPoint("BOTTOMLEFT", 14, 8)
   -- right: how everybody is doing on this card
   local side = H.Box(p, 238, 323)
   side:SetPoint("TOPRIGHT", -8, -14)
@@ -210,13 +99,6 @@ local function BuildTombola(v)
     r.val:SetPoint("TOPRIGHT", -14, y)
     v.race[i] = r
   end
-  v.testBtn = H.Btn(side, "Prova: chiudi", 100, function()
-    local total, _, _, _, _, res = TB.SimulateClose()
-    if not total then return end
-    ns.Botteghino.ShowClosing(res)
-    if ns.News then ns.News.Add("Settimana " .. res.wk .. " chiusa (prova): |cffffffff+" .. TB.Piotte(res.total) .. "|r") end
-  end, 20)
-  v.testBtn:SetPoint("TOPRIGHT", side, "TOPRIGHT", -8, -6)
 end
 
 local function BuildSchedina(v)
@@ -417,7 +299,6 @@ end
 ----------------------------------------------------------------------
 local function RefreshTombola(v, wk, me, list, testing)
   local card = TB.Card(wk)
-  v.testBtn:SetShown(testing)
   if not card then
     v.cardTitle:SetText("La Tombola")
     local start = ns.state and ns.state.settings and ns.state.settings.start
@@ -426,7 +307,7 @@ local function RefreshTombola(v, wk, me, list, testing)
   else
     local sc = TB.Score(me, wk) or { done = {}, cells = 0, lines = 0, points = 0 }
     v.cardTitle:SetText("Settimana " .. wk .. (testing and " |cffff8000(prova)|r" or ""))
-    v.cardSub:SetText(sc.cells .. "/9, terni " .. sc.lines .. ":  " .. GOLD .. "+" .. TB.Piotte(sc.points) .. "|r" .. (sc.full and "  " .. GOLD .. "TOMBOLA!|r" or ""))
+    v.cardSub:SetText((sc.full and (GOLD .. "TOMBOLA!|r  ") or "") .. GOLD .. "+" .. TB.Piotte(sc.points) .. "|r")
     local w = TB.Weekly(me, wk)
     for i, c in ipairs(v.cells) do
       local sq = card[i]
