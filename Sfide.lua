@@ -1975,9 +1975,6 @@ local lastEmote = 0
 S.EMOTE_TEXT = { DANCE = "se mette a ballà.", CHICKEN = "fa la gallina.", KNEEL = "s'inginocchia.", CRY = "piagne.",
   SILLY = "fa lo scemo.", BOW = "s'inchina.", FLEX = "fa er bullo.", SURRENDER = "se arrende." }
 local Say
-local function Build() return GetBuildInfo and select(2, GetBuildInfo()) or "?" end
-local function EmoteBlocked() return ns.db and type(ns.db.noEmote) == "table" and ns.db.noEmote[Build()] end
-local trying = false
 -- the game's emotes (C_ChatInfo.PerformEmote / DoEmote) are "AllowedWhenUntainted": an addon calling them gets
 -- the game's "blocked" window. So the addon never calls them: the emote is a line in the emote colour, in my
 -- chat and in the chat of the patto in the same zone (only who has the addon reads it)
@@ -1988,26 +1985,13 @@ local function Emote(tok)
   if Say and S.EMOTE_TEXT[tok] then Say(S.EMOTE_TEXT[tok]) end
 end
 S.Emote = Emote
--- the game said no: remember it for this build
-function S.EmoteRefused()
-  if not ns.db then return end
-  ns.db.noEmote = type(ns.db.noEmote) == "table" and ns.db.noEmote or {}
-  ns.db.noEmote[Build()] = true
-end
-local function OnRevive() end
--- er servo: a bow every time he targets his master, and now and then when he's near him
+-- er servo: his line when his master is near
 local lastNear = 0
 local function Master()
   local g = S.AtGogna(ns.recordGuid)
   local pena = g and S.PENE[g.s.pena or 0]
   if not (pena and pena.key == "servo") then return nil end
   return Members()[g.by]
-end
-local function OnTarget()
-  local master = Master()
-  if not (master and UnitName) then return end
-  local ok, n = pcall(UnitName, "target")
-  -- nothing on targeting him any more: the line comes when he's near (NearBow), once every ten minutes
 end
 -- what er servo says, in the emote colour, when his master is near: at most once every ten minutes
 S.SERVO_LINE = "is the slave of %s."
@@ -2124,7 +2108,6 @@ local function Crybaby()
 end
 S.Crybaby = Crybaby
 
-S.OnRevive, S.OnTarget = OnRevive, OnTarget
 
 -- test mode: my pegni for two minutes, the dialogs, a duel to bet on, to see how they look
 local function Fakes()
@@ -2268,22 +2251,13 @@ end
 
 local frame = CreateFrame("Frame")
 frame:SetScript("OnEvent", function(_, event, ...)
-  if event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
-    local addon, fn = ...
-    if addon == ADDON then
-      U.Log("Bloccato", tostring(fn))
-      if tostring(fn):find("Emote") then S.EmoteRefused() end
-    end
-  elseif event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
-  elseif event == "PLAYER_UNGHOST" or event == "PLAYER_ALIVE" then
-    if not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then pcall(OnRevive) end
-  elseif event == "PLAYER_TARGET_CHANGED" then pcall(OnTarget)
+  if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
   elseif event == "DUEL_FINISHED" then
     -- after a real duel the result is in by then; if not, the request was turned down
     if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) end) end
   end
 end)
-for _, e in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "DUEL_REQUESTED", "DUEL_FINISHED", "PLAYER_UNGHOST", "PLAYER_ALIVE", "PLAYER_TARGET_CHANGED" }) do pcall(frame.RegisterEvent, frame, e) end
+for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED" }) do pcall(frame.RegisterEvent, frame, e) end
 
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end

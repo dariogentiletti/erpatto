@@ -5,3 +5,4 @@ ignore:
   - tools
   - README.md
   - CONTRIBUTING.md
+  - CLAUDE.md
