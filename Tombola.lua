@@ -272,17 +272,14 @@ function TB.Questions(wk)
   return out
 end
 
--- the capo changes a question of this week's schedina (once per slot a week), only while nobody has played on it
+-- the capo changes a question of this week's schedina (once per slot a week); the giocate on it are void and each
+-- one gets his stake back at once (TB.Update)
 function TB.SwapQuestion(qkey)
   if not (ns.state and P.HasSettings(ns.state) and ns.CanAdmin and ns.CanAdmin()) or ns.alt then return false, "Solo er capo pò cambià le domande." end
   local wk = TB.Week()
   local qs = TB.Questions(wk)
   for _, x in ipairs(type(ns.state.settings.qc) == "table" and ns.state.settings.qc or {}) do
     if x.wk == wk and x.k == qkey then return false, "'Sta domanda l'hai già cambiata 'sta settimana." end
-  end
-  for _, m in ipairs(UI.Members()) do
-    local v = TB.VotesOf(m, wk)
-    if v and v[qkey] and (v["s" .. qkey] or 0) > 0 then return false, "Ce so' già giocate su 'sta domanda: nun se cambia più." end
   end
   local used = {}
   for _, q in ipairs(qs) do used[q.id] = true end
@@ -293,7 +290,7 @@ function TB.SwapQuestion(qkey)
   local ok, e = P.EditSettings(ns.state, ns.recordGuid, function(st)
     local kept = {}
     for _, x in ipairs(type(st.qc) == "table" and st.qc or {}) do if x.wk >= wk - 1 then kept[#kept + 1] = x end end
-    kept[#kept + 1] = { wk = wk, k = qkey, id = new.id }
+    kept[#kept + 1] = { wk = wk, k = qkey, id = new.id, at = U.Now() }
     st.qc = kept
   end)
   if not ok then return false, e end
@@ -365,19 +362,42 @@ function TB.TestVotes()
   return t
 end
 
+-- a giocata on a question the capo changed after it was played is void (its stake goes back)
+local function SwapAt(wk, key)
+  local at
+  for _, x in ipairs(type(ns.state and ns.state.settings.qc) == "table" and ns.state.settings.qc or {}) do
+    if x.wk == wk and x.k == key then at = math.max(at or 0, x.at or 0) end
+  end
+  return at
+end
+local function Valid(v, wk)
+  if not v then return nil end
+  local out
+  for _, q in ipairs(TB.QUESTIONS) do
+    local at = SwapAt(wk, q.key)
+    if at and v[q.key] and (v["t" .. q.key] or 0) < at then
+      out = out or {}
+      for k, x in pairs(v) do out[k] = x end
+      out[q.key], out["s" .. q.key], out["q" .. q.key], out["t" .. q.key] = nil, nil, nil, nil
+    end
+  end
+  return out or v
+end
+TB.Valid = Valid
+
 -- bets of a member for a week: their record (this week or last), or what we saw before; in test mode, mine are local
 function TB.VotesOf(m, wk)
   wk = wk or Week()
   if not m then return nil end
   if m.guid == ns.recordGuid and TB.Testing() then
     local t = TB.TestVotes()
-    return (t and t.wk == wk) and t or nil
+    return (t and t.wk == wk) and Valid(t, wk) or nil
   end
-  if m.vt and m.vt.wk == wk then return m.vt end
-  if m.vp and m.vp.wk == wk then return m.vp end
+  if m.vt and m.vt.wk == wk then return Valid(m.vt, wk) end
+  if m.vp and m.vp.wk == wk then return Valid(m.vp, wk) end
   local seen = ns.db and ns.db.betsSeen and ns.state and ns.db.betsSeen[ns.state.code]
   local w = seen and seen[wk]
-  return w and w[m.guid] or nil
+  return w and Valid(w[m.guid], wk) or nil
 end
 
 -- remember the bets we see, so a week can be counted even after people bet again
@@ -581,7 +601,7 @@ function TB.Bet(qkey, guid, stake)
   if not rec then return false end
   local cur = TB.VotesOf(rec, wk) or { wk = wk }
   local new = { wk = wk }
-  for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key], new["q" .. q.key] = cur[q.key], cur["s" .. q.key], cur["q" .. q.key] end
+  for _, q in ipairs(TB.QUESTIONS) do new[q.key], new["s" .. q.key], new["q" .. q.key], new["t" .. q.key] = cur[q.key], cur["s" .. q.key], cur["q" .. q.key], cur["t" .. q.key] end
   -- a giocata is final: no changing it later when the week tells who's ahead
   if (cur["s" .. qkey] or 0) > 0 and cur[qkey] then return false, "La giocata è fatta: nun se cambia più." end
   if guid and TB.Mine(guid) then return false, "Su te stesso (o su 'n alt tuo) nun se gioca." end
@@ -599,6 +619,7 @@ function TB.Bet(qkey, guid, stake)
   if stake > TB.MAX_STAKE then return false, "Ar massimo " .. TB.MAX_STAKE .. " piotte pe' domanda." end
   if stake > available then return false, "Nun c'hai abbastanza piotte (" .. available .. ")." end
   new["s" .. qkey] = stake
+  new["t" .. qkey] = U.Now()
   -- the odds of this moment are yours (counted without your own old bet)
   local odds = TB.Odds(wk, UI.Members(), qkey, ns.recordGuid)
   new["q" .. qkey] = odds[new[qkey]] and odds[new[qkey]].q or 10
@@ -719,6 +740,22 @@ function TB.Update()
   for _, m in pairs(ns.state.members) do Remember(m) end
   if TB.Testing() then return end
   local rec = ns.MyRecord()
+  -- a question the capo changed after I played on it: the giocata is void, the stake comes back now
+  local bw = Week()
+  if rec and rec.vt and rec.vt.wk == bw then
+    local valid = Valid(rec.vt, bw)
+    if valid ~= rec.vt then
+      local back = 0
+      for _, q in ipairs(TB.QUESTIONS) do if rec.vt[q.key] and not valid[q.key] then back = back + (rec.vt["s" .. q.key] or 0) end end
+      local bk = Book()
+      bk.stakes = bk.stakes or {}
+      local sum = 0
+      for _, q in ipairs(TB.QUESTIONS) do sum = sum + StakeOf(valid, q.key) end
+      bk.stakes[bw] = sum
+      P.UpdateSelf(ns.state, ns.recordGuid, { vt = valid }, "vote")
+      if ns.News and back > 0 then ns.News.Add("Er capo ha cambiato 'na domanda de la schedina: te so' tornate |cffffffff" .. TB.Piotte(back) .. "|r.") end
+    end
+  end
   local wk = RealWeek()
   if not (rec and wk and wk >= 1) then return end
   local b = Book()
@@ -878,7 +915,7 @@ local function SwapsSeen(state)
   end
 end
 ns.On("SettingsChanged", function(state) SwapsSeen(state) if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end end)
-ns.On("StateChanged", function(state, kind) if kind ~= "M" then SwapsSeen(state) end end)
+ns.On("StateChanged", function(state, kind) if kind ~= "M" then SwapsSeen(state) pcall(TB.Update) end end)
 
 ns.On("MemberUpdated", function(rec) Remember(rec) end)
 ns.On("SelfChanged", function(state, reason)

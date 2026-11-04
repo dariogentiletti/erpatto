@@ -2229,6 +2229,10 @@ function S.Puppet(e, master)
   Emote(e.tok)
   Say("se fa tirà li fili da " .. tostring(master) .. ".")
   if PlaySoundFile then pcall(PlaySoundFile, H.MEDIA .. S.PUPO_SOUND, "Master") end
+  -- on his screen, in the raid warning letters (the game doesn't let an addon stop a character: no freezing)
+  if RaidNotice_AddMessage and RaidWarningFrame then
+    pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(master) .. " te sta a tirà li fili: fa' er bravo burattino!", { r = 1, g = 0.5, b = 0.2 })
+  end
 end
 
 -- er Giampaolato: a jump plays "ahia" (four times in five) or "basta"; a /thanks plays er Cerbero for him and for

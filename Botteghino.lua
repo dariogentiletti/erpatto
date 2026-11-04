@@ -111,31 +111,36 @@ local SCH_ROWS = 30 -- everyone in the list, with a scroll past what fits
 local function BuildSchedina(v)
   v.sch = CreateFrame("Frame", nil, v)
   v.sch:SetAllPoints()
-  -- the week of the schedina: open from the reset, closed after Saturday, paid at the next reset; where we are now
-  local tl = H.Box(v.sch, 744, 36)
+  -- the week of the schedina, as a bar: green while you can play, grey while the week is played, the end is when
+  -- it's paid. A notch where it closes, the spark where we are now, the days under it.
+  local tl = H.Box(v.sch, 744, 54)
   tl:SetPoint("TOPLEFT", 0, -28)
   v.tlOpen = tl:CreateTexture(nil, "ARTWORK")
   v.tlOpen:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
   v.tlOpen:SetVertexColor(0.1, 0.6, 0.1)
-  v.tlOpen:SetHeight(8)
+  v.tlOpen:SetHeight(9)
   v.tlShut = tl:CreateTexture(nil, "ARTWORK")
   v.tlShut:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-  v.tlShut:SetVertexColor(0.45, 0.45, 0.45)
-  v.tlShut:SetHeight(8)
+  v.tlShut:SetVertexColor(0.4, 0.4, 0.4)
+  v.tlShut:SetHeight(9)
   v.tlNow = tl:CreateTexture(nil, "OVERLAY")
   v.tlNow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
   v.tlNow:SetBlendMode("ADD")
-  v.tlNow:SetSize(16, 24)
-  v.tlA = H.Text(tl, "GameFontHighlightSmall", "", 240)
-  v.tlA:SetPoint("TOPLEFT", 14, -6)
-  v.tlB = H.Text(tl, "GameFontHighlightSmall", "", 120, "CENTER")
-  v.tlC = H.Text(tl, "GameFontHighlightSmall", "", 240, "RIGHT")
-  v.tlC:SetPoint("TOPRIGHT", -14, -6)
+  v.tlNow:SetSize(20, 28)
+  v.tlA = H.Text(tl, "GameFontHighlightSmall", "", 360)
+  v.tlA:SetPoint("TOPLEFT", 14, -10)
+  v.tlC = H.Text(tl, "GameFontHighlightSmall", "", 300, "RIGHT")
+  v.tlC:SetPoint("TOPRIGHT", -14, -10)
+  v.tlDays = {}
+  for d = 1, 7 do
+    local t = H.Text(tl, "GameFontDisableSmall", "", 90, "CENTER")
+    v.tlDays[d] = t
+  end
   v.tlBox = tl
   v.q = {}
   for i, q in ipairs(TB.QUESTIONS) do
-    local box = H.Box(v.sch, 244, 309)
-    box:SetPoint("TOPLEFT", (i - 1) * 250, -66)
+    local box = H.Box(v.sch, 244, 291)
+    box:SetPoint("TOPLEFT", (i - 1) * 250, -84)
     local r = { key = q.key, box = box, i = i }
     r.title = H.Text(box, "GameFontNormal", "", 224, "CENTER")
     r.title:SetPoint("TOP", 0, -10)
@@ -420,22 +425,29 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
   local mine = TB.VotesOf(me, wk) or {}
   local closes = wk and wk >= 1 and not testing and TB.Closes(wk)
   local qs = TB.Questions(wk)
-  -- the timeline: green while open, grey while it's played, the spark where we are
+  -- the timeline: green while open, grey while it's played, the spark where we are, the days under it
   if wk and wk >= 1 and ns.state and P.HasSettings(ns.state) then
     local start = TB.WeekStart(wk)
     local close, pay = TB.Closes(wk), start + M.WEEK
     local W = 716
     local function X(t) return math.floor(W * math.max(0, math.min(1, (t - start) / (pay - start))) + 0.5) end
     local cx, nx = X(close), X(U.Now())
-    v.tlOpen:ClearAllPoints() v.tlOpen:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14, -22) v.tlOpen:SetWidth(math.max(1, cx))
-    v.tlShut:ClearAllPoints() v.tlShut:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14 + cx, -22) v.tlShut:SetWidth(math.max(1, W - cx))
-    v.tlNow:ClearAllPoints() v.tlNow:SetPoint("CENTER", v.tlBox, "TOPLEFT", 14 + nx, -26)
-    v.tlNow:SetShown(not testing)
+    v.tlOpen:ClearAllPoints() v.tlOpen:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14, -26) v.tlOpen:SetWidth(math.max(1, cx))
+    v.tlShut:ClearAllPoints() v.tlShut:SetPoint("TOPLEFT", v.tlBox, "TOPLEFT", 14 + cx, -26) v.tlShut:SetWidth(math.max(1, W - cx))
+    v.tlNow:ClearAllPoints() v.tlNow:SetPoint("CENTER", v.tlBox, "TOPLEFT", 14 + nx, -30)
     local open = U.Now() < close
-    v.tlA:SetText((open and "|cff20ff20" or GREY) .. "Se gioca fino a " .. U.When(close - 60) .. "|r")
-    v.tlB:ClearAllPoints() v.tlB:SetPoint("TOP", v.tlBox, "TOPLEFT", 14 + math.floor((cx + W) / 2), -6)
-    v.tlB:SetText((not open and "|cffffd100" or GREY) .. "Chiusa: se gioca|r")
-    v.tlC:SetText(GREY .. "Se paga " .. U.When(pay) .. "|r")
+    v.tlA:SetText(open and ("|cff20ff20Se pò puntà:|r fino a " .. U.When(close - 60)) or (GREY .. "Giocate chiuse: mo' se gioca la settimana|r"))
+    v.tlC:SetText("|cffffd100Se paga|r " .. U.When(pay))
+    -- the days: today in white, the rest grey
+    local today = math.floor((U.Now() - start) / 86400) + 1
+    for d, t in ipairs(v.tlDays) do
+      local at = start + (d - 1) * 86400
+      local p = U.RomeParts(at)
+      local name = ({ "dom", "lun", "mar", "mer", "gio", "ven", "sab" })[(p.wday or 0) + 1]
+      t:ClearAllPoints()
+      t:SetPoint("TOP", v.tlBox, "TOPLEFT", 14 + math.floor(W * (d - 0.5) / 7), -38)
+      t:SetText((d == today and "|cffffffff" or "") .. name .. (d == today and " (oggi)|r" or ""))
+    end
   end
   for _, r in ipairs(v.q) do
     r.title:SetText(qs[r.i] and qs[r.i].text or "")

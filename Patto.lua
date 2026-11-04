@@ -109,7 +109,7 @@ function P.CleanSettings(s)
       local x = s.qc[i]
       local k = type(x) == "table" and Str(x.k, 1)
       if k and (k == "a" or k == "b" or k == "c") and Num(x.wk, 1, 260) and Str(x.id, 8) then
-        qc[#qc + 1] = { wk = math.floor(x.wk), k = k, id = Str(x.id, 8) }
+        qc[#qc + 1] = { wk = math.floor(x.wk), k = k, id = Str(x.id, 8), at = Num(x.at, 0, 4e9) }
       end
     end
     c.qc = #qc > 0 and qc or nil
@@ -224,6 +224,7 @@ function P.CleanMember(r)
       out[k] = Str(v[k], 60)
       out["s" .. k] = out[k] and math.floor(Num(v["s" .. k], 0, 1e5) or 0) or nil
       out["q" .. k] = out[k] and Num(v["q" .. k], 10, 1000) and math.floor(Num(v["q" .. k], 10, 1000)) or nil -- the odds taken, x10
+      out["t" .. k] = out[k] and Num(v["t" .. k], 0, 4e9) or nil -- when it was played (a question changed later voids it)
     end
     return out
   end
