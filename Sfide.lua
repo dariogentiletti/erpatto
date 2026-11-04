@@ -2368,6 +2368,23 @@ local function Killed()
 end
 ns.On("J_Kill", Killed)
 ns.On("J_XpKill", Killed)
+-- the surest sign on every client, even for a grey mob that gives no experience and when the target's death can't
+-- be read: a fight ends and I'm alive (the mob is down). Cost: two events per fight.
+local fightAt
+local fights = CreateFrame and CreateFrame("Frame")
+if fights then
+  pcall(fights.RegisterEvent, fights, "PLAYER_REGEN_DISABLED")
+  pcall(fights.RegisterEvent, fights, "PLAYER_REGEN_ENABLED")
+  fights:SetScript("OnEvent", function(_, event)
+    local now = GetTime and GetTime() or 0
+    if event == "PLAYER_REGEN_DISABLED" then fightAt = now return end
+    local began = fightAt
+    fightAt = nil
+    if not began or now - began < 1.5 then return end
+    if UnitIsDeadOrGhost and select(2, pcall(UnitIsDeadOrGhost, "player")) == true then return end
+    Killed()
+  end)
+end
 -- er piagnone: a cry every two minutes (not in a fight); "nguee nguee" too when his winner is near. The look for
 -- the winner is cheap: the usual unit tokens, once every two minutes
 local cryAt = 0
