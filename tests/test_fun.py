@@ -221,7 +221,7 @@ check(A.has('Er cap tuo') and A.has("Mo' online") and A.has('Notizie') and A.has
 check(A.has('Prossimo cap') or A.has('Cap '), 'Casa shows the cap')
 A.ns.Home.ShowBulletin(True)
 bull = A.g.ErPattoBulletin
-check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Er più veloce') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
+check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Li titoli de la settimana') and A.has('Li sordi de la settimana') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
 
 # ---- invite: a player with no patto gets a window and joins in one click
 C = Client('Player-1-CCC', 'Gina'); clients.append(C)

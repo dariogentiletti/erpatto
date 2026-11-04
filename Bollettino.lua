@@ -1,8 +1,10 @@
 -- Er Patto: Er Bollettino, the week told like a paper. It opens by itself at the first login after the weekly
--- reset (and from the Baretto). One big vanilla window: the headline on top, then six boxes: li premi, li ricchi,
--- er cimitero, la tombola, er Colosseo (duelli e gogna), la schedina.
+-- reset (and from the Baretto). One big vanilla window: the headline (and your own week) on top, then the boxes:
+-- li titoli de la settimana, li ricchi (piotte), li sordi (gold made in the week), er cimitero, er Colosseo,
+-- le mejo tombole, la schedina.
 -- Cost: everything is counted once, when the window opens (a few loops over the members and their last ten
--- graves); nothing runs while it's open.
+-- graves); nothing runs while it's open. The titles are remembered once a week (who held what when the week
+-- began), a small table per week.
 local ADDON, ns = ...
 local U, M, P, UI = ns.U, ns.M, ns.P, ns.UI
 local H = UI.H
@@ -12,6 +14,7 @@ ns.Bollettino = B
 
 local GREY, GOLD, GREEN, RED, WHITE = "|cff9d9d9d", "|cffffd100", "|cff20ff20", "|cffff4040", "|cffffffff"
 local ICON = "Interface\\Icons\\"
+local GOLDICON = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
 local function Short(m) return (tostring(m and m.name or "?"):match("^(%S+)")) or "?" end
 local function Colored(m) return "|c" .. H.ClassHex(m.cls) .. Short(m) .. "|r" end
 local function W(m, wk, k)
@@ -20,6 +23,8 @@ local function W(m, wk, k)
   return type(w) == "table" and (w[k] or 0) or 0
 end
 local function Plural(n, one, many) return n .. " " .. (n == 1 and one or many) end
+local function Coin() return ns.Tombola and ns.Tombola.Coin(12) or "" end
+local function Signed(n) return n > 0 and (GREEN .. "+" .. n .. "|r") or n < 0 and (RED .. n .. "|r") or (GREY .. "0|r") end
 
 -- best (or worst) of the list for a value; nil when nobody did anything
 local function Leader(list, fn, lowest)
@@ -33,12 +38,78 @@ local function Leader(list, fn, lowest)
 end
 
 ----------------------------------------------------------------------
+-- the titles at the start of each week (to tell who took which this week)
+----------------------------------------------------------------------
+local SKIP = { sorcapo = true, braccio = true }
+local function Holders()
+  local out = {}
+  if not (ns.Titles and ns.Titles.Holders) then return out end
+  for id, set in pairs(ns.Titles.Holders()) do
+    if not SKIP[id] then
+      out[id] = {}
+      for g in pairs(set) do out[id][#out[id] + 1] = g end
+      table.sort(out[id])
+    end
+  end
+  return out
+end
+local function Weeks()
+  if not (ns.db and ns.state) then return nil end
+  ns.db.titleWeeks = type(ns.db.titleWeeks) == "table" and ns.db.titleWeeks or {}
+  local t = ns.db.titleWeeks[ns.state.code]
+  if type(t) ~= "table" then t = {} ns.db.titleWeeks[ns.state.code] = t end
+  return t
+end
+-- the first time we look in a week, we write down who holds what
+function B.SnapTitles()
+  if not (ns.state and P.HasSettings(ns.state)) or ns.alt then return end
+  local wk = M.WeekIndex(ns.state.settings, U.Now())
+  local t = Weeks()
+  if not t or wk < 1 or t[wk] then return end
+  t[wk] = Holders()
+  for k in pairs(t) do if k < wk - 4 then t[k] = nil end end
+end
+-- the titles that changed hands in week wk: { t (the title), m (new holder), from (old holder or nil) }
+local function NewTitles(wk, byGuid, testing)
+  local t = Weeks() or {}
+  -- who held what when the week began (or, if we didn't look that week, the last time we did)
+  local before
+  if not testing then
+    for k = wk, wk - 4, -1 do if t[k] then before = t[k] break end end
+  end
+  local after = (not testing and t[wk + 1]) or Holders()
+  local out = {}
+  for _, title in ipairs(ns.Titles and ns.Titles.LIST or {}) do
+    local now = after[title.id]
+    if now and not SKIP[title.id] then
+      local old = {}
+      for _, g in ipairs(before and before[title.id] or {}) do old[g] = true end
+      -- one line per title: the new holders (a tie shows the first and how many more)
+      local got = {}
+      for _, g in ipairs(now) do if byGuid[g] and not old[g] and (before or testing) then got[#got + 1] = byGuid[g] end end
+      if #got > 0 then
+        local from
+        for _, og in ipairs(before and before[title.id] or {}) do if byGuid[og] and not from then from = byGuid[og] end end
+        out[#out + 1] = { t = title, m = got[1], more = #got - 1, from = from }
+      end
+    end
+  end
+  -- the "first of the patto" ones before the milestones
+  table.sort(out, function(a, b)
+    local ka, kb = a.t.kind == "top" and 0 or 1, b.t.kind == "top" and 0 or 1
+    if ka ~= kb then return ka < kb end
+    return a.t.name < b.t.name
+  end)
+  return out
+end
+
+----------------------------------------------------------------------
 -- the numbers of a week
 ----------------------------------------------------------------------
--- the week's piotte of a member: tombola + schedina winnings - stakes
+-- the week's piotte of a member: total, from the tombola, from the schedina (winnings - stakes)
 local function WeekPiotte(m, wk, list)
   local TB = ns.Tombola
-  if not TB then return 0, 0 end
+  if not TB then return 0, 0, 0 end
   local sc = TB.Score(m, wk)
   local tomb = sc and sc.points or 0
   local v = TB.VotesOf(m, wk)
@@ -47,114 +118,98 @@ local function WeekPiotte(m, wk, list)
     won = TB.Payout(wk, list, v)
     for _, q in ipairs(TB.QUESTIONS) do if v[q.key] then stakes = stakes + (v["s" .. q.key] or 0) end end
   end
-  return tomb + won - stakes, won - stakes
+  return tomb + won - stakes, tomb, won - stakes
 end
 
-local DEATH = { cascato = "cascato", affogato = "affogato", pischello = "ammazzato da 'n pischello" }
-local function DeathText(g)
-  local s = DEATH[g.k] or (g.by and ("ammazzato da " .. g.by)) or "morto"
-  if g.k == "pischello" and g.by then s = s .. " (" .. g.by .. ")" end
-  if g.z then s = s .. " a " .. g.z end
-  return s
-end
+local DEATH = { cascato = "cascato", affogato = "affogato", pischello = "da 'n pischello" }
 
 function B.Data(wk, testing)
   local list = UI.Members()
+  local byGuid = {}
+  for _, m in ipairs(list) do byGuid[m.guid] = m end
   local now = U.Now()
   local from, to
   if testing or not (ns.Tombola and ns.state and P.HasSettings(ns.state)) then from, to = now - M.WEEK, now + 1
   else from = ns.Tombola.WeekStart(wk) to = from + M.WEEK end
   local d = { wk = wk, list = list }
 
-  -- li premi
-  local awards = {}
-  local function award(icon, label, fn, fmt, lowest)
-    local m, v = Leader(list, fn, lowest)
-    if m then awards[#awards + 1] = { icon = icon, label = label, m = m, v = fmt(v, m) } end
-  end
-  award("Ability_Rogue_Sprint", "Er più veloce", function(x) return W(x, wk, "ding") end, function(v) return "+" .. Plural(v, "livello", "livelli") end)
-  award("INV_Misc_PocketWatch_01", "Lo stakanovista", function(x) return W(x, wk, "pt") end, function(v) return U.Hours(v / 3600) end)
-  award("INV_Misc_Note_01", "Er mulo de le quest", function(x) return W(x, wk, "q") end, function(v) return Plural(v, "quest", "quest") end)
-  award("INV_Misc_Coin_01", "Er paperone", function(x) return W(x, wk, "g") end, function(v) return math.floor(v / 10000) .. " oro" end)
-  award("INV_Misc_Key_03", "Er topo de dungeon", function(x) return W(x, wk, "dg") end, function(v) return Plural(v, "dungeon", "dungeon") end)
-  award("Trade_Fishing", "Er pescatore", function(x) return W(x, wk, "fi") end, function(v) return Plural(v, "pesce", "pesci") end)
-  award("INV_Misc_Gem_Variety_01", "Er fortunato", function(x) return W(x, wk, "lb") + 5 * W(x, wk, "le") end,
-    function(_, m) return W(m, wk, "lb") .. " blu, " .. W(m, wk, "le") .. " viola" end)
-  if #list > 1 then
-    award("Ability_Hunter_Pet_Turtle", "La tartaruga", function(x) return W(x, wk, "ding") end, function(v) return "+" .. Plural(v, "livello", "livelli") end, true)
-  end
-  d.awards = awards
+  d.titles = NewTitles(wk, byGuid, testing)
 
-  -- li ricchi
-  local rich = {}
+  -- li ricchi (piotte) and li sordi (gold made in the week)
+  local rich, gold = {}, {}
   for _, m in ipairs(list) do
-    local week, bets = WeekPiotte(m, wk, list)
-    rich[#rich + 1] = { m = m, total = ns.Tombola and ns.Tombola.TotalOf(m) or 0, week = week, bets = bets }
+    local week, tomb, bets = WeekPiotte(m, wk, list)
+    rich[#rich + 1] = { m = m, total = ns.Tombola and ns.Tombola.TotalOf(m) or 0, week = week, tomb = tomb, bets = bets }
+    local g = W(m, wk, "g")
+    if g > 0 then gold[#gold + 1] = { m = m, g = g } end
   end
   table.sort(rich, function(a, b) if a.total ~= b.total then return a.total > b.total end return tostring(a.m.name) < tostring(b.m.name) end)
-  d.rich = rich
+  table.sort(gold, function(a, b) if a.g ~= b.g then return a.g > b.g end return tostring(a.m.name) < tostring(b.m.name) end)
+  d.rich, d.gold = rich, gold
 
   -- er cimitero
-  local graves, byKiller, deaths = {}, {}, 0
+  local byKiller, deaths, mine = {}, 0, {}
   for _, m in ipairs(list) do
     deaths = deaths + W(m, wk, "dt")
+    mine[m.guid] = {}
     for _, g in ipairs(m.rip or {}) do
       if (g.at or 0) >= from and (g.at or 0) < to then
-        graves[#graves + 1] = { m = m, g = g }
-        if g.by and g.k ~= "pvp" then byKiller[g.by] = (byKiller[g.by] or 0) + 1 end
+        table.insert(mine[m.guid], g)
+        if g.by and g.k ~= "pvp" and not DEATH[g.k] then byKiller[g.by] = (byKiller[g.by] or 0) + 1 end
       end
     end
   end
-  table.sort(graves, function(a, b) return (a.g.at or 0) > (b.g.at or 0) end)
-  local silly
-  for _, x in ipairs(graves) do if DEATH[x.g.k] and (not silly or (x.g.w and not silly.g.w)) then silly = x end end
-  if not silly then for _, x in ipairs(graves) do if x.g.w then silly = x break end end end
   local killer, kills
   for k, n in pairs(byKiller) do if not kills or n > kills or (n == kills and k < killer) then killer, kills = k, n end end
   local most, mostN = Leader(list, function(x) return W(x, wk, "dt") end)
-  d.dead = { total = math.max(deaths, #graves), most = most, mostN = mostN, silly = silly, killer = killer, kills = kills }
+  -- er più scemo: the most silly deaths (falling, drowning, killed by a much lower one), with his last words
+  local silly, sillyN = Leader(list, function(x)
+    local n = 0
+    for _, g in ipairs(mine[x.guid]) do if DEATH[g.k] then n = n + 1 end end
+    return math.max(n, W(x, wk, "em"))
+  end)
+  local kinds, words = {}, nil
+  if silly then
+    local cnt = {}
+    for _, g in ipairs(mine[silly.guid]) do if DEATH[g.k] then cnt[g.k] = (cnt[g.k] or 0) + 1 end end
+    for _, k in ipairs({ "cascato", "affogato", "pischello" }) do if cnt[k] then kinds[#kinds + 1] = cnt[k] .. " " .. DEATH[k] end end
+    local last
+    for _, g in ipairs(silly.rip or {}) do if g.w and (not last or (g.at or 0) > (last.at or 0)) then last = g end end
+    words = last and last.w
+  end
+  d.dead = { total = deaths, most = most, mostN = mostN, silly = silly, sillyN = sillyN, kinds = kinds, words = words,
+    killer = killer, kills = kills }
 
-  -- la tombola
+  -- le mejo tombole: only the best three
   local cards = {}
+  local played = 0
   if ns.Tombola then
-    local card = ns.Tombola.Card(math.max(1, wk))
-    local doneBy = {}
     for _, m in ipairs(list) do
       local sc = ns.Tombola.Score(m, wk)
-      if sc then
-        cards[#cards + 1] = { m = m, sc = sc }
-        for i, ok in ipairs(sc.done) do if ok then doneBy[i] = (doneBy[i] or 0) + 1 end end
-      end
+      if sc and sc.points > 0 then cards[#cards + 1] = { m = m, sc = sc } played = played + 1 end
     end
     table.sort(cards, function(a, b) if a.sc.points ~= b.sc.points then return a.sc.points > b.sc.points end return tostring(a.m.name) < tostring(b.m.name) end)
-    if card then
-      local hard, easy
-      for i, sq in ipairs(card) do
-        local n = doneBy[i] or 0
-        if not hard or n < hard.n then hard = { t = sq.t, n = n } end
-        if not easy or n > easy.n then easy = { t = sq.t, n = n } end
-      end
-      d.hard, d.easy = hard, easy
-    end
   end
-  d.cards = cards
+  while #cards > 3 do table.remove(cards) end
+  d.cards, d.played = cards, played
 
-  -- er Colosseo: le gogne chiuse 'sta settimana, i duelli
-  local gogne = {}
+  -- er Colosseo: i duelli a la gogna de la settimana, chi c'è finito, i duelli tutti
+  local gogne, fought = {}, 0
   if ns.Sfide and ns.Sfide.Series then
-    local all = {}
-    for _, m in ipairs(list) do all[m.guid] = m end
     local ok, series = pcall(ns.Sfide.Series)
     for _, s in ipairs(ok and series or {}) do
-      if s.state == "chiusa" and (s.te or 0) >= from and (s.te or 0) < to and all[s.w] and all[s.l] then
-        gogne[#gogne + 1] = { w = all[s.w], l = all[s.l], n = #s.duels, pena = s.pena and ns.Sfide.PENE[s.pena], long = s.long, te = s.te }
+      if byGuid[s.a] and byGuid[s.b] then
+        for _, x in ipairs(s.duels or {}) do if (x.at or 0) >= from and (x.at or 0) < to then fought = fought + 1 end end
+        if s.state == "chiusa" and (s.te or 0) >= from and (s.te or 0) < to and byGuid[s.w] and byGuid[s.l] then
+          gogne[#gogne + 1] = { w = byGuid[s.w], l = byGuid[s.l], n = #s.duels, pena = s.pena and ns.Sfide.PENE[s.pena], te = s.te }
+        end
       end
     end
     table.sort(gogne, function(a, b) return a.te > b.te end)
   end
   local bully, bullyN = Leader(list, function(x) return W(x, wk, "dw") end)
   local bag, bagN = Leader(list, function(x) return W(x, wk, "dl") end)
-  d.arena = { gogne = gogne, bully = bully, bullyN = bullyN, bag = bag, bagN = bagN }
+  d.arena = { gogne = gogne, fought = fought, bully = bully, bullyN = bullyN, bag = bag, bagN = bagN }
 
   -- la schedina
   local qs = {}
@@ -182,36 +237,59 @@ function B.Data(wk, testing)
   table.sort(right, function(a, b) return a.bets > b.bets end)
   d.right, d.pollo, d.polloN = right, pollo, -polloN
 
-  -- the headline: the biggest story of the week, and the next one
+  -- the headline: the biggest story of the week, with its own icon
   local stories = {}
-  local function story(score, m, title, sub) stories[#stories + 1] = { score = score, m = m, title = title, sub = sub } end
+  local function story(score, icon, title, sub) stories[#stories + 1] = { score = score, icon = icon, title = title, sub = sub } end
+  local function From(r)
+    local parts = {}
+    if r.tomb > 0 then parts[#parts + 1] = "+" .. r.tomb .. " da la tombola" end
+    if r.bets ~= 0 then parts[#parts + 1] = (r.bets > 0 and "+" or "") .. r.bets .. " da la schedina" end
+    return #parts > 0 and (table.concat(parts, ", ") .. ".") or nil
+  end
   for _, c in ipairs(cards) do
-    if c.sc.full then story(100 + c.sc.points, c.m, "TOMBOLA! " .. Short(c.m) .. " ha chiuso tutta la cartella", "E se porta a casa " .. ns.Tombola.Piotte(c.sc.points) .. " de tombola.") end
+    if c.sc.full then story(100 + c.sc.points, "INV_Misc_Ticket_Tarot_Stack_01", "TOMBOLA! " .. Short(c.m) .. " ha chiuso tutta la cartella",
+      "Tutte e 9 le caselle: +" .. ns.Tombola.Piotte(c.sc.points) .. " da la tombola.") end
   end
-  local top = rich[1] and rich[1].week > 0 and rich[1]
-  for _, r in ipairs(rich) do if r.week > (top and top.week or 0) then top = r end end
-  if top then story(50 + top.week, top.m, Short(top.m) .. " se porta a casa " .. ns.Tombola.Piotte(top.week), "Tombola e schedina: er botteghino de 'sta settimana è suo.") end
+  local top
+  for _, r in ipairs(rich) do if r.week > 0 and (not top or r.week > top.week) then top = r end end
+  if top then story(50 + top.week, "INV_Misc_Bag_10_Red", Short(top.m) .. " ha guadagnato più piotte de tutti: +" .. top.week, From(top)) end
   for _, g in ipairs(gogne) do
-    story(70, g.w, Short(g.l) .. " è finito a la gogna", Short(g.w) .. " j'ha dato " .. (g.pena and g.pena.name:lower() or "er pegno") ..
-      (g.n == 3 and ", a la bella." or g.n == 2 and ", a la rivincita." or "."))
+    story(70, g.pena and g.pena.icon and g.pena.icon:gsub("^Interface\\Icons\\", "") or "Ability_Warrior_Challange", Short(g.l) .. " è finito a la gogna",
+      "L'ha battuto " .. Short(g.w) .. (g.n == 3 and " a la bella" or g.n == 2 and " a la rivincita" or "") .. (g.pena and (", e j'ha dato " .. g.pena.name:lower()) or "") .. ".")
   end
-  if silly then story(65, silly.m, Short(silly.m) .. " è " .. DeathText(silly.g), silly.g.w and ("Ultime parole: \"" .. silly.g.w .. "\"") or "Senza manco 'na parola.") end
-  local fast = awards[1] and awards[1].label == "Er più veloce" and awards[1]
-  if fast then story(40 + W(fast.m, wk, "ding"), fast.m, Short(fast.m) .. " vola: " .. fast.v, "Nessuno è salito più de lui.") end
+  if silly then story(60 + sillyN, "INV_Misc_Bone_HumanSkull_01", Short(silly) .. " è er più scemo de la settimana: " .. Plural(sillyN, "morte", "morti") .. " da scemo",
+    words and ("Ultime parole: \"" .. words .. "\"") or (#kinds > 0 and (table.concat(kinds, ", ") .. ".") or nil)) end
+  local fast, fastN = Leader(list, function(x) return W(x, wk, "ding") end)
+  if fast then story(40 + fastN, "Ability_Rogue_Sprint", Short(fast) .. " è salito de più: +" .. Plural(fastN, "livello", "livelli"),
+    fast.lv and ("Mo' è livello " .. fast.lv .. ".") or nil) end
   table.sort(stories, function(a, b) return a.score > b.score end)
   d.head = stories[1]
-  d.head2 = stories[2]
+
+  -- your own week, in one line
+  local me = byGuid[ns.recordGuid]
+  if me then
+    local rank, mineR
+    for i, r in ipairs(rich) do if r.m == me then rank, mineR = i, r end end
+    local parts = {}
+    if rank then parts[#parts + 1] = rank .. "° pe' piotte (" .. (mineR.week >= 0 and "+" or "") .. mineR.week .. ")" end
+    parts[#parts + 1] = "+" .. Plural(W(me, wk, "ding"), "livello", "livelli")
+    parts[#parts + 1] = math.floor(W(me, wk, "g") / 10000) .. " oro"
+    parts[#parts + 1] = Plural(W(me, wk, "dt"), "morte", "morti")
+    d.you = table.concat(parts, ", ")
+  end
   return d
 end
 
 ----------------------------------------------------------------------
--- the window
+-- the window: three columns
 ----------------------------------------------------------------------
 local bull
-local WIDTH, HEIGHT, COL = 784, 590, 368
+local COL, GAP, LEFT = 306, 8, 20
+local WIDTH = LEFT * 2 + COL * 3 + GAP * 2
+local HEIGHT = 590
 
 local function Title(box, text)
-  local t = H.Text(box, "GameFontNormal", text, 300)
+  local t = H.Text(box, "GameFontNormal", text, 260)
   t:SetPoint("TOPLEFT", 12, -10)
   return t
 end
@@ -221,16 +299,49 @@ local function Icon(parent, size)
   t:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   return t
 end
+local function Corner(box, icon)
+  local t = Icon(box, 16)
+  t:SetTexture(ICON .. icon)
+  t:SetPoint("TOPRIGHT", -12, -9)
+  return t
+end
 -- a box with n lines of small text
-local function Lines(box, n, top, w)
+local function Lines(box, n, w)
   local out = {}
   for i = 1, n do
     local l = H.Text(box, "GameFontHighlightSmall", "", w or (COL - 28))
-    l:SetPoint("TOPLEFT", 14, -(top or 30) - (i - 1) * 15)
+    l:SetPoint("TOPLEFT", 14, -30 - (i - 1) * 15)
     if l.SetWordWrap then l:SetWordWrap(false) end
     out[i] = l
   end
   return out
+end
+-- a ranking with bars: name, bar, value (and a right column)
+local function Ranking(box, n, barMax)
+  local out = {}
+  for i = 1, n do
+    local r = { max = barMax }
+    local y = -30 - (i - 1) * 18
+    r.name = H.Text(box, "GameFontHighlightSmall", "", 88)
+    r.name:SetPoint("TOPLEFT", 14, y - 2)
+    if r.name.SetWordWrap then r.name:SetWordWrap(false) end
+    r.bar = box:CreateTexture(nil, "ARTWORK")
+    r.bar:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    r.bar:SetHeight(10)
+    r.bar:SetPoint("TOPLEFT", 104, y - 3)
+    r.val = H.Text(box, "GameFontHighlightSmall", "", 70)
+    r.right = H.Text(box, "GameFontHighlightSmall", "", 50, "RIGHT")
+    r.right:SetPoint("TOPRIGHT", -14, y - 2)
+    out[i] = r
+  end
+  return out
+end
+local function Bar(r, frac, first, gold)
+  r.bar:SetWidth(math.max(2, math.floor(r.max * frac)))
+  r.bar:Show()
+  if first then r.bar:SetVertexColor(1, 0.82, 0) elseif gold then r.bar:SetVertexColor(0.75, 0.6, 0.2) else r.bar:SetVertexColor(0.6, 0.6, 0.6) end
+  r.val:ClearAllPoints()
+  r.val:SetPoint("LEFT", r.bar, "RIGHT", 6, 0)
 end
 
 local function Build()
@@ -247,118 +358,112 @@ local function Build()
   H.Chrome(bull)
   bull.title = H.DialogHeader(bull, "", 300)
   H.CloseX(bull)
-  local x0, x1 = 20, 20 + COL + 8
+  local x = { LEFT, LEFT + COL + GAP, LEFT + 2 * (COL + GAP) }
 
-  -- the headline
-  local hd = H.Box(bull, WIDTH - 40, 62)
-  hd:SetPoint("TOPLEFT", x0, -30)
-  bull.face = hd:CreateTexture(nil, "ARTWORK")
-  bull.face:SetSize(44, 44)
+  -- the headline, and your week
+  local hd = H.Box(bull, WIDTH - 2 * LEFT, 62)
+  hd:SetPoint("TOPLEFT", LEFT, -30)
+  bull.face = Icon(hd, 40)
   bull.face:SetPoint("LEFT", 12, 0)
-  bull.crown = Icon(hd, 22)
-  bull.crown:SetTexture(ICON .. "INV_Crown_01")
-  bull.crown:SetPoint("BOTTOMRIGHT", bull.face, "BOTTOMRIGHT", 6, -4)
-  bull.head = H.Text(hd, "GameFontNormal", "", WIDTH - 140)
-  bull.head:SetPoint("TOPLEFT", 66, -12)
+  bull.head = H.Text(hd, "GameFontNormal", "", WIDTH - 120)
+  bull.head:SetPoint("TOPLEFT", 64, -12)
   if bull.head.SetWordWrap then bull.head:SetWordWrap(false) end
-  bull.headSub = H.Text(hd, "GameFontHighlightSmall", "", WIDTH - 140)
-  bull.headSub:SetPoint("TOPLEFT", 66, -30)
+  bull.headSub = H.Text(hd, "GameFontHighlightSmall", "", WIDTH - 120)
+  bull.headSub:SetPoint("TOPLEFT", 64, -30)
   if bull.headSub.SetWordWrap then bull.headSub:SetWordWrap(false) end
-  bull.head2 = H.Text(hd, "GameFontDisableSmall", "", WIDTH - 140)
-  bull.head2:SetPoint("TOPLEFT", 66, -45)
-  if bull.head2.SetWordWrap then bull.head2:SetWordWrap(false) end
+  bull.you = H.Text(hd, "GameFontHighlightSmall", "", WIDTH - 120)
+  bull.you:SetPoint("TOPLEFT", 64, -45)
+  if bull.you.SetWordWrap then bull.you:SetWordWrap(false) end
 
-  -- li premi
-  local pr = H.Box(bull, COL, 184)
-  pr:SetPoint("TOPLEFT", x0, -98)
-  Title(pr, "Li premi")
-  bull.awards = {}
-  for i = 1, 8 do
-    local r = {}
-    r.icon = Icon(pr, 16)
-    r.icon:SetPoint("TOPLEFT", 14, -30 - (i - 1) * 18)
-    r.label = H.Text(pr, "GameFontNormalSmall", "", 130)
-    r.label:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-    r.name = H.Text(pr, "GameFontHighlightSmall", "", 90)
-    r.name:SetPoint("LEFT", r.icon, "RIGHT", 140, 0)
-    r.val = H.Text(pr, "GameFontHighlightSmall", "", 100, "RIGHT")
-    r.val:SetPoint("TOPRIGHT", -14, -32 - (i - 1) * 18)
-    bull.awards[i] = r
-  end
-
-  -- li ricchi
-  local ri = H.Box(bull, COL, 184)
-  ri:SetPoint("TOPLEFT", x1, -98)
-  Title(ri, "Li ricchi")
-  local h1 = H.Text(ri, "GameFontDisableSmall", "Settimana", 70, "RIGHT") h1:SetPoint("TOPRIGHT", -14, -13)
-  bull.rich = {}
+  -- row 1: li titoli, li ricchi, li sordi
+  local y1, h1 = -98, 184
+  local ti = H.Box(bull, COL, h1)
+  ti:SetPoint("TOPLEFT", x[1], y1)
+  Title(ti, "Li titoli de la settimana")
+  bull.titles = {}
   for i = 1, 8 do
     local r = {}
     local y = -30 - (i - 1) * 18
-    r.name = H.Text(ri, "GameFontHighlightSmall", "", 90)
+    r.name = H.Text(ti, "GameFontNormalSmall", "", 140)
     r.name:SetPoint("TOPLEFT", 14, y - 2)
-    r.bar = ri:CreateTexture(nil, "ARTWORK")
-    r.bar:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    r.bar:SetHeight(10)
-    r.bar:SetPoint("TOPLEFT", 104, y - 3)
-    r.total = H.Text(ri, "GameFontHighlightSmall", "", 60)
-    r.week = H.Text(ri, "GameFontHighlightSmall", "", 60, "RIGHT")
-    r.week:SetPoint("TOPRIGHT", -14, y - 2)
-    bull.rich[i] = r
+    if r.name.SetWordWrap then r.name:SetWordWrap(false) end
+    r.who = H.Text(ti, "GameFontHighlightSmall", "", 70)
+    r.who:SetPoint("TOPLEFT", 158, y - 2)
+    r.from = H.Text(ti, "GameFontDisableSmall", "", 70, "RIGHT")
+    r.from:SetPoint("TOPRIGHT", -14, y - 2)
+    bull.titles[i] = r
   end
 
-  -- er cimitero
-  local ci = H.Box(bull, COL, 122)
-  ci:SetPoint("TOPLEFT", x0, -290)
-  Title(ci, "Er cimitero")
-  local sk = Icon(ci, 16) sk:SetTexture(ICON .. "INV_Misc_Bone_HumanSkull_01") sk:SetPoint("TOPRIGHT", -12, -9)
-  bull.dead = Lines(ci, 5)
+  local ri = H.Box(bull, COL, h1)
+  ri:SetPoint("TOPLEFT", x[2], y1)
+  Title(ri, "Li ricchi")
+  local rh = H.Text(ri, "GameFontDisableSmall", "Settimana", 70, "RIGHT") rh:SetPoint("TOPRIGHT", -14, -13)
+  bull.rich = Ranking(ri, 8, 92)
 
-  -- la tombola: a little card for the best five
-  local tb = H.Box(bull, COL, 122)
-  tb:SetPoint("TOPLEFT", x1, -290)
-  Title(tb, "La tombola")
-  local ti = Icon(tb, 16) ti:SetTexture(ICON .. "INV_Misc_Ticket_Tarot_Stack_01") ti:SetPoint("TOPRIGHT", -12, -9)
+  local so = H.Box(bull, COL, h1)
+  so:SetPoint("TOPLEFT", x[3], y1)
+  Title(so, "Li sordi de la settimana")
+  Corner(so, "INV_Misc_Coin_01")
+  bull.gold = Ranking(so, 8, 110)
+
+  -- row 2: er cimitero, er Colosseo, le mejo tombole
+  local y2, h2 = -290, 122
+  local ci = H.Box(bull, COL, h2)
+  ci:SetPoint("TOPLEFT", x[1], y2)
+  Title(ci, "Er cimitero")
+  Corner(ci, "INV_Misc_Bone_HumanSkull_01")
+  bull.dead = Lines(ci, 6)
+
+  local co = H.Box(bull, COL, h2)
+  co:SetPoint("TOPLEFT", x[2], y2)
+  Title(co, "Er Colosseo")
+  Corner(co, "Ability_Warrior_Challange")
+  bull.arena = Lines(co, 6)
+
+  local tb = H.Box(bull, COL, h2)
+  tb:SetPoint("TOPLEFT", x[3], y2)
+  Title(tb, "Le mejo tombole")
+  Corner(tb, "INV_Misc_Ticket_Tarot_Stack_01")
   bull.cards = {}
-  for c = 1, 5 do
+  for c = 1, 3 do
     local k = { cells = {} }
-    local left = 18 + (c - 1) * 68
+    local left = 24 + (c - 1) * 94
     for i = 1, 9 do
       local cell = tb:CreateTexture(nil, "ARTWORK")
       cell:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
-      cell:SetSize(14, 14)
-      cell:SetPoint("TOPLEFT", left + ((i - 1) % 3) * 13, -30 - math.floor((i - 1) / 3) * 13)
+      cell:SetSize(16, 16)
+      cell:SetPoint("TOPLEFT", left + ((i - 1) % 3) * 15, -30 - math.floor((i - 1) / 3) * 15)
       local check = tb:CreateTexture(nil, "OVERLAY")
       check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
-      check:SetSize(14, 14)
+      check:SetSize(16, 16)
       check:SetPoint("CENTER", cell)
       k.cells[i] = { box = cell, check = check }
     end
-    k.name = H.Text(tb, "GameFontHighlightSmall", "", 66)
-    k.name:SetPoint("TOPLEFT", left - 4, -72)
-    k.pts = H.Text(tb, "GameFontNormalSmall", "", 66)
-    k.pts:SetPoint("TOPLEFT", left - 4, -85)
+    k.name = H.Text(tb, "GameFontHighlightSmall", "", 86)
+    k.name:SetPoint("TOPLEFT", left - 6, -78)
+    k.pts = H.Text(tb, "GameFontNormalSmall", "", 86)
+    k.pts:SetPoint("TOPLEFT", left - 6, -91)
     bull.cards[c] = k
   end
   bull.tombLine = H.Text(tb, "GameFontDisableSmall", "", COL - 28)
-  bull.tombLine:SetPoint("TOPLEFT", 14, -101)
+  bull.tombLine:SetPoint("TOPLEFT", 14, -104)
   if bull.tombLine.SetWordWrap then bull.tombLine:SetWordWrap(false) end
 
-  -- er Colosseo
-  local co = H.Box(bull, COL, 112)
-  co:SetPoint("TOPLEFT", x0, -420)
-  Title(co, "Er Colosseo")
-  local sw = Icon(co, 16) sw:SetTexture(ICON .. "Ability_Warrior_Challange") sw:SetPoint("TOPRIGHT", -12, -9)
-  bull.arena = Lines(co, 5)
-
-  -- la schedina
-  local sc = H.Box(bull, COL, 112)
-  sc:SetPoint("TOPLEFT", x1, -420)
+  -- row 3: la schedina, all across
+  local sc = H.Box(bull, WIDTH - 2 * LEFT, 100)
+  sc:SetPoint("TOPLEFT", LEFT, -420)
   Title(sc, "La schedina")
-  local si = Icon(sc, 16) si:SetTexture(ICON .. "INV_Misc_Note_06") si:SetPoint("TOPRIGHT", -12, -9)
-  bull.bets = Lines(sc, 5)
+  Corner(sc, "INV_Misc_Note_06")
+  bull.bets = Lines(sc, 4, (WIDTH - 2 * LEFT) / 2 - 24)
+  bull.bets2 = {}
+  for i = 1, 4 do
+    local l = H.Text(sc, "GameFontHighlightSmall", "", (WIDTH - 2 * LEFT) / 2 - 24)
+    l:SetPoint("TOPLEFT", (WIDTH - 2 * LEFT) / 2 + 10, -30 - (i - 1) * 15)
+    if l.SetWordWrap then l:SetWordWrap(false) end
+    bull.bets2[i] = l
+  end
 
-  bull.foot = H.Text(bull, "GameFontNormalSmall", "", 460)
+  bull.foot = H.Text(bull, "GameFontNormalSmall", "", 520)
   bull.foot:SetPoint("BOTTOMLEFT", 26, 24)
   bull.ok = H.Btn(bull, "Daje", 110, function() bull:Hide() end)
   bull.ok:SetPoint("BOTTOMRIGHT", -24, 16)
@@ -370,39 +475,33 @@ local function Build()
   if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoBulletin") end
 end
 
-local function SetFace(tex, m)
-  tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
-  local c = CLASS_ICON_TCOORDS and m and m.cls and CLASS_ICON_TCOORDS[m.cls]
-  if c then tex:SetTexCoord(c[1], c[2], c[3], c[4]) else tex:SetTexCoord(0, 0.25, 0, 0.25) end
-end
-
 local function Fill(d, testing)
   bull.title:SetText("Er Bollettino, settimana " .. d.wk .. (testing and " |cffff8000(prova)|r" or ""))
 
   -- headline
   local h = d.head
   if h then
-    SetFace(bull.face, h.m) bull.face:Show() bull.crown:Show()
+    bull.face:SetTexture(ICON .. h.icon) bull.face:Show()
     bull.head:SetText(h.title)
     bull.headSub:SetText(h.sub or "")
-    bull.head2:SetText(d.head2 and ("E poi: " .. d.head2.title .. ".") or "")
   else
-    bull.face:Hide() bull.crown:Hide()
+    bull.face:Hide()
     bull.head:SetText("Settimana tranquilla")
-    bull.headSub:SetText("Nun s'è mosso nessuno. Er bollettino aspetta notizie.")
-    bull.head2:SetText("")
+    bull.headSub:SetText("Nun s'è mosso nessuno.")
   end
+  bull.you:SetText(d.you and (GOLD .. "La settimana tua:|r " .. d.you .. ".") or "")
 
-  -- li premi
-  for i, r in ipairs(bull.awards) do
-    local a = d.awards[i]
-    if a then
-      r.icon:SetTexture(ICON .. a.icon) r.icon:Show()
-      r.label:SetText(a.label) r.name:SetText(Colored(a.m)) r.val:SetText(a.v)
+  -- li titoli
+  for i, r in ipairs(bull.titles) do
+    local x = d.titles[i]
+    if x then
+      r.name:SetText(x.t.name) r.who:SetText(Colored(x.m) .. (x.more > 0 and (GREY .. " +" .. x.more .. "|r") or ""))
+      r.from:SetText(x.from and ("da " .. Short(x.from)) or "novo")
     else
-      r.icon:Hide() r.label:SetText(i == 1 and (GREY .. "Ancora gnente.|r") or "") r.name:SetText("") r.val:SetText("")
+      r.name:SetText(i == 1 and (GREY .. "Nessun titolo cambiato de mano.|r") or "") r.who:SetText("") r.from:SetText("")
     end
   end
+  if #d.titles > #bull.titles then bull.titles[#bull.titles].from:SetText(GREY .. "e artri " .. (#d.titles - #bull.titles + 1) .. "|r") end
 
   -- li ricchi
   local max = 1
@@ -411,14 +510,25 @@ local function Fill(d, testing)
     local x = d.rich[i]
     if x then
       r.name:SetText(i .. ". " .. Colored(x.m))
-      local w = math.max(2, math.floor(150 * x.total / max))
-      r.bar:SetWidth(w) r.bar:Show()
-      if i == 1 then r.bar:SetVertexColor(1, 0.82, 0) else r.bar:SetVertexColor(0.6, 0.6, 0.6) end
-      r.total:ClearAllPoints() r.total:SetPoint("LEFT", r.bar, "RIGHT", 6, 0)
-      r.total:SetText(WHITE .. x.total .. "|r")
-      r.week:SetText(x.week > 0 and (GREEN .. "+" .. x.week .. "|r") or x.week < 0 and (RED .. x.week .. "|r") or (GREY .. "0|r"))
+      Bar(r, x.total / max, i == 1)
+      r.val:SetText(WHITE .. x.total .. "|r " .. Coin())
+      r.right:SetText(Signed(x.week))
     else
-      r.name:SetText("") r.bar:Hide() r.total:SetText("") r.week:SetText("")
+      r.name:SetText("") r.bar:Hide() r.val:SetText("") r.right:SetText("")
+    end
+  end
+
+  -- li sordi
+  local gmax = d.gold[1] and d.gold[1].g or 1
+  for i, r in ipairs(bull.gold) do
+    local x = d.gold[i]
+    if x then
+      r.name:SetText(i .. ". " .. Colored(x.m))
+      Bar(r, x.g / gmax, i == 1, true)
+      r.val:SetText(WHITE .. math.floor(x.g / 10000) .. "|r " .. GOLDICON)
+      r.right:SetText("")
+    else
+      r.name:SetText(i == 1 and (GREY .. "Nessuno ha fatto sordi.|r") or "") r.bar:Hide() r.val:SetText("") r.right:SetText("")
     end
   end
 
@@ -429,44 +539,49 @@ local function Fill(d, testing)
     lines[#lines + 1] = "Morti in tutto: " .. WHITE .. dd.total .. "|r"
     if dd.most then lines[#lines + 1] = "Er più morto: " .. Colored(dd.most) .. " " .. GREY .. Plural(dd.mostN, "vorta", "vorte") .. "|r" end
     if dd.silly then
-      lines[#lines + 1] = "La morte più scema: " .. Colored(dd.silly.m) .. " " .. GREY .. DeathText(dd.silly.g) .. "|r"
-      if dd.silly.g.w then lines[#lines + 1] = GREY .. "Ultime parole: |r" .. WHITE .. "\"" .. dd.silly.g.w .. "\"|r" end
+      lines[#lines + 1] = "Er più scemo: " .. Colored(dd.silly) .. " " .. GREY .. Plural(dd.sillyN, "morte", "morti") .. " da scemo" ..
+        (#dd.kinds > 0 and (" (" .. table.concat(dd.kinds, ", ") .. ")") or "") .. "|r"
+      if dd.words then lines[#lines + 1] = GREY .. "Ultime parole sue: |r" .. WHITE .. "\"" .. dd.words .. "\"|r" end
     end
     if dd.killer then lines[#lines + 1] = "Er boia: " .. RED .. dd.killer .. "|r " .. GREY .. Plural(dd.kills, "vittima", "vittime") .. "|r" end
   end
   for i, l in ipairs(bull.dead) do l:SetText(lines[i] or "") end
 
-  -- la tombola
-  for c, k in ipairs(bull.cards) do
-    local x = d.cards[c]
-    for _, cell in ipairs(k.cells) do cell.box:SetShown(x ~= nil) cell.check:SetShown(x ~= nil and false) end
-    if x then
-      for i, cell in ipairs(k.cells) do cell.check:SetShown(x.sc.done[i] and true or false) end
-      k.name:SetText(Colored(x.m))
-      k.pts:SetText(x.sc.full and (GREEN .. "TOMBOLA!|r") or ("+" .. x.sc.points .. (x.sc.lines > 0 and (" " .. GREY .. Plural(x.sc.lines, "linea", "linee") .. "|r") or "")))
-    else
-      k.name:SetText("") k.pts:SetText("")
-    end
-  end
-  if d.hard and d.hard.n == 0 then bull.tombLine:SetText("Nessuno ha fatto: " .. WHITE .. d.hard.t .. "|r")
-  elseif d.easy and d.easy.n > 0 then bull.tombLine:SetText("La più fatta: " .. WHITE .. d.easy.t .. "|r " .. GREY .. "(" .. d.easy.n .. ")|r")
-  else bull.tombLine:SetText(#d.cards == 0 and (GREY .. "Gnente cartelle.|r") or "") end
-
   -- er Colosseo
   local a, al = d.arena, {}
-  for i = 1, math.min(3, #a.gogne) do
-    local g = a.gogne[i]
-    al[#al + 1] = Colored(g.w) .. " ha messo a la gogna " .. Colored(g.l) .. GREY .. (g.pena and (", " .. g.pena.name:lower()) or "") ..
-      (g.n == 3 and ", a la bella" or g.n == 2 and ", a la rivincita" or "") .. "|r"
+  if a.fought > 0 or #a.gogne > 0 then
+    al[#al + 1] = "Duelli a la gogna: " .. WHITE .. a.fought .. "|r, " .. GREY .. "a la gogna ce so' finiti " .. #a.gogne .. "|r"
+    for i = 1, math.min(2, #a.gogne) do
+      local g = a.gogne[i]
+      al[#al + 1] = Colored(g.w) .. " ha messo a la gogna " .. Colored(g.l) .. GREY .. (g.pena and (", " .. g.pena.name:lower()) or "") ..
+        (g.n == 3 and ", a la bella" or g.n == 2 and ", a la rivincita" or "") .. "|r"
+    end
+    if #a.gogne > 2 then al[#al] = al[#al] .. GREY .. " (e artre " .. (#a.gogne - 2) .. ")|r" end
+  else
+    al[#al + 1] = GREY .. "Nessun duello a la gogna 'sta settimana.|r"
   end
-  if #a.gogne > 3 then al[#al] = al[#al] .. GREY .. " (e artre " .. (#a.gogne - 3) .. ")|r" end
-  if a.bully then al[#al + 1] = "Er bullo: " .. Colored(a.bully) .. " " .. GREY .. Plural(a.bullyN, "duello vinto", "duelli vinti") .. "|r" end
+  if a.bully then al[#al + 1] = "Er bullo: " .. Colored(a.bully) .. " " .. GREY .. Plural(a.bullyN, "duello vinto", "duelli vinti") .. " (tutti)|r" end
   if a.bag then al[#al + 1] = "Er sacco da boxe: " .. Colored(a.bag) .. " " .. GREY .. Plural(a.bagN, "duello perso", "duelli persi") .. "|r" end
-  if #al == 0 then al[1] = GREY .. "Nessun duello: tutti bravi regazzi.|r" end
   for i, l in ipairs(bull.arena) do l:SetText(al[i] or "") end
 
-  -- la schedina
-  local bl = {}
+  -- le mejo tombole
+  for c, k in ipairs(bull.cards) do
+    local x = d.cards[c]
+    for i, cell in ipairs(k.cells) do
+      cell.box:SetShown(x ~= nil)
+      cell.check:SetShown(x ~= nil and x.sc.done[i] and true or false)
+    end
+    if x then
+      k.name:SetText(c .. ". " .. Colored(x.m))
+      k.pts:SetText(x.sc.full and (GREEN .. "TOMBOLA!|r") or ("+" .. x.sc.points .. " " .. Coin() .. (x.sc.lines > 0 and (" " .. GREY .. Plural(x.sc.lines, "linea", "linee") .. "|r") or "")))
+    else
+      k.name:SetText(c == 1 and (GREY .. "Gnente caselle fatte.|r") or "") k.pts:SetText("")
+    end
+  end
+  bull.tombLine:SetText(#d.list > 0 and (GREY .. "Cartelle co' armeno 'na casella: " .. d.played .. " su " .. #d.list .. "|r") or "")
+
+  -- la schedina: the questions on the left, who got it on the right
+  local bl, br = {}, {}
   for _, q in ipairs(d.questions) do
     local names = {}
     for i = 1, math.min(2, #q.names) do names[i] = q.names[i] end
@@ -474,17 +589,17 @@ local function Fill(d, testing)
     bl[#bl + 1] = q.text .. " " .. (#q.names > 0 and (table.concat(names, ", ") .. " " .. GREY .. "(" .. (q.stat == "pt" and U.Hours(q.val / 3600) or q.stat == "g" and (math.floor(q.val / 10000) .. " oro") or q.val) .. ")|r") or (GREY .. "nessuno|r"))
   end
   if #d.right > 0 then
-    local t = {}
-    for i = 1, math.min(3, #d.right) do t[#t + 1] = Colored(d.right[i].m) .. " " .. GREEN .. "+" .. d.right[i].bets .. "|r" end
-    bl[#bl + 1] = "Ce l'hanno presa: " .. table.concat(t, ", ")
+    br[#br + 1] = "Ce l'hanno presa:"
+    for i = 1, math.min(2, #d.right) do br[#br + 1] = "  " .. Colored(d.right[i].m) .. " " .. GREEN .. "+" .. d.right[i].bets .. "|r " .. Coin() end
   elseif #d.questions > 0 then
-    bl[#bl + 1] = GREY .. "Nessuno ce l'ha presa: er banco aringrazia.|r"
+    br[#br + 1] = GREY .. "Nessuno ce l'ha presa.|r"
   end
-  if d.pollo then bl[#bl + 1] = "Er pollo: " .. Colored(d.pollo) .. " " .. GREY .. "ha buttato " .. ns.Tombola.Piotte(d.polloN) .. "|r" end
+  if d.pollo then br[#br + 1] = "Er pollo: " .. Colored(d.pollo) .. " " .. GREY .. "ha perso " .. ns.Tombola.Piotte(d.polloN) .. "|r" end
   for i, l in ipairs(bull.bets) do l:SetText(bl[i] or "") end
+  for i, l in ipairs(bull.bets2) do l:SetText(br[i] or "") end
 
   local st = ns.MyStatus and ns.MyStatus()
-  bull.foot:SetText(st and not st.lifted and ("Mo' er cap " .. (st.team and ("de " .. st.team.name .. " ") or "") .. "è " .. GOLD .. st.cap .. "|r. 'Na schedina nova t'aspetta.") or "")
+  bull.foot:SetText(st and not st.lifted and ("Mo' er cap " .. (st.team and ("de " .. st.team.name .. " ") or "") .. "è " .. GOLD .. st.cap .. "|r.") or "")
 end
 
 function B.Show(wk, testing)
@@ -510,9 +625,11 @@ function Home.ShowBulletin(force)
   B.Show(wk, testing)
 end
 
--- the first login after the weekly reset
+-- the first login after the weekly reset; the titles are written down at the start of each week (before the
+-- bulletin of the week that just ended counts them)
 ns.On("Login", function()
   if not C_Timer then return end
+  C_Timer.After(10, function() pcall(B.SnapTitles) end)
   C_Timer.After(12, function() pcall(Home.ShowBulletin, false) end)
-  C_Timer.NewTicker(300, function() pcall(Home.ShowBulletin, false) end)
+  C_Timer.NewTicker(300, function() pcall(B.SnapTitles) pcall(Home.ShowBulletin, false) end)
 end)

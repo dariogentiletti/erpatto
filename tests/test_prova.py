@@ -52,8 +52,11 @@ check(A.g.ErPattoBulletin.shown and '(prova)' in str(A.g.ErPattoBulletin.title.t
 bu = A.g.ErPattoBulletin
 txt = lambda rows: ' | '.join(str(l.text) for l in rows.values())
 check(str(bu.head.text) != '' and 'Settimana tranquilla' not in str(bu.head.text), 'the bulletin has a headline: ' + str(bu.head.text))
-check(str(bu.awards[1].label.text) == 'Er più veloce' and str(bu.rich[1].name.text).startswith('1. '), 'li premi and li ricchi')
-check('Morti in tutto' in txt(bu.dead) and 'Ultime parole' in txt(bu.dead), 'er cimitero with the last words: ' + txt(bu.dead))
+check(str(bu.titles[1].name.text).startswith('A ') and str(bu.rich[1].name.text).startswith('1. ') and 'INV_Misc_Bag_10_Red' in str(bu.rich[1].val.text), 'li titoli, li ricchi with the piotta: ' + str(bu.titles[1].name.text))
+check(str(bu.gold[1].name.text).startswith('1. ') and 'GoldIcon' in str(bu.gold[1].val.text), 'li sordi de la settimana: ' + str(bu.gold[1].val.text))
+check('Duelli a la gogna' in txt(bu.arena) or 'Nessun duello a la gogna' in txt(bu.arena), 'er Colosseo tells the duelli a la gogna: ' + txt(bu.arena))
+check('La settimana tua' in str(bu.you.text), 'your own week: ' + str(bu.you.text))
+check('Morti in tutto' in txt(bu.dead) and 'Er più scemo' in txt(bu.dead) and 'Ultime parole' in txt(bu.dead), 'er cimitero with the last words: ' + txt(bu.dead))
 check(bu.cards[1].cells[1].box.shown and str(bu.cards[1].name.text) != '', 'la tombola: the little cards')
 check('?' in txt(bu.bets), 'la schedina: the questions and who won them: ' + txt(bu.bets))
 total, sc2, right, lines, won, res = TB.SimulateClose()
