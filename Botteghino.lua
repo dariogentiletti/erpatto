@@ -42,6 +42,7 @@ local SEL = "Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue"
 local GREEN, RED = "|cff20ff20", "|cffff4040"
 ns.Botteghino = ns.Botteghino or {}
 ns.Botteghino.Say = Say
+function ns.Botteghino.Page() return page end
 -- the week closed: no window of its own any more, Er Bollettino tells it (with "La settimana tua")
 
 ----------------------------------------------------------------------

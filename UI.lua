@@ -1979,7 +1979,11 @@ local function Build()
   help:SetNormalTexture("Interface\\FriendsFrame\\InformationIcon")
   help:SetHighlightTexture("Interface\\FriendsFrame\\InformationIcon-Highlight", "ADD")
   help:SetScript("OnEnter", function(self)
-    local lines = ns.Extras and ns.Extras.INFO and ns.Extras.INFO[current]
+    local info = ns.Extras and ns.Extras.INFO
+    if not info then return end
+    -- a page with tabs of its own (the Botteghino) has one text per tab
+    local sub = current == "botteghino" and ns.Botteghino and ns.Botteghino.Page and ns.Botteghino.Page()
+    local lines = (sub and info[current .. ":" .. sub]) or info[current]
     if lines then Tip(self, lines) end
   end)
   help:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)

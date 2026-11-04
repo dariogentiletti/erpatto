@@ -264,6 +264,9 @@ check(A.g.ErPattoMinimapButton is not None and A.g.ErPattoMinimapButton.shown, '
 A.ns.db.opts.minimap = False; A.ns.Fire('Refresh')
 check(not A.g.ErPattoMinimapButton.shown, 'minimap button can be hidden')
 check(A.g.ErPattoGuide is None and A.ns.Extras.INFO.botteghino is not None, 'no guide; each tab explains itself on the i')
+_info = A.ns.Extras.INFO
+check(all(_info['botteghino:' + p] is not None for p in ('tombola', 'schedina', 'sfide', 'conti', 'ricchi')) and
+      A.ns.Botteghino.Page() in ('tombola', 'schedina', 'sfide', 'conti', 'ricchi'), 'the Botteghino has one i per tab')
 A.lua.eval("""function() UNITS.target = { guid = "Player-1-BBB", name = "Pietro" } TT = {} end""")()
 A.ns.Extras.TooltipLine(A.g.GameTooltip, 'target')
 A.lua.eval("function() UNITS.target = nil end")()
