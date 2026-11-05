@@ -54,6 +54,8 @@ end
 
 local function TextOf(metric, m)
   if metric.text then return metric.text(m, mode) end
+  -- a count made of others (Raccolta = erbe + minerali + pelli): the number is the same as the bar's
+  if metric.value then return tostring(Value(metric, m)) end
   return tostring(H.StatOf(m, metric.key, mode))
 end
 

@@ -429,6 +429,7 @@ row = [r for r in pv.rank.cards[3].rows.values() if r.shown and r.guid != A.g.P_
 row.Click(row)
 check(pv.vs.shown and A.has('contro') and A.has('Duelli tra voi') and A.has('Morti') and A.has('Uccisioni PvP') and A.has('Onore') and not A.has('arrivato prima'), 'comparison page: side by side incl. PvP, no milestone notes')
 A.g.FIRE('QUEST_TURNED_IN', 176, 100, 0)
+secs(16)  # (a second death needs time after the first: the game's double PLAYER_DEAD counts once)
 A.g.FIRE('PLAYER_DEAD')
 pv.tabDiary.Click(pv.tabDiary)
 check(A.has('  La quest nummero 176') and A.has('Elwynn Forest') and A.has('2 morti') and A.has('Fatte da sempre: '), 'my quest diary grouped by zone, deaths counted')

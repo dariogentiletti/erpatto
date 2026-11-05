@@ -106,16 +106,19 @@ check(A.ns.Fun.LuckOf(A.rec(), 't') > 0, 'luck has a value')
 A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-61", name = "Murloc Raider", level = 12, attack = true } end""")()
 A.g.FALLING = True; secs(0.5); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
 A.lua.eval("function() UNITS.target = nil end")()
-secs(3)
+secs(16)
 check(A.stat('em') == 0 and str(A.rec().rip[1].k) != 'cascato', 'jumping while a mob kills you is not a fall: ' + str(A.rec().rip[1].k))
 A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
 secs(1)
 check(A.stat('em') == 1 and str(A.rec().ed.k) == 'cascato', 'death by falling (two seconds in the air) is a silly death')
-secs(3)
+secs(16)
 A.g.P_LEVEL = 12
 A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-60", name = "Kobold Vermin", level = 2 } end""")()
-A.g.FIRE('PLAYER_DEAD'); secs(1)
-A.g.FIRE('PLAYER_DEAD'); secs(1)
+A.g.FIRE('PLAYER_DEAD'); secs(16)
+# WoW Forever tells one death twice, a second apart: it counts once, one gravestone
+_dt, _rips = A.stat('dt'), len(list(A.rec().rip.values()))
+A.g.FIRE('PLAYER_DEAD'); secs(1); A.g.FIRE('PLAYER_DEAD'); secs(1)
+check(A.stat('dt') == _dt + 1 and len(list(A.rec().rip.values())) == min(10, _rips + 1), 'one death told twice by the game: one death, one gravestone (%s -> %s)' % (_dt, A.stat('dt')))
 A.lua.eval("function() UNITS.target = nil end")()
 check(A.stat('em') == 3 and str(A.rec().ed.k) == 'pischello', 'killed by a mob ten levels lower is silly too')
 secs(6)
@@ -127,11 +130,11 @@ check(any('Dario' in n and 'Kobold Vermin' in n for n in B.news()), "silly death
 A.lua.eval("""function() C_DeathRecap = { GetRecapEvents = function() return { { timestamp = 1001, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Falling" } } end }
   UNITS.target = { guid = "Creature-0-1-2-3-4-62", name = "Gnoll", level = 12, attack = true } end""")()
 _em = A.stat('em')
-A.g.FIRE('PLAYER_DEAD'); secs(1)
+secs(16); A.g.FIRE('PLAYER_DEAD'); secs(1)
 check(str(A.rec().rip[1].k) == 'cascato' and A.stat('em') == _em + 1, 'recap says Falling: a fall, even with a mob in the target')
 A.lua.eval("""function() C_DeathRecap = { GetRecapEvents = function() return { { timestamp = 1002, event = "SWING_DAMAGE", sourceName = "Murloc Raider" } } end }
   UNITS.target = nil end""")()
-A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False; secs(1)
+secs(16); A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False; secs(1)
 check(str(A.rec().rip[1].k) == 'mostro' and str(A.rec().rip[1].by) == 'Murloc Raider', 'recap names a mob: killed by it, not a fall, whatever the jump: ' + str(A.rec().rip[1].k) + ' ' + str(A.rec().rip[1].by))
 A.lua.eval("function() C_DeathRecap = nil end")()
 secs(3)

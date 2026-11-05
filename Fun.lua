@@ -190,12 +190,18 @@ local function Grave(kind, killer)
   local words = lastWords and U.Now() - lastWords.at <= F.WORDS_FRESH and lastWords.t or nil
   local stone = { at = U.Now(), lv = Plain(Safe(UnitLevel, "player"), "number"), by = killer, z = Zone(), w = words, k = kind }
   local rip = { stone }
-  for i = 1, 9 do if rec.rip and rec.rip[i] then rip[#rip + 1] = rec.rip[i] end end
+  -- (a stone a few seconds from the one before it is the same death told twice by the game: it goes)
+  for _, g in ipairs(rec.rip or {}) do
+    local last = rip[#rip]
+    if #rip >= 10 then break end
+    if not (type(g.at) == "number" and type(last.at) == "number" and math.abs(last.at - g.at) <= 5) then rip[#rip + 1] = g end
+  end
   lastWords = nil
   P.UpdateSelf(ns.state, ns.recordGuid, { rip = rip }, "rip")
 end
 
 function F.OnDeath()
+  if not U.FirstDeath("Fun") then return end
   if not Ready() then return end
   -- what the screen says now (the target, the fall), then half a second for the game's recap to be there
   local kind, killer = F.DeathKind()

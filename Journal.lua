@@ -323,6 +323,7 @@ end
 -- life events
 ----------------------------------------------------------------------
 function J.OnDeath()
+  if not U.FirstDeath("Journal") then return end
   local j = J.Get()
   if not j then return end
   local killer
