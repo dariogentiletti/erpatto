@@ -300,6 +300,15 @@ _pick('sorcapo'); a2 = str(A.ns.MyRecord().ti)
 _pick(''); a3 = A.ns.MyRecord().ti
 _pick('sorcapo'); a4 = str(A.ns.MyRecord().ti)
 check(a1 is None and a2 == 'sorcapo' and a3 is None and a4 == 'sorcapo', 'title can be changed again and again (%s %s %s %s)' % (a1, a2, a3, a4))
+# from one title straight to another, many times, and the list stays clickable (no "mouse down anywhere" closing it)
+seq = []
+for t in others[:3] + ['sorcapo'] + others[:3]:
+    _pick(t); seq.append(str(A.ns.MyRecord().ti))
+check(seq == others[:3] + ['sorcapo'] + others[:3], 'one title to another, again and again: ' + str(seq))
+check(not A.lua.eval('function() local f = ErPattoTitleMenu return f and f.IsEventRegistered and f:IsEventRegistered("GLOBAL_MOUSE_DOWN") end')(), 'the list listens to no mouse event that could close it under the click')
+tb.Click(tb); check(menu.shown and menu.sheet.shown, 'open: the sheet behind it too')
+menu.sheet.Click(menu.sheet); check(not menu.shown and not menu.sheet.shown, 'a click outside closes it')
+_pick('sorcapo')
 # Forever: everyone is "Er Something", and the chat may write "Er Nia", "Er-Nia" or "Er Nia-Realm": each gets
 # their own title, and "Er" alone is nobody's
 look = A.lua.eval('''function(Ti)
@@ -328,8 +337,7 @@ A.ns.UI.Show('pg')
 tb2 = A.ns.UI._views.pg.titleBtn; tb2.Click(tb2)
 menu2 = A.g.ErPattoTitleMenu
 check(menu2.shown, 'title menu open')
-A.g.MOUSE_OVER = False
-menu2.scripts.OnEvent(menu2, 'GLOBAL_MOUSE_DOWN')
+menu2.sheet.Click(menu2.sheet)
 check(not menu2.shown, 'click outside closes the title menu')
 tb2.Click(tb2)
 A.ns.UI.Show('cap'); A.ns.UI._tabs[2].Click(A.ns.UI._tabs[2])

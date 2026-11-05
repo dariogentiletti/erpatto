@@ -820,9 +820,14 @@ UI.AddView("pg", "Personaggio", Build, Refresh, true)
 
 -- the title picker: a small vanilla list under the "Titolo" button
 local menu
-function UI.CloseMenus() if menu then menu:Hide() end end
+local function CloseMenu()
+  if not menu then return end
+  menu:Hide()
+  if menu.sheet then menu.sheet:Hide() end
+end
+function UI.CloseMenus() CloseMenu() end
 function ns.CharTitleMenu(anchor)
-  if menu and menu:IsShown() then menu:Hide() return end
+  if menu and menu:IsShown() then CloseMenu() return end
   local titles = ns.Titles.Mine()
   if not menu then
     menu = CreateFrame("Frame", "ErPattoTitleMenu", UIParent)
@@ -834,13 +839,22 @@ function ns.CharTitleMenu(anchor)
     menu.head:SetPoint("TOPLEFT", 20, -18)
     menu.rows = {}
     if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoTitleMenu") end
-    -- a click anywhere else closes it, like a vanilla dropdown
-    menu:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    menu:SetScript("OnHide", function(self) pcall(self.UnregisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
-    menu:SetScript("OnEvent", function(self)
-      local over = MouseIsOver and (MouseIsOver(self) or (self.anchor and MouseIsOver(self.anchor)))
-      if not over then self:Hide() end
-    end)
+    -- a click anywhere else closes it, like a vanilla dropdown: an invisible sheet over the screen, just under the
+    -- list, takes that click. (It was a "mouse down anywhere" event that asked the game if the mouse was over the
+    -- list: it only started from the second time the list opened, and in the game it closed the list under the
+    -- click, so from the second time on a title could no longer be picked.)
+    local sheet = CreateFrame("Button", nil, UIParent)
+    sheet:SetAllPoints(UIParent)
+    sheet:SetFrameStrata("DIALOG")
+    sheet:EnableMouse(true)
+    sheet:SetScript("OnClick", CloseMenu)
+    sheet:Hide()
+    menu.sheet = sheet
+    sheet:SetFrameLevel(1)
+    menu:SetFrameLevel(20)
+    menu:SetScript("OnShow", function(self) self.sheet:Show() end)
+    menu:SetScript("OnHide", function(self) self.sheet:Hide() end)
+    menu:Hide()
   end
   menu.anchor = anchor
   for _, r in ipairs(menu.rows) do r:Hide() end
@@ -850,7 +864,7 @@ function ns.CharTitleMenu(anchor)
   for i, t in ipairs(entries) do
     local r = menu.rows[i]
     if not r then
-      r = H.Radio(menu, "", function(self) ns.Titles.Choose(self.id) menu:Hide() end)
+      r = H.Radio(menu, "", function(self) ns.Titles.Choose(self.id) CloseMenu() end)
       r:SetScript("OnEnter", function(self)
         if self.desc then H.Tip(self, { self.label, self.desc }) end
       end)
