@@ -107,6 +107,11 @@ bw = B.ns.UI._views.welcome
 bw.code.SetText(bw.code, ' ' + str(st.code).lower() + ' ')
 bw.join.Click(bw.join)
 check(B.ns.state is not None and B.has('Aspetto li dati'), 'join from UI, waiting screen until data arrives')
+wv = B.ns.UI._views.waiting
+wv.seed.SetText(wv.seed, 'Dario')
+cerca = [o for o in B.g.WIDGETS.values() if o.kind == 'Button' and o.text == 'Cercalo' and o.IsVisible(o)][0]
+cerca.Click(cerca)
+check(B.ns.db.seeds is not None and B.ns.db.seeds[str(st.code)]['Dario'] and 'Dario' in str(wv.msg.text), 'waiting: a name of the patto to ask, from the waiting screen: ' + str(wv.msg.text))
 secs(20)
 B.ns.UI.Refresh()
 check(B.ns.state.settings.v >= 1 and not B.has('Aspetto li dati'), 'data arrived, waiting screen gone')

@@ -269,7 +269,11 @@ end)
 local inv
 ns.On("Invited", function(code, pattoName, by)
   if ns.state and not ns.alt then
-    if ns.state.code == code then return end
+    if ns.state.code == code then
+      -- still waiting for the data of this very patto: who invited me is the friend to ask
+      if not P.HasSettings(ns.state) and ns.C and ns.C.AddSeed then ns.C.AddSeed(by) ns.C.Hello() end
+      return
+    end
     U.Say(tostring(by) .. " te vorrebbe ner patto " .. tostring(pattoName or code) .. ", ma stai già in un artro.")
     return
   end

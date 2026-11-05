@@ -1173,14 +1173,31 @@ end
 
 local function BuildWaiting()
   local v = NewView("waiting")
-  local b = Box(v, 520, 170)
-  b:SetPoint("TOP", 0, -60)
+  local b = Box(v, 520, 230)
+  b:SetPoint("TOP", 0, -50)
   local t = Text(b, "GameFontNormal", "Aspetto li dati der patto...", 490, "CENTER")
   t:SetPoint("TOP", 0, -18)
   v.info = Text(b, "GameFontHighlight", "", 490, "CENTER")
   v.info:SetPoint("TOP", t, "BOTTOM", 0, -12)
+  -- on WoW Forever the addon needs one name of the patto to start from: write it here (who gave the code)
+  v.msg = Text(b, "GameFontGreenSmall", "", 490, "CENTER")
+  local function Find()
+    local name = (v.seed:GetText() or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if name == "" then v.msg:SetText("|cffff2020Scrivi er nome (e cognome) de uno der patto.|r") return end
+    C.AddSeed(name)
+    C.Hello()
+    v.seed:SetText("")
+    v.seed:ClearFocus()
+    v.msg:SetText("Ho scritto a " .. name .. ": appena risponne, arriveno li dati.")
+  end
+  v.seed = Input(b, 200, 40, Find)
+  v.seed:SetPoint("BOTTOMLEFT", 110, 54)
+  Label(b, "Nome de uno der patto (nome e cognome)", v.seed)
+  local find = Btn(b, "Cercalo", 100, Find)
+  find:SetPoint("LEFT", v.seed, "RIGHT", 10, 0)
+  v.msg:SetPoint("BOTTOM", 0, 36)
   local again = Btn(b, "Riprova mo'", 140, function() C.Hello() end)
-  again:SetPoint("BOTTOM", 0, 16)
+  again:SetPoint("BOTTOM", 0, 10)
 end
 
 ----------------------------------------------------------------------
