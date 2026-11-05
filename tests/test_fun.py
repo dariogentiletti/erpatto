@@ -320,20 +320,24 @@ B.g.FIRE('PLAYER_DEAD'); secs(15)
 check(any('Wipe' in n and 'Dario' in n and 'Pietro' in n for n in A.news()), 'wipe in the news: ' + str([n for n in A.news() if 'Wipe' in n][:1]))
 check(A.ns.News.WipeCount() == 1 and B.ns.News.WipeCount() == 1, 'one wipe counted, on both sides')
 
-# ---- a death, told to everyone at once: one line in the chat, how, where, the last words, how many in all
+# ---- a death, on everyone's screen at once: up top like a ding (not in the chat): how, where, last words, in all
 secs(20)
 clear = A.lua.eval('function() CHAT = {} SOUNDS = {} end'); clear()
 B.g.FIRE('CHAT_MSG_SAY', 'mo me sarvo', 'Pietro'); secs(1)
 B.lua.eval('''function() UNITS.target = { guid = "Creature-0-1-2-3-4-77", name = "Lightning Hide", level = 12, attack = true } end''')()
 B.g.FIRE('PLAYER_DEAD'); secs(2)
 B.lua.eval("function() UNITS.target = nil end")()
-lines = [str(x) for x in A.g.CHAT.values() if 'R.I.P.' in str(x)]
-check(len(lines) == 1 and '[Er Patto]' in lines[0] and 'Pietro' in lines[0] and 'Lightning Hide' in lines[0] and 'mo me sarvo' in lines[0] and 'in tutto' in lines[0],
-      'a death: one line in the chat of the others within two seconds, killer, last words, deaths in all: ' + str(lines))
+rb = A.g.ErPattoRip
+txt = (str(rb.title.text) + ' / ' + str(rb.sub.text)) if rb else ''
+check(rb is not None and rb.shown and 'Pietro' in txt and 'Lightning Hide' in txt and 'mo me sarvo' in txt and 'in tutto' in txt,
+      'a death: the box up top on the others\' screen within two seconds, killer, last words, deaths in all: ' + txt)
+check(not any('R.I.P.' in str(x) for x in A.g.CHAT.values()), 'and nothing in the chat')
 check(847 in [x for x in A.g.SOUNDS.values()], 'with its own soft sound')
-secs(30)
-check(len([x for x in A.g.CHAT.values() if 'R.I.P.' in str(x)]) == 1, 'said once, not again when the whole record follows')
-check(any('R.I.P. tu' in str(x) for x in B.g.CHAT.values()), 'and on the screen of who died')
+check(B.g.ErPattoRip is not None and B.g.ErPattoRip.shown and 'tu' in str(B.g.ErPattoRip.title.text), 'and on the screen of who died')
+secs(15)
+check(not rb.shown, 'it goes by itself after a few seconds')
+secs(20)
+check(not rb.shown, 'and does not come back when the whole record follows')
 
 # ---- the race to each milestone: hours played when reaching level 10
 B.g.P_LEVEL = 10; B.g.FIRE('PLAYER_LEVEL_UP', 10); secs(10)

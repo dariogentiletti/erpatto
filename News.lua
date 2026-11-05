@@ -219,6 +219,70 @@ function N.DingClip(rec)
   end
 end
 
+-- a death on everyone's screen, up top like a ding: the dialog box with a skull, how, where, the last words and
+-- how many in all; it goes by itself after a few seconds (or with its X), and can be dragged like the ding's
+local ripBox
+N.RIP_SECONDS = 8
+function N.DeathOverlay(rec)
+  if not rec or ns.alt or not (ns.db and ns.db.opts.toasts) then return end
+  if not ripBox then
+    local f = CreateFrame("Frame", "ErPattoRip", UIParent, "BackdropTemplate")
+    f:SetSize(300, 70)
+    f:SetFrameStrata("DIALOG")
+    f:SetMovable(true)
+    f:EnableMouse(true) f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    H.Chrome(f)
+    local x = H.CloseX(f)
+    if x and x.SetScript then x:SetScript("OnClick", function() f:Hide() end) end
+    f.icon = f:CreateTexture(nil, "ARTWORK")
+    f.icon:SetSize(32, 32)
+    f.icon:SetPoint("TOPLEFT", 16, -16)
+    f.icon:SetTexture("Interface\\Icons\\INV_Misc_Bone_HumanSkull_01")
+    f.title = H.Text(f, "GameFontNormal", "", 230, "LEFT")
+    f.title:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 8, 0)
+    f.sub = H.Text(f, "GameFontHighlightSmall", "", 230, "LEFT")
+    f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
+    if f.sub.SetWordWrap then f.sub:SetWordWrap(true) end
+    ripBox = f
+  end
+  local f = ripBox
+  local you = rec.guid == ns.recordGuid
+  local g = rec.lr or {}
+  f.title:SetText("R.I.P. " .. (you and "tu" or Hex(rec)))
+  f.sub:SetText(N.DeathHow(rec) .. "\n" .. N.DeathSub(rec))
+  -- as tall as its lines (each line of the small font ~12 px; a long one wraps at ~52 letters)
+  local lines = 0
+  for part in (f.sub:GetText() or ""):gmatch("[^\n]+") do lines = lines + math.max(1, math.ceil(#part / 52)) end
+  local sh = f.sub.GetStringHeight and tonumber(f.sub:GetStringHeight()) or 0
+  f:SetHeight(math.max(64, 16 + 14 + 4 + math.max(sh, lines * 12) + 18))
+  -- it goes by itself (a newer death keeps it up for its own time)
+  local token = {}
+  f.token = token
+  if C_Timer then
+    C_Timer.After(N.RIP_SECONDS + ((g.w and g.w ~= "") and 3 or 0), function() if f.token == token then f:Hide() end end)
+  end
+  -- up top in the middle, where a ding goes; under the ding's box if one is on screen now
+  f:ClearAllPoints()
+  local ding = _G.ErPattoDing
+  local hud = _G.ErPattoHUD
+  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
+  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
+  if ding and ding.IsShown and ding:IsShown() then f:SetPoint("TOP", ding, "BOTTOM", 0, -6)
+  elseif top and top > h * 0.6 then f:SetPoint("TOP", hud, "BOTTOM", 0, -56)
+  else f:SetPoint("TOP", UIParent, "TOP", 0, -80) end
+  f:Show()
+end
+
+-- "livello 12, ammazzato da Lightning Hide a Durotar"
+function N.DeathHow(rec)
+  local g = rec.lr or {}
+  local how = ns.Sfide and ns.Sfide.GraveText and ns.Sfide.GraveText(g) or ""
+  if g.k == "pischello" and g.by then how = how:gsub(", ammazzato da ", ", ammazzato da 'n pischello: ") end
+  return (how:gsub("^, ", ""))
+end
+
 -- "R.I.P. Er Canaro, livello 12, ammazzato da Lightning Hide a Durotar"
 function N.DeathLine(rec)
   local g = rec.lr or {}
@@ -232,7 +296,7 @@ function N.DeathSub(rec)
   local g = rec.lr or {}
   local dt, em = T0(rec, "dt"), T0(rec, "em")
   local count = "(" .. dt .. (dt == 1 and " morte" or " morti") .. " in tutto" .. (em > 0 and (", " .. em .. (em == 1 and " ridicola" or " ridicole")) or "") .. ")"
-  if g.w and g.w ~= "" then return "Urtime parole: \"" .. g.w .. "\" " .. count end
+  if g.w and g.w ~= "" then return "Urtime parole: \"" .. g.w .. "\"\n" .. count end
   return count
 end
 
@@ -284,7 +348,8 @@ local function Diff(rec, old, quiet)
   end
   -- a death, as it happens: one line for everyone, how, where, the last words, how many in all
   if type(rec.lr) == "table" and rec.lr.at and rec.lr.at ~= old.lr and not quiet and Live(rec.lr.at) then
-    N.Banner(N.DeathLine(rec), N.DeathSub(rec), { 0.75, 0.75, 0.75 }, "rip")
+    N.DeathOverlay(rec)
+    Ping("rip")
   end
   if T0(rec, "rk") > (old.rk or 0) then
     local r = rec.rl and rec.rl[1]
