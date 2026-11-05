@@ -495,6 +495,7 @@ local function SendPiece(kind, to)
   elseif kind == "B" then C.SendTo("B", state.bans, to) end
 end
 
+local prevSentAt = {}
 local function OnHello(from, h, sender)
   if type(h) ~= "table" then return end
   if type(h.p) == "number" and h.p > ns.PROTO and not warnedProto then
@@ -522,6 +523,21 @@ local function OnHello(from, h, sender)
     if theirs and not theirs.fresh then
       Schedule("R:" .. from .. tag, function()
         if state.members[from] and not state.members[from].fresh then C.SendTo("M", state.members[from], to) end
+      end)
+    end
+  end
+  -- an old life of theirs I keep aside (they left, were cacciati, started again): it goes back to them
+  local pv = type(state.prev) == "table" and state.prev[from]
+  if pv and (not state.members[from] or P.Behind(state.members[from], pv)) then
+    local last = prevSentAt[from]
+    if not last or Clock() - last > 120 then
+      prevSentAt[from] = Clock()
+      U.Log("Comms", "rimanno a", sender or from, "li dati de prima")
+      Schedule("P:" .. from .. tag, function()
+        local p = type(state.prev) == "table" and state.prev[from]
+        -- its own key: it mustn't take the place of their record of now in the queue
+        if p and to then Enqueue("WHISPER", to, Body("M", p), false, "P:" .. from)
+        elseif p then Broadcast(Body("M", p), false, "P:" .. from) end
       end)
     end
   end

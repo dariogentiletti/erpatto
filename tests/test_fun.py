@@ -762,7 +762,9 @@ check('Player-1-NNN' in [str(k) for k in A.ns.state.members.keys()] and A.ns.sta
 fake = [c.name for c in (A, B, N) if c.g.ErPattoDing and c.g.ErPattoDing.shown]
 check(not fake, 'joining at 12 is no ding: no clip anywhere %s' % fake)
 check(not any('Nando' in n and 'livello' in n for n in A.news() + N.news()), 'and no ding in the news')
+N.ns.T.Bump('rk', 1); N.ns.T.Bump('q', 7); secs(10)
 N.ns.LeavePatto(); secs(5); N.ns.JoinPatto(code); secs(90)
+check(N.stat('rk') == 1 and N.stat('q') == 7, 'out and back in from the same PC: his rare and quests are still his (%s %s)' % (N.stat('rk'), N.stat('q')))
 fake = [c.name for c in (A, B, N) if c.g.ErPattoDing and c.g.ErPattoDing.shown]
 check(not fake and not any('Nando' in n and 'livello' in n for n in A.news()), 'out and in again: still no ding %s' % fake)
 # tonight's case, step by step: a record waiting for the data (born before the level was read, as the old versions

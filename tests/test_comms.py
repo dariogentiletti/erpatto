@@ -263,3 +263,41 @@ secs(300)
 fails(all(not c.ns.P.IsBanned(c.state, 'G-CORT') and 'G-CORT' in [str(x) for x in c.state.members.keys()] for c in (F, G, H)),
       'and the others take him back too')
 print('errori 17:', {k: errs(c) for k, c in (('E', E), ('K', K))})
+
+# 18) Er Cortello's rari: what he did before is never lost. (a) cacciato and invited again: the capo and the others
+# kept his record aside, and give it back
+def setstat(c, guid, **kw):
+    rec = c.state.members[guid]
+    for k, v in kw.items(): rec.stats.t[k] = v
+    rec.up = rec.up + 5
+    c.ns.C.Send('M', rec)
+setstat(K, 'G-CORT', rk=1, q=12, nk=1); secs(20)
+fails(E.state.members['G-CORT'].stats.t.rk == 1, 'his rare reaches the capo')
+E.ns.P.Ban(E.state, 'G-GNOMO', 'G-CORT'); E.ns.C.Send('B', E.state.bans); secs(10)
+K.ns.C.Stop(); K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); secs(20)
+E.ns.C.Invite('Er Cortello'); secs(2)
+K.ns.C.Stop(); K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); K.ns.C.AddSeed('Er Gnomo'); secs(60)
+mine = K.state.members['G-CORT']
+fails(mine.stats.t.rk == 1 and mine.stats.t.q == 12, 'cacciato and invited again: his rare and his quests are his again (%s %s)' % (mine.stats.t.rk, mine.stats.t.q))
+secs(300)
+fails(all(c.state.members['G-CORT'] and c.state.members['G-CORT'].stats.t.rk == 1 for c in (E, F, G)), 'and everyone sees them')
+
+# (b) tonight, with the old versions: everyone online lost his record, he started again from zero (not new any
+# more), and only Er Mutanda, offline then, still has the old one. When she comes in, it goes back to him
+H.logout()  # she goes with his record as it was then: 1 raro, 12 quest
+setstat(K, 'G-CORT', rk=2, q=20, nk=2); secs(20)
+for c in [c for c in clients.values() if c not in (H, K) and c.state is not None]:
+    c.state.members['G-CORT'] = None
+    if c.state.prev is not None: c.state.prev['G-CORT'] = None
+K.ns.C.Stop(); K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); secs(400)
+mine = K.state.members['G-CORT']
+fails(not mine.fresh and (mine.stats.t.rk or 0) == 0, 'the old record is gone everywhere online: he is at zero rari')
+K.ns.T.Bump('q', 3) if K.ns.T and K.ns.T.Ready() else setstat(K, 'G-CORT', q=3); secs(10)
+H.login(); secs(400)
+mine = K.state.members['G-CORT']
+fails(mine.stats.t.rk == 1 and mine.stats.t.q == 12 and mine.stats.t.nk == 1,
+      'Er Mutanda comes in with his old record: his rari, quests and famous kills are his again (%s %s %s)' % (mine.stats.t.rk, mine.stats.t.q, mine.stats.t.nk))
+secs(300)
+fails(all(c.state.members['G-CORT'] is not None and c.state.members['G-CORT'].stats.t.rk == 1 for c in (E, F, G, H)), 'and the whole patto sees them')
+fails(H.state.prev is None or H.state.prev['G-CORT'] is None, 'and the old copy, given back, is dropped')
+print('errori 18:', {k: errs(c) for k, c in (('E', E), ('H', H), ('K', K))})

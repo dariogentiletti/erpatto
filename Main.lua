@@ -93,6 +93,13 @@ function ns.JoinPatto(text, by)
   else
     state = P.Join(code, ns.me, ns.myName)
   end
+  -- back in a patto I left from this PC: what I had done in it is mine again
+  local gone = type(ns.db.gone) == "table" and ns.db.gone[code]
+  if type(gone) == "table" and gone.guid == ns.me and state.members[ns.me] then
+    P.Absorb(state.members[ns.me], P.CleanMember(gone) or {})
+    ns.db.gone[code] = nil
+    U.Log("Patto", "rientrato ner patto", code, ": ripresi li dati de prima")
+  end
   state.main = ns.me
   ns.db.patti[code] = state
   Activate(state, ns.me, false)
@@ -109,6 +116,12 @@ function ns.LeavePatto(quiet)
   C.Stop()
   T.Stop()
   if not quiet and not ns.alt then
+    -- my record of this patto stays on this PC: coming back in with the same code, it's all there again
+    local mine = ns.state.members[ns.recordGuid]
+    if mine then
+      ns.db.gone = type(ns.db.gone) == "table" and ns.db.gone or {}
+      ns.db.gone[code] = U.Copy(mine)
+    end
     ns.db.patti[code] = nil
     for _, c in pairs(ns.db.chars) do
       if c.code == code then c.code = nil end

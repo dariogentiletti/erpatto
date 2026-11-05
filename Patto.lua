@@ -567,6 +567,7 @@ function P.Ban(state, me, guid)
   new.at = U.Now()
   new.by = me
   state.bans = CleanBans(new)
+  if state.members[guid] then P.KeepPrev(state, state.members[guid]) end
   state.members[guid] = nil
   ns.Fire("MembersChanged", state)
   return true
@@ -581,6 +582,7 @@ function P.Unban(state, me, guid)
   new.at = U.Now()
   new.by = me
   state.bans = CleanBans(new)
+  P.BackFromBan(state, { [guid] = true })
   ns.Fire("MembersChanged", state)
   return true
 end
@@ -643,18 +645,89 @@ function P.MergeSettings(state, incoming)
   return true
 end
 
+----------------------------------------------------------------------
+-- old lives: a member's record that left the list (cacciato, a goodbye) or that came back started from zero
+-- (left and in again, a new PC) is kept aside here; when its owner shows up, it goes back to them and what it
+-- counted (rari, quest, ore...) is theirs again. Counters only ever grow, so a copy with more in one of them
+-- than the record of now is an old life
+----------------------------------------------------------------------
+P.MAX_PREV = 20
+P.PREV_DAYS = 60
+local function Total(rec, k) return rec and rec.stats and rec.stats.t and rec.stats.t[k] or 0 end
+function P.Behind(now, old)
+  if type(now) ~= "table" or type(old) ~= "table" then return false end
+  for _, k in ipairs(STAT_KEYS) do if Total(old, k) > Total(now, k) then return true end end
+  return false
+end
+
+function P.KeepPrev(state, rec)
+  if type(rec) ~= "table" or type(rec.guid) ~= "string" or rec.fresh then return end
+  state.prev = type(state.prev) == "table" and state.prev or {}
+  local had = state.prev[rec.guid]
+  -- the copy with more in it stays
+  if had and not P.Behind(had, rec) then return end
+  state.prev[rec.guid] = rec
+  local n, oldG, oldU, now = 0, nil, nil, U.Now()
+  for g, r in pairs(state.prev) do
+    if (r.up or 0) < now - P.PREV_DAYS * 86400 then state.prev[g] = nil
+    else
+      n = n + 1
+      if not oldU or (r.up or 0) < oldU then oldG, oldU = g, r.up or 0 end
+    end
+  end
+  if n > P.MAX_PREV then state.prev[oldG] = nil end
+end
+
+-- my old life coming back: every counter takes the bigger of the two (never counted twice), and what my record
+-- of now doesn't have yet (rari, the famous kills, the squadra...) comes from the old one; the game's fields stay
+local LIVE
+function P.Absorb(mine, old)
+  local t = mine.stats and mine.stats.t or {}
+  mine.stats = mine.stats or { t = t, w = {} }
+  mine.stats.t = t
+  for _, k in ipairs(STAT_KEYS) do
+    local o = Total(old, k)
+    if o > (t[k] or 0) then t[k] = o end
+  end
+  local live = {}
+  for _, k in ipairs(LIVE) do live[k] = true end
+  for k, v in pairs(old) do
+    if not live[k] and k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" then
+      local m = mine[k]
+      if m == nil or (type(m) == "table" and next(m) == nil) then mine[k] = U.Copy(v) end
+    end
+  end
+end
+
+-- who was cacciato and isn't anymore: their record comes back from aside (and from there to them)
+function P.BackFromBan(state, was)
+  if type(state.prev) ~= "table" then return end
+  for g in pairs(was or {}) do
+    local r = state.prev[g]
+    if r and not P.IsBanned(state, g) and not state.members[g] then
+      state.members[g] = r
+      state.prev[g] = nil
+    end
+  end
+end
+
 function P.MergeBans(state, incoming)
   local b = CleanBans(incoming)
   if not b or not Newer(b, state.bans) then return false end
   if (state.admins.v or 0) > 0 and not P.IsAdmin(state, b.by) then return false end
+  local was = state.bans and state.bans.list
   state.bans = b
-  for g in pairs(b.list) do state.members[g] = nil end
+  P.BackFromBan(state, was)
+  for g in pairs(b.list) do
+    if state.members[g] then P.KeepPrev(state, state.members[g]) end
+    state.members[g] = nil
+  end
   return true
 end
 
 -- myGuid: records about myself only ever come from me.
 -- what the game says about me right now: kept when my old record comes back from a friend
-local LIVE = { "lv", "xp", "xpm", "rest", "zone", "eq", "il", "ver", "name", "cls", "race", "rid", "sex", "alts" }
+LIVE = { "lv", "xp", "xpm", "rest", "zone", "eq", "il", "ver", "name", "cls", "race", "rid", "sex", "alts" }
 
 function P.MergeMember(state, incoming, myGuid)
   local r = P.CleanMember(incoming)
@@ -663,6 +736,13 @@ function P.MergeMember(state, incoming, myGuid)
     -- my own record from a friend: taken back only when mine is new on this PC (the WTF folder lost, a new
     -- computer) and theirs is a real one; then it's mine again, with what the game says now on top
     local mine = state.members[myGuid]
+    -- or an old life of mine (I left, was cacciato, came back): what it counted is mine again
+    if mine and not mine.fresh and not r.fresh and P.Behind(mine, r) then
+      P.Absorb(mine, r)
+      mine.up = math.max(U.Now(), (mine.up or 0) + 1)
+      ns.Fire("SelfRestored", mine)
+      return true
+    end
     if not (mine and mine.fresh and not r.fresh) then return false end
     for _, k in ipairs(LIVE) do if mine[k] ~= nil then r[k] = mine[k] end end
     r.fresh = nil
@@ -676,6 +756,11 @@ function P.MergeMember(state, incoming, myGuid)
   -- a record started again from nothing never replaces a real copy: its owner is about to get the real one back
   if cur and not cur.fresh and r.fresh then return false end
   if cur and (cur.up or 0) >= r.up then return false end
+  -- newer but started again from zero: the old copy goes aside, for its owner to take back
+  if cur and P.Behind(r, cur) then P.KeepPrev(state, cur) end
+  -- an old life already given back: once the record of now has it all, it's done
+  local pv = type(state.prev) == "table" and state.prev[r.guid]
+  if pv and not P.Behind(r, pv) then state.prev[r.guid] = nil end
   if not cur then
     local n = 0
     for _ in pairs(state.members) do n = n + 1 end
@@ -696,6 +781,7 @@ function P.MarkLeft(state, guid, up)
   local cur = state.members[guid]
   if cur and (cur.up or 0) > up then return false end
   state.left[guid] = up
+  if cur then P.KeepPrev(state, cur) end
   state.members[guid] = nil
   -- the oldest goodbyes go first past the cap
   local n, oldG, oldU = 0, nil, nil
