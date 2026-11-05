@@ -221,7 +221,8 @@ local function Diff(rec, old, quiet)
   local name = Hex(rec)
   local st = ns.state
   -- ding
-  if old.lv and rec.lv and rec.lv > old.lv then
+  -- a record just started on a PC jumping several levels at once is its real level arriving, not a ding
+  if old.lv and rec.lv and rec.lv > old.lv and not (rec.fresh and rec.lv - old.lv > 1) then
     local over
     if rec.team and P.HasSettings(st) then
       local s = M.Status(st.settings, rec.team, U.Now())
@@ -276,6 +277,8 @@ function N.Check(rec, quiet)
   if not (s and rec and rec.guid) then return end
   local old = s.snap[rec.guid]
   local now = Snapshot(rec)
+  -- a level never goes down: a record started again from nothing (someone coming back in) keeps the one we knew
+  if old and old.lv and now.lv and now.lv < old.lv then now.lv = old.lv end
   s.snap[rec.guid] = now
   if old then Diff(rec, old, quiet or (GetTime and GetTime() or 0) < quietUntil) end
 end

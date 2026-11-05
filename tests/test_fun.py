@@ -54,6 +54,7 @@ def secs(s): step(int(s / 0.25))
 
 A = Client('Player-1-AAA', 'Dario'); clients.append(A)
 B = Client('Player-1-BBB', 'Pietro'); clients.append(B)
+B.g.P_LEVEL = 4
 A.login(T[0]); B.login(T[0])
 opts = A.lua.table_from({'name': 'Er Patto der Cap', 'start': START, 'teamIndex': 1,
     'teams': A.lua.table_from({1: A.lua.table_from({'name': 'I Pazzi', 'hours': 30})})})
@@ -64,7 +65,7 @@ B.ns.P.UpdateSelf(B.ns.state, B.ns.recordGuid, B.lua.table_from({'team': 't1', '
 secs(30)
 check(B.ns.P.HasSettings(B.ns.state) and 'Player-1-BBB' in [str(k) for k in A.ns.state.members.keys()], 'two members in the patto, started')
 
-# ---- a ding: everyone gets the banner and the news
+# ---- a ding: everyone gets the banner and the news (Pietro came in at 4)
 B.g.P_LEVEL = 5; B.g.FIRE('PLAYER_LEVEL_UP', 5)
 secs(10)
 check(any('[Er Patto]' in str(m) and 'Pietro' in str(m) and '5' in str(m) for m in A.g.CHAT.values()), 'ding: one line in the chat on the other screen, no window')
@@ -80,6 +81,7 @@ A.ns.db.opts.toasts = False
 B.g.P_LEVEL = 6; B.g.FIRE('PLAYER_LEVEL_UP', 6); secs(12)
 check(any('livello' in n and '6' in n for n in A.news()), 'banners off: still in the news')
 A.ns.db.opts.toasts = True
+
 
 # ---- fishing, gathering, luck
 A.g.FISHING = True
@@ -749,6 +751,34 @@ n0 = len([x for x in A.g.SOUNDS.values() if 'karaoke' in str(x)])
 A.g.FIRE('PLAYER_REGEN_DISABLED'); secs(3); A.g.FIRE('PLAYER_REGEN_ENABLED'); secs(1)
 check(len([x for x in A.g.SOUNDS.values() if 'karaoke' in str(x)]) == n0 + 1, 'a fight won without experience: er karaoke plays')
 A.ns.db.opts.testMode = False
+
+# ---- someone joining at level 12 (or coming back in): no ding, no Giampy, on any screen
+secs(60)
+for c in (A, B):
+    if c.g.ErPattoDing: c.g.ErPattoDing.Hide(c.g.ErPattoDing)
+N = Client('Player-1-NNN', 'Nando'); clients.append(N); N.g.P_LEVEL = 12
+N.login(T[0]); N.ns.JoinPatto(code); secs(90)
+check('Player-1-NNN' in [str(k) for k in A.ns.state.members.keys()] and A.ns.state.members['Player-1-NNN'].lv == 12, 'Nando is in, at 12')
+fake = [c.name for c in (A, B, N) if c.g.ErPattoDing and c.g.ErPattoDing.shown]
+check(not fake, 'joining at 12 is no ding: no clip anywhere %s' % fake)
+check(not any('Nando' in n and 'livello' in n for n in A.news() + N.news()), 'and no ding in the news')
+N.ns.LeavePatto(); secs(5); N.ns.JoinPatto(code); secs(90)
+fake = [c.name for c in (A, B, N) if c.g.ErPattoDing and c.g.ErPattoDing.shown]
+check(not fake and not any('Nando' in n and 'livello' in n for n in A.news()), 'out and in again: still no ding %s' % fake)
+# tonight's case, step by step: a record waiting for the data (born before the level was read, as the old versions
+# did: level 1) and then its real level 6, seen by the capo who knew him at 6, and by a friend who never saw him
+mk = A.lua.eval('''function(lv, fresh) return { guid = "Player-1-CORT", name = "Er Cortello", lv = lv, fresh = fresh, stats = { t = {}, w = {} } } end''')
+if A.g.ErPattoDing: A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+nb = len(A.news())
+A.ns.News.Check(mk(6, None)); A.ns.News.Check(mk(1, True)); A.ns.News.Check(mk(6, True))
+check(len(A.news()) == nb and not (A.g.ErPattoDing and A.g.ErPattoDing.shown), 'back in at 1 then his real 6: no ding for who knew him')
+A.ns.News.Check(A.lua.eval('''function() return { guid = "Player-1-NEW", name = "Er Novo", lv = 1, fresh = true, stats = { t = {}, w = {} } } end''')())
+A.ns.News.Check(A.lua.eval('''function() return { guid = "Player-1-NEW", name = "Er Novo", lv = 6, fresh = true, stats = { t = {}, w = {} } } end''')())
+check(len(A.news()) == nb and not (A.g.ErPattoDing and A.g.ErPattoDing.shown), 'new one at 1 then his real 6: no ding either')
+check(A.ns.P.Join('X', 'G', 'Y').members['G'].lv == A.g.P_LEVEL, 'a new record has the real level from the start')
+N.g.P_LEVEL = 13; N.g.FIRE('PLAYER_LEVEL_UP', 13); secs(80)
+check(any('Nando' in n and '13' in n for n in A.news()), 'his real ding later is told')
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

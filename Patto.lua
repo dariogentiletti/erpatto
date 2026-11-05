@@ -401,7 +401,9 @@ end
 
 local function NewMember(guid, name)
   -- fresh: made on this PC just now; until the friends have been heard, it may be a lost record coming back
-  return { guid = guid, name = name, up = U.Now(), lv = 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION, fresh = true }
+  -- the real level from the start: a record born at 1 and corrected a second later looked like a ding
+  local lv = UnitLevel and U.Plain(UnitLevel("player"), "number")
+  return { guid = guid, name = name, up = U.Now(), lv = lv and lv >= 1 and lv or 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION, fresh = true }
 end
 
 -- opts: name, start (epoch), h20, h60, teams = { {name=, hours=}, ... }, guid, playerName, teamIndex
