@@ -1009,6 +1009,8 @@ function C.Start(st, myGuid, playerName)
   end
   C.JoinChannel()
   C.startedAt = Clock()
+  -- a flash says only what changed from here: never this PC's old fields over a newer copy the friends hold
+  if state.members[me] then NoteSent(state.members[me]) end
   if not P.HasSettings(st) and C_Timer then C_Timer.After(4, function() if state and not P.HasSettings(state) then C.Search() end end) end
 end
 

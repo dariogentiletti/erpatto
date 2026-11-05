@@ -315,8 +315,10 @@ print('errori 18:', {k: errs(c) for k, c in (('E', E), ('H', H), ('K', K))})
 # copy of his record is old. PC1's old record never overwrites the newer one, and PC1 takes the newer one back
 for c in clients.values():
     if c.online and c is not K: pass
+K.lua.eval('function(st) st.members["G-CORT"].pts = { t = 5, w = 0, wk = 1 } end')(K.state)
 setstat(K, 'G-CORT', rk=1, q=5); secs(20)
 pc1 = K.ns.U.Serialize(K.state)              # what PC1's WTF folder keeps
+K.lua.eval('function(st) st.members["G-CORT"].pts = { t = 50, w = 0, wk = 1 } end')(K.state)
 setstat(K, 'G-CORT', rk=4, q=40); secs(20)    # played a lot on PC2
 fails(E.state.members['G-CORT'].stats.t.rk == 4, 'PC2: the capo has his 4 rari')
 K.logout(); secs(5)
@@ -326,12 +328,33 @@ K1.state = K1.ns.U.Deserialize(pc1)
 # what Main's Activate does at login: the record of this PC is provisional until the friends are heard
 K1.lua.eval('function(st) local m = st.members["G-CORT"] m.fresh, m.base = true, m.up or 0 end')(K1.state)
 K1.login(); K1.g.JOINED = 'isola-cortello'; K1.ns.C.AddSeed('Er Gnomo')
-K1.state.members['G-CORT'].lv = 14; K1.state.members['G-CORT'].up = int(T[0]); K1.ns.C.MarkSelfDirty(0.5)  # the game says level 14 now
-secs(30)
-fails(E.state.members['G-CORT'].stats.t.rk == 4, 'back on PC1: its old record never replaces the newer one at the capo (%s)' % E.state.members['G-CORT'].stats.t.rk)
+secs(20)
+# a ding while his record is still provisional: level 14
+K1.state.members['G-CORT'].lv = 14; K1.state.members['G-CORT'].up = int(T[0]); K1.ns.C.MarkSelfDirty(0.5, True)
+secs(10)
+fails(E.state.members['G-CORT'].stats.t.rk == 4 and E.state.members['G-CORT'].pts.t == 50, 'back on PC1: its old record never replaces the newer one at the capo, not even with a flash (%s rari, %s piotte)' % (E.state.members['G-CORT'].stats.t.rk, E.state.members['G-CORT'].pts.t))
+fails(E.state.members['G-CORT'].lv == 14, 'but the ding goes through (%s)' % E.state.members['G-CORT'].lv)
 mine = K1.state.members['G-CORT']
 fails(mine.stats.t.rk == 4 and mine.stats.t.q == 40 and mine.lv == 14, 'PC1 takes back the newer record (4 rari, 40 quest), with the level the game says now: %s %s %s' % (mine.stats.t.rk, mine.stats.t.q, mine.lv))
 secs(120)
 setstat(K1, 'G-CORT', rk=5); secs(20)
 fails(E.state.members['G-CORT'].stats.t.rk == 5 and E.state.members['G-CORT'].stats.t.q == 40, 'and what he does now on PC1 goes on from there')
 print('errori 19:', {k: errs(c) for k, c in (('E', E), ('K1', K1))})
+fails(K1.state.members['G-CORT'].pts is not None and K1.state.members['G-CORT'].pts.t == 50, 'and his piotte of PC2 came with it (%s)' % (K1.state.members['G-CORT'].pts and K1.state.members['G-CORT'].pts.t))
+
+# 20) the other way: he plays alone (nobody of the patto online), logs out; next time his PC's record is the newest
+others = [c for c in clients.values() if c.online and c is not K1]
+for c in others: c.logout()
+setstat(K1, 'G-CORT', rk=9); secs(5)
+snap = K1.ns.U.Serialize(K1.state)
+K1.logout(); secs(5)
+for c in others: c.login()
+secs(30)
+K2 = Client('Er Cortello', 'G-CORT'); K2.g.NOWV = T[0]; K2.g.REFUSE_CHANNEL = True; clients['K2'] = K2
+del clients['K1']
+K2.state = K2.ns.U.Deserialize(snap)
+K2.lua.eval('function(st) local m = st.members["G-CORT"] m.fresh, m.base = true, m.up or 0 end')(K2.state)
+K2.login(); K2.g.JOINED = 'isola-cortello'; K2.ns.C.AddSeed('Er Gnomo')
+secs(150)
+fails(K2.state.members['G-CORT'].stats.t.rk == 9 and E.state.members['G-CORT'].stats.t.rk == 9, 'played alone: his PC had the newest, it stays and reaches the capo (%s, %s)' % (K2.state.members['G-CORT'].stats.t.rk, E.state.members['G-CORT'].stats.t.rk))
+print('errori 20:', {k: errs(c) for k, c in (('E', E), ('K2', K2))})
