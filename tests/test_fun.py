@@ -68,6 +68,8 @@ check(B.ns.P.HasSettings(B.ns.state) and 'Player-1-BBB' in [str(k) for k in A.ns
 B.g.P_LEVEL = 5; B.g.FIRE('PLAYER_LEVEL_UP', 5)
 secs(10)
 check(any('[Er Patto]' in str(m) and 'Pietro' in str(m) and '5' in str(m) for m in A.g.CHAT.values()), 'ding: one line in the chat on the other screen, no window')
+dl = [str(m) for m in A.g.CHAT.values() if 'Pietro' in str(m) and ('ding' in str(m) or 'livello 5' in str(m) or 'ar livello 5' in str(m))]
+check(len(dl) == 1, 'the ding is said once, not twice: ' + str(dl))
 check(any('Pietro' in n and 'livello' in n for n in A.news()), 'ding in the news list')
 check(len(list(A.g.SOUNDS.values())) > 0, 'banner plays a sound')
 A.ns.db.opts.toasts = False

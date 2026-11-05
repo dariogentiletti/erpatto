@@ -67,6 +67,21 @@ function U.FullName(unit)
   return ok and U.Plain(n, "string") or nil
 end
 
+-- where a line is too narrow for "Er Nia", the surname alone ("Nia"): on Forever many share the first name, so the
+-- first name alone tells nobody apart
+function U.Surnames(t)
+  local st = ns.state
+  if type(t) ~= "string" or not st then return t end
+  for _, m in pairs(st.members) do
+    local n = type(m.name) == "string" and U.Short(m.name)
+    local rest = n and n:match("^%S+%s+(.+)$")
+    if rest and t:find(n, 1, true) then
+      t = t:gsub(n:gsub("(%W)", "%%%1"), (rest:gsub("%%", "%%%%")))
+    end
+  end
+  return t
+end
+
 -- the name to show: no realm, no test mark ("Er Nia-Realm", "Dario (prova)" -> "Er Nia", "Dario")
 function U.Short(name)
   if type(name) ~= "string" then return "?" end

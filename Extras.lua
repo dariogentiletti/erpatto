@@ -273,7 +273,10 @@ function X.ShareText()
       local ps, dd = M.PlayerState(m.lv or 1, mst.cap)
       vs = ps == "over" and ("+" .. dd .. " sopra er cap") or ps == "at" and "ar cap" or ("-" .. dd)
     end
-    add(string.format("%2d. %-12s %2s %-5s %s", i, Short(m):sub(1, 12), tostring(m.lv or "?"), up > 0 and ("+" .. up) or "", vs))
+    -- the whole name; past 16 letters the surname alone (never the first name alone: on Forever many are "Er")
+    local nm = Short(m)
+    if #nm > 16 then nm = (nm:match("^%S+%s+(.+)$") or nm):sub(1, 16) end
+    add(string.format("%2d. %-16s %2s %-5s %s", i, nm, tostring(m.lv or "?"), up > 0 and ("+" .. up) or "", vs))
   end
   add("```")
   if d then

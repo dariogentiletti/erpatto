@@ -272,9 +272,9 @@ local function KeyOf(kind, data)
   return nil
 end
 
-function C.Send(kind, data)
+function C.Send(kind, data, urgent)
   if not state then return end
-  Broadcast(Body(kind, data), kind == "X", KeyOf(kind, data))
+  Broadcast(Body(kind, data), kind == "X" or urgent == true, KeyOf(kind, data))
   -- my own whole record went out (from SendSelf or as an answer to a hello): the changes start from here
   if kind == "M" and type(data) == "table" and data.guid == me then C.NoteFull(data) end
 end
@@ -366,6 +366,7 @@ end
 -- Whispered to each member one by one (WoW Forever), a whole record is 7-8 messages, a change 1-2.
 C.FULL_EVERY = 300
 local fullSer, fullUp, fullAt -- my record as last sent whole, field by field
+local selfUrgent
 function C.NoteFull(rec)
   fullSer, fullUp, fullAt = {}, rec.up, Clock()
   for k, v in pairs(rec) do fullSer[k] = U.Serialize(v) end
@@ -384,15 +385,18 @@ function C.SendSelf()
     end
     for k in pairs(fullSer) do if rec[k] == nil then gone[#gone + 1] = k end end
     if size < total * 0.6 then
-      C.Send("D", { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil })
+      C.Send("D", { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil }, selfUrgent)
+      selfUrgent = nil
       return
     end
   end
-  C.Send("M", rec)
+  C.Send("M", rec, selfUrgent)
+  selfUrgent = nil
 end
 
 -- Send my record after `delay` seconds (XP ticks wait longer than dings or team changes).
-function C.MarkSelfDirty(delay)
+function C.MarkSelfDirty(delay, urgent)
+  if urgent then selfUrgent = true end
   local due = Clock() + (delay or 4)
   if not selfDueAt or due < selfDueAt then selfDueAt = due end
 end

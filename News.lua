@@ -57,10 +57,16 @@ local function Store()
   return s
 end
 
+-- the same line twice within half an hour is said once (records arriving late, a title going back and forth)
 function N.Add(text, at)
   local s = Store()
   if not s then return end
-  table.insert(s.list, 1, { at = at or U.Now(), t = text })
+  local now = at or U.Now()
+  for i = 1, math.min(12, #s.list) do
+    local x = s.list[i]
+    if x.t == text and math.abs(now - (x.at or 0)) < 1800 then return false end
+  end
+  table.insert(s.list, 1, { at = now, t = text })
   while #s.list > MAX_NEWS do table.remove(s.list) end
   ns.Fire("Refresh")
 end
@@ -224,13 +230,21 @@ ns.On("PattoChanged", function() if C_Timer then C_Timer.After(3, function() qui
 
 -- titles: who took which, every half minute (top titles change hands, so this is news only)
 local lastHolders
+-- who was last told to hold each title stays in the saved data: a title only makes news when it really changes hands,
+-- not when the records come in after a login and the list settles
 local function TitleNews()
   if not (ns.state and ns.Titles and ns.Titles.Holders) then return end
   local h = ns.Titles.Holders()
+  local s = Store()
+  if s then s.told = type(s.told) == "table" and s.told or {} end
+  local settling = (GetTime and GetTime() or 0) < (N.settleUntil or 0)
   if lastHolders then
     for id, set in pairs(h) do
       for guid in pairs(set) do
-        if not (lastHolders[id] and lastHolders[id][guid]) then
+        local key = id .. ":" .. guid
+        local already = s and s.told[key]
+        if s then s.told[key] = U.Now() end
+        if not (lastHolders[id] and lastHolders[id][guid]) and not already and not settling then
           local rec = ns.state.members[guid]
           local t = ns.Titles.BY_ID[id]
           if rec and t then
@@ -243,7 +257,11 @@ local function TitleNews()
   end
   lastHolders = h
 end
-ns.On("Login", function() if C_Timer then C_Timer.After(30, function() TitleNews() C_Timer.NewTicker(30, TitleNews) end) end end)
+ns.On("Login", function()
+  -- the first two minutes the records of the others are still arriving (whispered one by one on Forever)
+  N.settleUntil = (GetTime and GetTime() or 0) + 120
+  if C_Timer then C_Timer.After(30, function() TitleNews() C_Timer.NewTicker(30, TitleNews) end) end
+end)
 
 ----------------------------------------------------------------------
 -- invites: a small window, one click to join

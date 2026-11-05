@@ -110,11 +110,17 @@ check(B.ns.state is not None and B.has('Aspetto li dati'), 'join from UI, waitin
 secs(20)
 B.ns.UI.Refresh()
 check(B.ns.state.settings.v >= 1 and not B.has('Aspetto li dati'), 'data arrived, waiting screen gone')
+sq = B.g.ErPattoSquadra
+sqb = [o for o in B.g.WIDGETS.values() if o.kind == 'Button' and str(o.parent) == str(sq) and o.text in ('I Cesaroni', 'Carabinieri 8') and o.IsVisible(o)]
+check(sq is not None and sq.shown and len(sqb) == 2, 'the data are in: a window asks Pietro his squadra, one button per team')
 B.ns.UI.Show('gruppi')
 check(B.has('I Cesaroni') and B.has('Carabinieri 8') and B.has('Da sceglie'), 'Gruppi shows both teams and the no-team column')
 passa = B.btn('Passa qui'); passa.Click(passa)
 check(B.ns.MyRecord().team in ('t1', 't2'), 'Passa qui sets the team')
-secs(10)
+check(not B.g.ErPattoSquadra.shown, 'chosen from Gruppi: the squadra window goes away')
+secs(2.5)
+check(A.ns.state.members['Player-1-BBB'] is not None and A.ns.state.members['Player-1-BBB'].team == B.ns.MyRecord().team, 'Dario sees Pietro\'s squadra in two seconds')
+secs(8)
 A.ns.UI.Show('gruppi')
 check(A.has('Pietro'), 'Dario sees Pietro in Gruppi')
 A.ns.UI.Show('gruppi')

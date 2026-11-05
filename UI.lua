@@ -387,10 +387,26 @@ local function VanillaScroll(scroll)
   end
 end
 
+-- a narrow line (a column of a list) that doesn't fit: the names in it lose the first name, never the surname
+local function FitNames(fs)
+  local set = fs.SetText
+  fs.SetText = function(self, t)
+    set(self, t)
+    if type(t) ~= "string" or not t:find(" ", 1, true) or not self.GetStringWidth then return end
+    local w = self.GetWidth and self:GetWidth()
+    if type(w) ~= "number" or w <= 0 or w > 220 then return end
+    local ok, sw = pcall(self.GetStringWidth, self)
+    if not ok or type(sw) ~= "number" or sw <= w + 0.5 then return end
+    local short = U.Surnames(t)
+    if short ~= t then set(self, short) end
+  end
+end
+
 local function Text(parent, font, text, w, justify)
   local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlight")
   if w then fs:SetWidth(w) end
   fs:SetJustifyH(justify or "LEFT")
+  if w and w <= 220 then FitNames(fs) end
   if text then fs:SetText(text) end
   return fs
 end
@@ -2362,7 +2378,97 @@ function UI.CheckAnnouncement(atLogin)
   annFrame:Show()
 end
 
+-- the squadra: who comes into the patto (or is still "da sceglie") is asked at once, one button per team
+local teamFrame, teamAskedFor
+local function BuildTeamAsk()
+  teamFrame = CreateFrame("Frame", "ErPattoSquadra", UIParent)
+  teamFrame:SetSize(380, 200)
+  teamFrame:SetPoint("CENTER", 0, 140)
+  teamFrame:SetFrameStrata("DIALOG")
+  teamFrame:SetToplevel(true)
+  teamFrame:EnableMouse(true)
+  Chrome(teamFrame)
+  DialogHeader(teamFrame, "Scegli la squadra", 230)
+  CloseX(teamFrame, function() teamFrame:Hide() end)
+  teamFrame.text = Text(teamFrame, "GameFontHighlight", "", 330, "CENTER")
+  teamFrame.text:SetPoint("TOP", 0, -36)
+  teamFrame.msg = Text(teamFrame, "GameFontGreenSmall", "", 330, "CENTER")
+  teamFrame.rows = {}
+  teamFrame:Hide()
+end
+
+function UI.AskTeam()
+  local state = ns.state
+  if not (state and not ns.alt and P.HasSettings(state)) then return end
+  local s = state.settings
+  local teams = s.teams or {}
+  if #teams == 0 then return end
+  if not teamFrame then BuildTeamAsk() end
+  teamFrame.text:SetText("Benvenuto ner patto |cffffd100" .. tostring(s.name or "") .. "|r: in che squadra giochi?")
+  teamFrame.msg:SetText("")
+  teamFrame.done = false
+  local y = -66
+  for i, t in ipairs(teams) do
+    local r = teamFrame.rows[i]
+    if not r then
+      r = {}
+      r.btn = Btn(teamFrame, "", 150, function()
+        if not (ns.state and r.teamId) then return end
+        P.ChooseTeam(ns.state, ns.recordGuid, r.teamId)
+        T.RefreshSelf("team")
+        if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880) end
+        teamFrame.msg:SetText("Mo' stai co' " .. P.TeamName(ns.state, r.teamId) .. ". La pòi cambià da Squadre.")
+        teamFrame.done = true
+        for _, x in ipairs(teamFrame.rows) do x.btn:Disable() end
+        if C_Timer then C_Timer.After(2, function() teamFrame:Hide() end) else teamFrame:Hide() end
+      end)
+      r.info = Text(teamFrame, "GameFontHighlightSmall", "", 170, "LEFT")
+      teamFrame.rows[i] = r
+    end
+    r.teamId = t.id
+    r.btn:SetText(t.name)
+    if r.btn.Enable then r.btn:Enable() end
+    r.btn:ClearAllPoints()
+    r.btn:SetPoint("TOPLEFT", 26, y)
+    r.btn:Show()
+    local st = M.Status(s, t.id, U.Now())
+    local n = 0
+    for _, m in pairs(state.members) do if m.team == t.id then n = n + 1 end end
+    local pace = t.pace and t.pace[1] and t.pace[1].hours
+    r.info:SetText((pace and (pace .. " ore a settimana") or "") .. (st and (", cap " .. st.cap) or "") ..
+      "\n|cff9d9d9d" .. n .. (n == 1 and " membro" or " membri") .. "|r")
+    r.info:ClearAllPoints()
+    r.info:SetPoint("LEFT", r.btn, "RIGHT", 14, 0)
+    r.info:Show()
+    y = y - 34
+  end
+  for i = #teams + 1, #teamFrame.rows do teamFrame.rows[i].btn:Hide() teamFrame.rows[i].info:Hide() end
+  teamFrame.msg:ClearAllPoints()
+  teamFrame.msg:SetPoint("TOP", 0, y - 6)
+  teamFrame:SetHeight(-y + 40)
+  teamFrame:Show()
+end
+
+-- once per patto and session: when the data of the patto arrive, and at login, if my record has no squadra
+function UI.CheckTeam()
+  local state = ns.state
+  if not (state and not ns.alt and P.HasSettings(state)) then return end
+  local rec = ns.MyRecord and ns.MyRecord()
+  if not rec or rec.team then
+    -- chosen elsewhere (the Squadre page): the question is gone
+    if teamFrame and teamFrame:IsShown() and rec and rec.team and not teamFrame.done then teamFrame:Hide() end
+    return
+  end
+  if teamAskedFor == state.code then return end
+  teamAskedFor = state.code
+  UI.AskTeam()
+end
+
 ns.On("Login", function() if C_Timer then C_Timer.After(6, function() UI.CheckAnnouncement(true) end) end end)
+ns.On("Login", function() if C_Timer then C_Timer.After(8, UI.CheckTeam) end end)
+ns.On("StateChanged", function(_, kind) if kind == "S" then UI.CheckTeam() end end)
+ns.On("PattoChanged", function() if C_Timer then C_Timer.After(2, UI.CheckTeam) end end)
+ns.On("SelfChanged", function(_, reason) if reason == "team" then UI.CheckTeam() end end)
 ns.On("StateChanged", function(_, kind) if kind == "S" then UI.CheckAnnouncement(false) end end)
 
 -- many changes in the same moment (a click that writes my record, pays, updates the book...) make one redraw

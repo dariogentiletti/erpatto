@@ -145,20 +145,12 @@ ns.On("SelfChanged", function(state, reason)
   -- frequent small changes wait a minute, important ones go out in a few seconds
   local SLOW = { xp = 1, zone = 1, g = 1, equip = 1, pt = 1, prof = 1, hn = 1, tr = 1, fi = 1, he = 1, mi = 1, sk = 1, fun = 1, hs = 1, fl = 1, pts = 1 }
   local slow = SLOW[reason] ~= nil
-  C.MarkSelfDirty(slow and 60 or 4)
+  -- a change of squadra goes out at once and before what waits (the others see it move in a second or two)
+  if reason == "team" then C.MarkSelfDirty(0.3, true) else C.MarkSelfDirty(slow and 60 or 4) end
   ns.Fire("Refresh")
 end)
 
-ns.On("MemberDing", function(rec, oldLv)
-  if not ns.state then return end
-  local txt = "|cffffffff" .. tostring(rec.name) .. "|r ha fatto ding: livello " .. tostring(rec.lv)
-  if rec.team and P.HasSettings(ns.state) then
-    local st = M.Status(ns.state.settings, rec.team, U.Now())
-    if st and rec.lv > st.cap then txt = txt .. " |cffff4040(sopra er cap " .. st.cap .. "!)|r" end
-  end
-  Notify(txt .. ".")
-end)
-
+-- a ding of someone else: News.lua says it (one line with "[Er Patto]" and the ping), not here too
 ns.On("MemberSwitched", function(rec, oldTeam)
   if not ns.state then return end
   Notify("|cffffffff" .. tostring(rec.name) .. "|r è passato da " .. P.TeamName(ns.state, oldTeam) .. " a " .. P.TeamName(ns.state, rec.team) .. ".")
@@ -187,7 +179,7 @@ ns.On("StateChanged", function(state, kind)
   if state ~= ns.state then return end
   if kind == "S" then
     if not hadSettings then
-      Notify("Dati der patto arrivati: " .. tostring(state.settings.name or "") .. ". Scegli la squadra da /patto.")
+      Notify("Dati der patto arrivati: " .. tostring(state.settings.name or "") .. ".")
     else
       Notify("Er capo ha aggiornato er patto (ritmo o squadre): controlla er cap.")
     end
