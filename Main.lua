@@ -105,6 +105,7 @@ end
 function ns.LeavePatto(quiet)
   if not ns.state then return end
   local code = ns.state.code
+  if not quiet and not ns.alt then pcall(C.SayGoodbye) end
   C.Stop()
   T.Stop()
   if not quiet and not ns.alt then
@@ -166,6 +167,12 @@ end)
 ns.On("MemberSwitched", function(rec, oldTeam)
   if not ns.state then return end
   Notify("|cffffffff" .. tostring(rec.name) .. "|r è passato da " .. P.TeamName(ns.state, oldTeam) .. " a " .. P.TeamName(ns.state, rec.team) .. ".")
+end)
+
+ns.On("MemberLeft", function(rec)
+  if not ns.state then return end
+  Notify("|cffffffff" .. tostring(rec.name) .. "|r è uscito dar patto.")
+  ns.Fire("Refresh")
 end)
 
 -- my own admin edits go out right away

@@ -62,3 +62,9 @@ C_BattleNet = {
   GetFriendAccountInfo = function(i) local f = BNFRIENDS[i] if f then return { gameAccountInfo = { isOnline = true, clientProgram = "WoW", gameAccountID = f.id } } end end,
   SendGameData = function(id, prefix, text) table.insert(OUTBOX, { prefix = prefix, text = text, kind = "BN", target = id }) return 0 end,
 }
+
+-- the group: the harness puts in GROUPMATES the names of the others in my party
+GROUPMATES = {}
+IsInGroup = function() return #GROUPMATES > 0 end
+IsInRaid = function() return false end
+UnitName = function(u) local i = type(u) == "string" and u:match("^party(%d)$") if i then return GROUPMATES[tonumber(i)] end return nil end

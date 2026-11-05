@@ -53,6 +53,8 @@ def step(n=1, dt=0.25):
                         continue
                     if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
+                    elif m.kind in ('PARTY', 'RAID') and c.g.GROUP and d.g.GROUP == c.g.GROUP:
+                        d.ns.C.OnAddonMessage(m.prefix, m.text, m.kind, c.name, '', 0, 0, '')
                     elif m.kind == 'BN' and m.target == d.g.BNID:
                         d.ns.C.OnBNAddon(m.prefix, m.text, 'WHISPER', c.g.BNID or 0)
                     elif m.kind == 'WHISPER' and m.target == d.name and d.g.NO_WHISPERS:
@@ -219,3 +221,28 @@ fails(J.ns.P.HasSettings(J.state) and 'G-SOLO' in [str(k) for k in G.state.membe
 secs(130)
 fails(all('G-SOLO' in [str(k) for k in c.state.members.keys()] for c in (E, F, H)), 'code alone: within a round everyone in the patto sees him')
 print('errori 14:', {k: errs(c) for k, c in (('G', G), ('J', J))})
+
+# 15) Er Cortello's case: no whisper reaches him, no Battle.net, but he's in a group with the capo. The group
+# carries the search and everything after it; an empty patto elsewhere in the group doesn't mix in
+K = Client('Er Cortello', 'G-CORT'); clients['K'] = K; K.g.NOWV = T[0]; K.g.REFUSE_CHANNEL = True; K.g.NO_WHISPERS = True
+K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello')
+K.login()
+K.g.JOINED = 'isola-cortello'
+K.g.GROUP = 'g1'; E.g.GROUP = 'g1'
+K.g.GROUPMATES = K.lua.table_from(['Er Gnomo']); E.g.GROUPMATES = E.lua.table_from(['Er Cortello'])
+secs(30)
+fails(K.ns.P.HasSettings(K.state) and 'G-CORT' in [str(k) for k in E.state.members.keys()], 'in a group, no whispers: in through the group (%s)' % summary(K))
+K.ns.P.ChooseTeam(K.state, 'G-CORT', 't1'); K.ns.C.MarkSelfDirty(0.3, True); secs(4)
+fails(E.state.members['G-CORT'].team == 't1', 'and his squadra reaches the capo in seconds, through the group')
+print('errori 15:', {k: errs(c) for k, c in (('E', E), ('K', K))})
+
+# 16) leaving: Er Cortello leaves; the capo (in his group) drops him at once, the others with the next hello,
+# and no old copy brings him back. Then he comes back with the code: in again
+K.ns.C.SayGoodbye(); step(1); K.logout(); secs(5)  # what ns.LeavePatto does (Main.lua is not in this harness)
+fails('G-CORT' not in [str(k) for k in E.state.members.keys()], 'left: the capo drops him at once')
+secs(300)
+still = [k for k, c in (('E', E), ('F', F), ('G', G), ('H', H), ('J', J)) if 'G-CORT' in [str(x) for x in c.state.members.keys()]]
+fails(not still, 'left: within a round nobody has him, and nobody brings him back (%s)' % still)
+K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); secs(40)
+fails(K.ns.P.HasSettings(K.state) and 'G-CORT' in [str(k) for k in E.state.members.keys()], 'and with the code he\'s back in')
+print('errori 16:', {k: errs(c) for k, c in (('E', E), ('K', K))})

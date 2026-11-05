@@ -201,8 +201,38 @@ local function Supersede(key)
   end
 end
 
--- a friend reached over Battle.net is addressed "bn:<game account>": their messages go by SendGameData
+-- who is in my group, by whole name (looked at again every few seconds)
+local groupAt, groupSet = -10, {}
+local function GroupKind()
+  local ok, grouped = pcall(IsInGroup or function() return false end)
+  if not ok or grouped ~= true then return nil end
+  local okr, raid = pcall(IsInRaid or function() return false end)
+  return (okr and raid == true) and "RAID" or "PARTY"
+end
+local function InMyGroup(name)
+  if type(name) ~= "string" then return false end
+  local now = Clock()
+  if now - groupAt > 3 then
+    groupAt, groupSet = now, {}
+    local kind = GroupKind()
+    if kind then
+      for i = 1, kind == "RAID" and 40 or 4 do
+        local n = U.FullName((kind == "RAID" and "raid" or "party") .. i)
+        if n then groupSet[U.Short(n)] = true end
+      end
+    end
+  end
+  return groupSet[U.Short(name)] == true
+end
+C.InMyGroup = InMyGroup
+
+-- a friend reached over Battle.net is addressed "bn:<game account>": their messages go by SendGameData;
+-- a friend in my group gets it over the group (it always arrives, whatever the name)
 local function Enqueue(kind, target, body, urgent, key)
+  if kind == "WHISPER" and type(target) == "string" and not target:match("^bn:") and InMyGroup(target) then
+    kind, target = GroupKind() or kind, nil
+    if key then key = key:gsub(">.*$", "") .. ">group" end
+  end
   local bn = type(target) == "string" and tonumber(target:match("^bn:(%d+)$"))
   if bn then kind, target = "BN", bn end
   if key then
@@ -268,7 +298,12 @@ C.Whispering = Whispering
 local function Broadcast(body, urgent, key)
   chanId = CurrentChannelId()
   if chanBlocked or not chanId then
-    for _, who in ipairs(WhisperTargets(body:sub(1, 1) == "H")) do Enqueue("WHISPER", who, body, urgent, key) end
+    -- my group once (everyone in it), then a whisper to each one outside it
+    local gk = GroupKind()
+    if gk then Enqueue(gk, nil, body, urgent, key and (key .. ">group")) end
+    for _, who in ipairs(WhisperTargets(body:sub(1, 1) == "H")) do
+      if not (gk and InMyGroup(who)) then Enqueue("WHISPER", who, body, urgent, key) end
+    end
     return
   end
   if chanId then
@@ -283,7 +318,7 @@ local function Broadcast(body, urgent, key)
 end
 
 local function Body(kind, data)
-  return kind .. "~" .. U.Serialize({ f = me, x = data })
+  return kind .. "~" .. U.Serialize({ f = me, c = state and state.code, x = data })
 end
 
 -- what can be replaced by a newer copy while it waits: a member's record, the settings, the capi, the bans, a hello
@@ -377,7 +412,8 @@ end
 local function HelloData()
   local mine = state.members[me]
   return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
-    bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil }
+    bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil,
+    lf = type(state.left) == "table" and next(state.left) and state.left or nil }
 end
 
 function C.Hello()
@@ -501,8 +537,22 @@ local function OnHello(from, h, sender)
       end)
     end
   end
+  -- who left: gone here too (and their old record no more asked for)
+  if type(h.lf) == "table" then
+    local n = 0
+    for g, up in pairs(h.lf) do
+      n = n + 1
+      if n > P.MAX_LEFT then break end
+      local rec = state.members[g]
+      if g ~= me and P.MarkLeft(state, g, up) then
+        if rec then ns.Fire("MemberLeft", rec) end
+        ns.Fire("StateChanged", state, "L")
+      end
+    end
+  end
   for g, up in pairs(d) do
-    if type(up) == "number" and not P.IsBanned(state, g) and (not state.members[g] or (state.members[g].up or 0) < up) then
+    if type(up) == "number" and not P.IsBanned(state, g) and not P.HasLeft(state, g, up)
+      and (not state.members[g] or (state.members[g].up or 0) < up) then
       theyNewer = true
     end
   end
@@ -520,6 +570,8 @@ local function Handle(body, sender, channel)
   if not kind then return end
   local msg = U.Deserialize(payload)
   if type(msg) ~= "table" or type(msg.f) ~= "string" or msg.f == me then return end
+  -- another patto's message (the group or the guild carry everyone's)
+  if type(msg.c) == "string" and msg.c ~= state.code then return end
   local from = msg.f
   if P.IsBanned(state, from) then return end
   C.stats.received = C.stats.received + 1
@@ -547,6 +599,13 @@ local function Handle(body, sender, channel)
   elseif kind == "B" then
     changed = P.MergeBans(state, data)
     if type(data) == "table" and data.v then recent["B:" .. data.v] = Clock() end
+  elseif kind == "L" then
+    -- they left the patto: out of the list, and their old record stays out
+    if type(data) == "table" and data.g == from and type(data.up) == "number" then
+      local rec = state.members[from]
+      changed = P.MarkLeft(state, from, data.up)
+      if changed and rec then ns.Fire("MemberLeft", rec) end
+    end
   elseif kind == "F" then
     -- a sfottò: only the one it's for shows it
     ns.Fire("Sfotto", from, data)
@@ -807,6 +866,36 @@ function C.Start(st, myGuid, playerName)
   C.JoinChannel()
   C.startedAt = Clock()
   if not P.HasSettings(st) and C_Timer then C_Timer.After(4, function() if state and not P.HasSettings(state) then C.Search() end end) end
+end
+
+-- leaving: a goodbye to everyone, sent at once (the queue goes with C.Stop); a dozen messages at most, once
+function C.SayGoodbye()
+  if not state then return 0 end
+  local rec = state.members[me]
+  local body = "!" .. Body("L", { g = me, up = math.max(U.Now(), (rec and rec.up or 0) + 1) })
+  local sent, done = 0, {}
+  local function send(kind, target)
+    local key = kind .. ":" .. tostring(target)
+    if done[key] or sent >= 12 then return end
+    done[key] = true
+    local ok
+    if kind == "BN" then
+      ok = C_BattleNet and C_BattleNet.SendGameData and pcall(C_BattleNet.SendGameData, target, PREFIX, body)
+    else
+      ok = pcall(C_ChatInfo.SendAddonMessage, PREFIX, body, kind, target)
+    end
+    if ok then sent = sent + 1 end
+  end
+  local gk = GroupKind()
+  if gk then send(gk, nil) end
+  local cid = CurrentChannelId()
+  if cid and not chanBlocked then send("CHANNEL", tostring(cid)) end
+  for _, who in ipairs(WhisperTargets(false)) do
+    local bn = tonumber(who:match("^bn:(%d+)$"))
+    if bn then send("BN", bn) elseif not (gk and InMyGroup(who)) then send("WHISPER", who) end
+  end
+  U.Log("Comms", "esco dar patto: saluti mannati", sent)
+  return sent
 end
 
 function C.Stop()

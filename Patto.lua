@@ -656,6 +656,7 @@ function P.MergeMember(state, incoming, myGuid)
     ns.Fire("SelfRestored", r)
     return true
   end
+  if P.HasLeft(state, r.guid, r.up) then return false end
   local cur = state.members[r.guid]
   -- a record started again from nothing never replaces a real copy: its owner is about to get the real one back
   if cur and not cur.fresh and r.fresh then return false end
@@ -668,6 +669,32 @@ function P.MergeMember(state, incoming, myGuid)
   if cur and cur.team ~= r.team then LogSwitch(state, r, cur.team, r.team, r.tat) end
   state.members[r.guid] = r
   return true
+end
+
+-- who left the patto, with the date of their last record: older copies of it never come back
+-- (a friend who missed the goodbye would send it again); someone coming back with the code is newer
+P.MAX_LEFT = 60
+function P.MarkLeft(state, guid, up)
+  if type(guid) ~= "string" or type(up) ~= "number" then return false end
+  state.left = type(state.left) == "table" and state.left or {}
+  if (state.left[guid] or 0) >= up then return false end
+  local cur = state.members[guid]
+  if cur and (cur.up or 0) > up then return false end
+  state.left[guid] = up
+  state.members[guid] = nil
+  -- the oldest goodbyes go first past the cap
+  local n, oldG, oldU = 0, nil, nil
+  for g, u in pairs(state.left) do
+    n = n + 1
+    if not oldU or u < oldU then oldG, oldU = g, u end
+  end
+  if n > P.MAX_LEFT then state.left[oldG] = nil end
+  return true
+end
+
+function P.HasLeft(state, guid, up)
+  local t = type(state.left) == "table" and state.left[guid]
+  return t and (up or 0) <= t or false
 end
 
 function P.Digest(state)

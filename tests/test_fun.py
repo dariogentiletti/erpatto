@@ -741,10 +741,10 @@ check(any('scappato' in str(x) for x in A.g.CHAT.values()), 'and his master is t
 B.lua.execute('PUPPET_SPEED = 0')
 # er karaoke on a grey mob (no experience): the fight ends and I'm alive, the song plays
 A.ns.db.opts.testMode = True
-for _ in range(12):
+for _ in range(60):
     name = A.ns.Sfide.TestGogna()
     if str(name) == 'Er karaoke': break
-secs(30)
+secs(62)  # a song from the gogne above may still be on (one at a time; a slow one lasts up to a minute)
 n0 = len([x for x in A.g.SOUNDS.values() if 'karaoke' in str(x)])
 A.g.FIRE('PLAYER_REGEN_DISABLED'); secs(3); A.g.FIRE('PLAYER_REGEN_ENABLED'); secs(1)
 check(len([x for x in A.g.SOUNDS.values() if 'karaoke' in str(x)]) == n0 + 1, 'a fight won without experience: er karaoke plays')
