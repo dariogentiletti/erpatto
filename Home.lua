@@ -120,6 +120,9 @@ local function Build()
   -- my piotte of the week: from the tombola, and from all the rest (schedina, sfide, taje, gufate...)
   v.tomb = H.Text(d, "GameFontHighlightSmall", "", 344)
   v.tomb:SetPoint("TOPLEFT", 12, -134)
+  -- the piotte for the hours played in a group with the patto: they're not winnings, so apart from er resto
+  v.paga = H.Text(d, "GameFontHighlightSmall", "", 170, "RIGHT")
+  v.paga:SetPoint("TOPRIGHT", -12, -134)
   v.rest = H.Text(d, "GameFontHighlightSmall", "", 344)
   v.rest:SetPoint("TOPLEFT", 12, -149)
   -- (no Botteghino button: it's the tab right under)
@@ -249,11 +252,16 @@ local function Refresh(v)
     local from = TB.WeekStart(math.max(1, wk))
     local net = 0
     for _, x in ipairs(TB.Ledger()) do
-      if x.k ~= "st" and x.k ~= "tp" and x.k ~= "tb" and (x.at or 0) >= from then net = net + (x.g or 0) - (x.s or 0) end
+      if x.k ~= "st" and x.k ~= "tp" and x.k ~= "tb" and x.k ~= "gp" and (x.at or 0) >= from then net = net + (x.g or 0) - (x.s or 0) end
     end
+    -- a piotta every hour in a group with the patto: those of this week
+    local gt = rec.stats and rec.stats.t and rec.stats.t.gp or 0
+    local hourS = TB.GROUP_HOUR or 3600
+    local paga = math.floor(gt / hourS) - math.floor(math.max(0, gt - W(rec, wk, "gp")) / hourS)
+    v.paga:SetText(GOLDC .. "Paghetta pe' fa' gruppo:|r " .. (paga > 0 and ("|cff20ff20+" .. paga) or (GREY .. "0")) .. "|r " .. TB.Coin(12))
     v.rest:SetText(GOLDC .. "Er resto:|r schedina, sfide, taje, gufate  " .. (net > 0 and "|cff20ff20+" or net < 0 and "|cffff4040" or GREY) .. net .. "|r " .. TB.Coin(12))
   else
-    v.tomb:SetText("") v.rest:SetText("")
+    v.tomb:SetText("") v.rest:SetText("") v.paga:SetText("")
   end
   v.bullBtn:SetEnabled(wk >= 2 or testing)
 end
