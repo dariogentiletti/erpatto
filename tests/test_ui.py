@@ -179,6 +179,26 @@ secs(3)
 A.g.P_MONEY = 625500; A.g.FIRE('PLAYER_MONEY')
 g = A.ns.MyRecord().stats.t.g
 check(g == 1000 + 24000 + 500, 'gold earned counts loot only, not mail or trade (got %s copper)' % g)
+# the merchant: sell 3000, buy it back 3000, sell again 3000: one sale, not three
+A.lua.eval('function() CanMerchantRepair = function() return true end; REPAIR = 2000; GetRepairAllCost = function() return REPAIR end end')()
+A.g.FIRE('MERCHANT_SHOW')
+for d in (3000, -3000, 3000):
+    A.g.P_MONEY = A.g.P_MONEY + d; A.g.FIRE('PLAYER_MONEY')
+A.g.FIRE('MERCHANT_CLOSED'); A.g.FIRE('MERCHANT_CLOSED')
+g2 = A.ns.MyRecord().stats.t.g
+check(g2 == g + 3000, 'merchant: sold, bought back, sold again: counted once (%s)' % (g2 - g))
+# junk sold for 5000, food bought for 1000, repairs 2000: 4000 earned (repairs don't eat what was sold)
+A.g.FIRE('MERCHANT_SHOW')
+A.g.P_MONEY = A.g.P_MONEY + 5000; A.g.FIRE('PLAYER_MONEY')
+A.g.P_MONEY = A.g.P_MONEY - 1000; A.g.FIRE('PLAYER_MONEY')
+A.g.REPAIR = 0; A.g.P_MONEY = A.g.P_MONEY - 2000; A.g.FIRE('PLAYER_MONEY')
+A.g.FIRE('MERCHANT_CLOSED')
+g3 = A.ns.MyRecord().stats.t.g
+check(g3 == g2 + 4000, 'merchant: sold 50s, bought 10s, repaired 20s: 40s earned (%s)' % (g3 - g2))
+# only buying: nothing taken off what was earned elsewhere
+A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY - 700; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED')
+check(A.ns.MyRecord().stats.t.g == g3, 'merchant: only buying takes nothing off')
+A.lua.eval('function() CanMerchantRepair = nil; GetRepairAllCost = nil end')()
 # duels inside the patto: Dario beat Pietro twice, lost once; a duel with an outsider doesn't count here
 A.g.FIRE('CHAT_MSG_SYSTEM', 'Dario has defeated Pietro in a duel')
 A.g.FIRE('CHAT_MSG_SYSTEM', 'Dario has defeated Pietro in a duel')
@@ -364,8 +384,9 @@ check(jj.kills[448].c == 1 and str(jj.kills[448].n) == 'Hogger' and jj.kills[299
 check(len(list(jj.loot.values())) >= 1 and jj.loot[1].id == 2000, 'green item from the loot window logged')
 A.g.FIRE('CHAT_MSG_LOOT', 'You receive loot: |cff1eff00|Hitem:2000::::::::|h[Spada]|h|rx2.')
 check(jj['items'][2000].c == 2, 'items received counted by id')
+_om = jj.money.out_merchant or 0
 A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY - 500; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED')
-check((jj.money.out_merchant or 0) == 500, 'gold spent at the merchant filed under merchant')
+check((jj.money.out_merchant or 0) == _om + 500, 'gold spent at the merchant filed under merchant')
 A.g.FIRE('PLAYER_DEAD')
 check(len(list(jj.deaths.values())) >= 1, 'deaths logged with place and level')
 A.g.FIRE('UNIT_SPELLCAST_SUCCEEDED', 'player', 'x', 8690)

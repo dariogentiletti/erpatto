@@ -284,11 +284,46 @@ local function Blocked()
   return next(moneyBlocked) ~= nil
 end
 
+-- at a merchant only what the visit leaves you counts: what you sold minus what you bought there (bought back
+-- included), repairs aside (they're a cost of playing, not a purchase). Selling and buying back the same thing
+-- makes nothing. Counted when the merchant closes.
+local merchant -- { start = money when it opened, repairs = spent on repairs, cost = repair cost seen last }
+local function RepairCost()
+  if not (GetRepairAllCost and CanMerchantRepair) then return nil end
+  local okc, can = pcall(CanMerchantRepair)
+  if not okc or not U.Plain(can, "boolean") then return nil end
+  local ok, cost = pcall(GetRepairAllCost)
+  return ok and U.Plain(cost, "number") or nil
+end
+local function NoteRepairs()
+  if not merchant then return end
+  local c = RepairCost()
+  if c and merchant.cost and c < merchant.cost then merchant.repairs = merchant.repairs + (merchant.cost - c) end
+  if c then merchant.cost = c end
+end
+function T.OnMerchant(open)
+  local m = U.Plain(GetMoney and GetMoney(), "number")
+  if open then
+    if not merchant and m then merchant = { start = m, repairs = 0, cost = RepairCost() } end
+    return
+  end
+  if not merchant then return end
+  NoteRepairs()
+  local v = merchant
+  merchant = nil
+  lastMoney = m or lastMoney
+  if not (m and Ready()) then return end
+  local net = (m - v.start) + v.repairs
+  if net > 0 and not Blocked() then Bump("g", net) end
+end
+T.InMerchant = function() return merchant ~= nil end
+
 function T.OnMoney()
   local m = U.Plain(GetMoney and GetMoney(), "number")
   if not m then return end
   local before = lastMoney
   lastMoney = m
+  if merchant then NoteRepairs() return end
   if not (before and m > before and Ready()) then return end
   local gain = m - before
   if not Blocked() then
