@@ -422,6 +422,7 @@ local function HelloData()
   local mine = state.members[me]
   return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
     bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil,
+    fb = mine and mine.fresh and tonumber(mine.base) or nil,
     lf = type(state.left) == "table" and next(state.left) and state.left or nil }
 end
 
@@ -581,7 +582,8 @@ local function OnHello(from, h, sender)
   -- "my record is new on this PC": if I hold a real copy of it, it goes back to them, whatever its date
   if h.fr == true then
     local theirs = state.members[from]
-    if theirs and not theirs.fresh then
+    -- (fb: how new their own copy is; mine goes only if newer: they played on another computer)
+    if theirs and not theirs.fresh and (theirs.up or 0) > (tonumber(h.fb) or 0) then
       Schedule("R:" .. from .. tag, function()
         if state.members[from] and not state.members[from].fresh then C.SendTo("M", state.members[from], to) end
       end)

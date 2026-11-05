@@ -857,6 +857,12 @@ secs(100); A.ns.Tombola.Update()
 check(A.ns.Tombola.Balance() == had and A.rec().pts.t == pub, 'new PC: the piotte are the ones of before (%s -> %s)' % (had, A.ns.Tombola.Balance()))
 A.lua.eval('function(ns) local r = ns.MyRecord() r.stats.t.gp = (r.stats.t.gp or 0) + 3600 end')(A.ns)
 check(A.ns.Tombola.Balance() == had + 1, 'and an hour in a group after it adds one, as always (%s)' % A.ns.Tombola.Balance())
+# back on a computer whose book is old: the record that came back says 7 piotte more (won on the other PC)
+A.ns.Tombola.Update(); now_bal = A.ns.Tombola.Balance()
+A.lua.eval('function(ns) local r = ns.MyRecord() r.pts.t = r.pts.t + 7 ns.C.startedAt = GetTime() end')(A.ns)
+A.ns.Fire('SelfRestored', A.rec())
+secs(100); A.ns.Tombola.Update()
+check(A.ns.Tombola.Balance() == now_bal + 7, 'old book on this PC, newer record back from the friends: its piotte count (%s -> %s)' % (now_bal, A.ns.Tombola.Balance()))
 
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))

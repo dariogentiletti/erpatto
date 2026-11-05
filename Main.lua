@@ -56,6 +56,11 @@ local function Activate(state, recordGuid, isAlt)
   c.alt = ns.alt or nil
   if not isAlt then c.code = state.code end
   state.lastWeek = state.lastWeek or (P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) or nil)
+  -- my record as this PC last saw it may be old: I may have played on another computer since. Until the friends
+  -- are heard it's provisional ("fresh": they don't take it over theirs), and a newer copy of it they hold comes
+  -- back and replaces it (base: how new mine was when I came in)
+  local mine = not isAlt and state.members[recordGuid]
+  if mine and not mine.fresh then mine.fresh, mine.base = true, mine.up or 0 end
   C.Start(state, recordGuid, ns.myName)
   T.Start(state, recordGuid, ns.me, ns.myName, isAlt)
   U.Log("Patto", "attivo", state.code, isAlt and "alt" or "principale")

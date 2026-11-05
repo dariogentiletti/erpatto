@@ -310,3 +310,28 @@ secs(300)
 fails(all(c.state.members['G-CORT'] is not None and c.state.members['G-CORT'].stats.t.rk == 1 for c in (E, F, G, H)), 'and the whole patto sees them')
 fails(H.state.prev is None or H.state.prev['G-CORT'] is None, 'and the old copy, given back, is dropped')
 print('errori 18:', {k: errs(c) for k, c in (('E', E), ('H', H), ('K', K))})
+
+# 19) two computers: Er Cortello played a little on PC1 yesterday, then a lot on PC2; now he's back on PC1, whose
+# copy of his record is old. PC1's old record never overwrites the newer one, and PC1 takes the newer one back
+for c in clients.values():
+    if c.online and c is not K: pass
+setstat(K, 'G-CORT', rk=1, q=5); secs(20)
+pc1 = K.ns.U.Serialize(K.state)              # what PC1's WTF folder keeps
+setstat(K, 'G-CORT', rk=4, q=40); secs(20)    # played a lot on PC2
+fails(E.state.members['G-CORT'].stats.t.rk == 4, 'PC2: the capo has his 4 rari')
+K.logout(); secs(5)
+K1 = Client('Er Cortello', 'G-CORT'); K1.g.NOWV = T[0]; K1.g.REFUSE_CHANNEL = True; clients['K1'] = K1
+del clients['K']
+K1.state = K1.ns.U.Deserialize(pc1)
+# what Main's Activate does at login: the record of this PC is provisional until the friends are heard
+K1.lua.eval('function(st) local m = st.members["G-CORT"] m.fresh, m.base = true, m.up or 0 end')(K1.state)
+K1.login(); K1.g.JOINED = 'isola-cortello'; K1.ns.C.AddSeed('Er Gnomo')
+K1.state.members['G-CORT'].lv = 14; K1.state.members['G-CORT'].up = int(T[0]); K1.ns.C.MarkSelfDirty(0.5)  # the game says level 14 now
+secs(30)
+fails(E.state.members['G-CORT'].stats.t.rk == 4, 'back on PC1: its old record never replaces the newer one at the capo (%s)' % E.state.members['G-CORT'].stats.t.rk)
+mine = K1.state.members['G-CORT']
+fails(mine.stats.t.rk == 4 and mine.stats.t.q == 40 and mine.lv == 14, 'PC1 takes back the newer record (4 rari, 40 quest), with the level the game says now: %s %s %s' % (mine.stats.t.rk, mine.stats.t.q, mine.lv))
+secs(120)
+setstat(K1, 'G-CORT', rk=5); secs(20)
+fails(E.state.members['G-CORT'].stats.t.rk == 5 and E.state.members['G-CORT'].stats.t.q == 40, 'and what he does now on PC1 goes on from there')
+print('errori 19:', {k: errs(c) for k, c in (('E', E), ('K1', K1))})

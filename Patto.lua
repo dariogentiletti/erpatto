@@ -768,7 +768,8 @@ function P.MergeMember(state, incoming, myGuid)
       ns.Fire("SelfRestored", mine)
       return true
     end
-    if not (mine and mine.fresh and not r.fresh) then return false end
+    -- (base: a record I came in with from this PC; only a copy newer than it is taken, the rest is older news)
+    if not (mine and mine.fresh and not r.fresh and (r.up or 0) > (tonumber(mine.base) or 0)) then return false end
     for _, k in ipairs(LIVE) do if mine[k] ~= nil then r[k] = mine[k] end end
     r.fresh = nil
     r.up = math.max(U.Now(), (mine.up or 0) + 1)

@@ -958,6 +958,12 @@ ns.On("SettingsChanged", function(state) SwapsSeen(state) if ns.UI and ns.UI.Ref
 ns.On("StateChanged", function(state, kind) if kind ~= "M" then SwapsSeen(state) pcall(TB.Update) end end)
 
 ns.On("MemberUpdated", function(rec) Remember(rec) end)
+-- my record came back from the friends (another computer was played on since): this PC's book is old; the piotte
+-- of the record are carried over again at the next update
+ns.On("SelfRestored", function()
+  local b = Book()
+  if b and not TB.Testing() then b.new = true end
+end)
 ns.On("SelfChanged", function(state, reason)
   if state ~= ns.state or reason == "pts" or reason == "vote" then return end
   TB.Update()
