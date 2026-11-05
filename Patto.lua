@@ -208,7 +208,8 @@ function P.CleanMember(r)
     il = Num(r.il, 0, 2000), race = Str(r.race, 20), rid = Num(r.rid, 1, 200), sex = Num(r.sex, 1, 3),
     eq = type(r.eq) == "string" and #r.eq <= 600 and r.eq:match("^[%d%./%-]*$") and r.eq or nil,
     stats = { t = CleanStats(r.stats and r.stats.t), w = {} }, h2h = {}, alts = {},
-    ti = Str(r.ti, 24), fresh = r.fresh == true or nil,
+    ti = Str(r.ti, 24), fresh = r.fresh == true or nil, lp = Num(r.lp, 0, 1e9),
+    dl = type(r.dl) == "table" and Num(r.dl.lv, 1, 100) and { lv = Num(r.dl.lv, 1, 100), s = Num(r.dl.s, 0, 1e8) } or nil,
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
     nkl = {},
   }

@@ -131,6 +131,15 @@ function T.RefreshSelf(reason, levelOverride)
   local alts = AltsOf()
   if not SameAlts(alts, state.members[me].alts) then fields.alts = alts end
   local before = state.members[me].lv
+  -- a ding: how long it took, in time played (from the ding before; unknown the first time)
+  if fields.lv and before and fields.lv > before then
+    local rec = state.members[me]
+    local pt = rec.stats and rec.stats.t and rec.stats.t.pt
+    if pt then
+      fields.dl = { lv = fields.lv, s = rec.lp and math.max(0, pt - rec.lp) or nil }
+      fields.lp = pt
+    end
+  end
   P.UpdateSelf(state, me, fields, reason)
   if fields.lv and before and fields.lv > before and fields.lv - before <= 5 and reason ~= "login" then
     for l = before + 1, fields.lv do Milestone(l) end

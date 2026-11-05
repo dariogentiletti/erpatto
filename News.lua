@@ -143,6 +143,77 @@ function N.WipeCount()
   return s and s.wipeCount or 0
 end
 
+----------------------------------------------------------------------
+-- the ding clip: whoever of the patto levels, everyone gets six seconds of Giampy at the disco (frame sheets +
+-- the music, as the duel clips), with who and to what level, and the time played the level took
+----------------------------------------------------------------------
+N.DING = { sheets = 3, frames = 72, fps = 12, sound = "ding.ogg" }
+local dingClip
+function N.DingClip(rec)
+  if not (rec and rec.lv) or ns.alt or not (ns.db and ns.db.opts.toasts) then return end
+  local c = N.DING
+  if not dingClip then
+    local f = CreateFrame("Frame", "ErPattoDing", UIParent)
+    f:SetSize(320, 250)
+    f:SetFrameStrata("DIALOG")
+    f:SetMovable(true)
+    f.screen = f:CreateTexture(nil, "ARTWORK")
+    f.screen:SetSize(320, 180)
+    f.screen:SetPoint("TOP", 0, 0)
+    f.box = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    f.box:SetSize(260, 64)
+    f.box:SetPoint("TOP", f.screen, "BOTTOM", 0, -4)
+    f.box:EnableMouse(true) f.box:RegisterForDrag("LeftButton")
+    f.box:SetScript("OnDragStart", function() f:StartMoving() end)
+    f.box:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
+    H.Chrome(f.box)
+    local x = H.CloseX(f.box)
+    if x and x.SetScript then x:SetScript("OnClick", function() f:Hide() end) end
+    f.title = H.Text(f.box, "GameFontNormal", "", 230, "CENTER")
+    f.title:SetPoint("TOP", 0, -16)
+    f.sub = H.Text(f.box, "GameFontHighlightSmall", "", 230, "CENTER")
+    f.sub:SetPoint("TOP", f.title, "BOTTOM", 0, -6)
+    f:SetScript("OnUpdate", function(self, el)
+      self.t = self.t + (el or 0)
+      local i = math.floor(self.t * c.fps)
+      if i >= c.frames then
+        i = c.frames - 1
+        if self.t > c.frames / c.fps + 0.3 then self:Hide() return end
+      end
+      if i == self.shown then return end
+      self.shown = i
+      local sheet, k = math.floor(i / 28) + 1, i % 28
+      local col, row = k % 4, math.floor(k / 4)
+      if sheet ~= self.sheet then
+        self.sheet = sheet
+        self.screen:SetTexture(H.MEDIA .. "livello\\ding" .. sheet .. ".tga")
+      end
+      self.screen:SetTexCoord(col * 0.25, (col + 1) * 0.25, row * 144 / 1024, (row + 1) * 144 / 1024)
+    end)
+    f:SetScript("OnHide", function(self) if self.handle and StopSound then pcall(StopSound, self.handle) end self.handle = nil end)
+    dingClip = f
+  end
+  local f = dingClip
+  if f.handle and StopSound then pcall(StopSound, f.handle) end
+  f.t, f.shown, f.sheet = 0, nil, nil
+  local you = rec.guid == ns.recordGuid
+  f.title:SetText((you and "Sei salito" or (Hex(rec) .. " è salito")) .. " ar livello |cffffffff" .. rec.lv .. "|r!")
+  local took = type(rec.dl) == "table" and rec.dl.lv == rec.lv and rec.dl.s
+  f.sub:SetText(took and ("In " .. U.Until(took) .. " de gioco") or "")
+  -- on top, in the middle: under the cap bar when it's up there (where the duel clip goes too)
+  f:ClearAllPoints()
+  local hud = _G.ErPattoHUD
+  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
+  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
+  if top and top > h * 0.6 then f:SetPoint("TOP", hud, "BOTTOM", 0, -56)
+  else f:SetPoint("TOP", UIParent, "TOP", 0, -80) end
+  f:Show()
+  if PlaySoundFile and not (ns.db.opts.sound == false) then
+    local ok, _, handle = pcall(PlaySoundFile, H.MEDIA .. "livello\\" .. c.sound, "Master")
+    f.handle = ok and handle or nil
+  end
+end
+
 local quietUntil = 0
 local function Diff(rec, old, quiet)
   if T0(rec, "dt") > (old.dt or 0) then Wipe(rec, quiet) end
@@ -161,6 +232,7 @@ local function Diff(rec, old, quiet)
       local quip = QUIPS[math.random(#QUIPS)]:format(Short(rec))
       if over then quip = "Ma er cap è " .. over .. "... furbetto!" end
       N.Banner((you and "Sei" or Short(rec) .. " è") .. " ar livello " .. rec.lv .. "!", quip, over and { 1, 0.35, 0.3 } or nil, "ding")
+      pcall(N.DingClip, rec)
     end
   end
   -- first epic, any epic

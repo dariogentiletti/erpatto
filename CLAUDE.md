@@ -35,7 +35,7 @@ Never:
 - textures made by us: only the game's own files (Media holds only the close button, and the karaoke songs the
   user gave, as ogg at seven speeds in Media/karaoke, and the two duel clips the user gave, as frame sheets
   plus ogg in Media/duello, with the "di più" of a rivincita; the Giampaolato's voices in Media/giampy; the
-  burattino's music in Media/pupo)
+  burattino's music in Media/pupo; the ding clip (Giampy at the disco, frame sheets plus ogg) in Media/livello)
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)
 - Large/Huge fonts for headings (only the cap number may be GameFontNormalLarge)
 - card grids with big empty boxes, modern scroll bars, emblems or logos

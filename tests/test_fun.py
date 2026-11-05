@@ -71,6 +71,10 @@ check(any('[Er Patto]' in str(m) and 'Pietro' in str(m) and '5' in str(m) for m 
 dl = [str(m) for m in A.g.CHAT.values() if 'Pietro' in str(m) and ('ding' in str(m) or 'livello 5' in str(m) or 'ar livello 5' in str(m))]
 check(len(dl) == 1, 'the ding is said once, not twice: ' + str(dl))
 check(any('Pietro' in n and 'livello' in n for n in A.news()), 'ding in the news list')
+dc = A.g.ErPattoDing
+check(dc is not None and dc.shown and 'Pietro' in str(dc.title.text) and '5' in str(dc.title.text), 'ding: the clip with Giampy on the others\' screen: ' + str(dc and dc.title.text))
+check(any('livello' in str(x) and 'ding' in str(x) for x in A.g.SOUNDS.values()), 'and its music plays')
+check(B.g.ErPattoDing is not None and B.g.ErPattoDing.shown and 'Sei salito' in str(B.g.ErPattoDing.title.text), 'and on the screen of who levelled')
 check(len(list(A.g.SOUNDS.values())) > 0, 'banner plays a sound')
 A.ns.db.opts.toasts = False
 B.g.P_LEVEL = 6; B.g.FIRE('PLAYER_LEVEL_UP', 6); secs(12)
