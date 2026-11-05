@@ -179,3 +179,19 @@ fails(I.ns.P.HasSettings(I.state) and 'G-LONT' in [str(k) for k in E.state.membe
 secs(130)
 fails(all('G-LONT' in [str(k) for k in c.state.members.keys()] for c in (F, G, H)) and len(list(I.state.members.keys())) >= 5,
       'islands: within a round of hellos everyone sees Er Lontano, and he sees everyone')
+
+# 13) Er Nia loses her WTF folder (or plays on a new PC) and comes back with the code: her record comes back from
+# the friends, and her empty one never overwrites theirs
+fails(not F.state.members['G-NIA'].fresh and not E.state.members['G-NIA'].fresh, 'after a minute with friends a record is no longer "new on this PC"')
+F.state.members['G-NIA'].pts = F.lua.table_from({'t': 57, 'w': 1})
+F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'team': 't1', 'tat': T[0]})); F.ns.C.MarkSelfDirty(0.1); secs(20)
+fails(E.state.members['G-NIA'].pts is not None and E.state.members['G-NIA'].pts.t == 57, 'the friends hold Er Nia\'s piotte (57)')
+F.logout(); secs(5)
+F.state = F.ns.P.Join(code2, 'G-NIA', 'Er Nia')  # everything gone: a new record from nothing
+F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 5}))
+F.login(); secs(40)
+mine = F.state.members['G-NIA']
+fails(mine.pts is not None and mine.pts.t == 57 and mine.team == 't1' and mine.lv == 5 and not mine.fresh,
+      'lost WTF: her record came back from the friends (57 piotte, her squadra), with her level of now (5): %s %s %s' % (mine.pts and mine.pts.t, mine.team, mine.lv))
+fails(all(c.state.members['G-NIA'].pts is not None and c.state.members['G-NIA'].pts.t == 57 for c in (E, G)), 'and nobody\'s copy was wiped by the empty one')
+print('errori 13:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G))})

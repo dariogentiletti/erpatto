@@ -30,6 +30,7 @@ local recent = {}
 local helloReplyAt = {}
 local askedFull = {}
 local lastHelloAt = 0
+local firstHeardAt -- the first message from a friend this session
 local pendingSends = {}
 local whispered = {}
 local seq = 0
@@ -366,8 +367,9 @@ end
 -- sync protocol
 ----------------------------------------------------------------------
 local function HelloData()
+  local mine = state.members[me]
   return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
-    bv = state.bans.v or 0, d = P.Digest(state) }
+    bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil }
 end
 
 function C.Hello()
@@ -470,6 +472,15 @@ local function OnHello(from, h, sender)
   cmp("S", state.settings.v or 0, h.sv)
   cmp("A", state.admins.v or 0, h.av)
   cmp("B", state.bans.v or 0, h.bv)
+  -- "my record is new on this PC": if I hold a real copy of it, it goes back to them, whatever its date
+  if h.fr == true then
+    local theirs = state.members[from]
+    if theirs and not theirs.fresh then
+      Schedule("R:" .. from .. tag, function()
+        if state.members[from] and not state.members[from].fresh then C.SendTo("M", state.members[from], to) end
+      end)
+    end
+  end
   local d = type(h.d) == "table" and h.d or {}
   local count = 0
   for g, rec in pairs(state.members) do
@@ -505,6 +516,7 @@ local function Handle(body, sender, channel)
   if P.IsBanned(state, from) then return end
   C.stats.received = C.stats.received + 1
   seen[from] = Clock()
+  firstHeardAt = firstHeardAt or Clock()
   if type(sender) == "string" then nameOf[from] = sender end
   if channel == "WHISPER" and type(sender) == "string" and CurrentChannelId() and not chanBlocked then
     whisperPeers[from] = sender
@@ -681,10 +693,16 @@ function C.Start(st, myGuid, playerName)
   seeds = {}
   for who in pairs(ns.db and type(ns.db.seeds) == "table" and ns.db.seeds[st.code] or {}) do seeds[who] = true end
   fullSer, fullUp, fullAt = nil, nil, nil
+  firstHeardAt = nil
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
   if not helloTicker then
     helloTicker = C_Timer.NewTicker(30, function()
+      -- a minute after the first friend was heard, and nobody had an older record of mine: it's really new
+      local mine = state and state.members[me]
+      if mine and mine.fresh and firstHeardAt and Clock() - firstHeardAt > 60 then
+        P.UpdateSelf(state, me, { fresh = false }, "fresh")
+      end
       if state and Clock() - lastHelloAt >= (Whispering() and C.HELLO_WHISPER or HELLO_EVERY) then C.Hello() end
     end)
   end

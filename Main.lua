@@ -152,6 +152,13 @@ ns.On("SelfChanged", function(state, reason)
   ns.Fire("Refresh")
 end)
 
+-- my record came back from a friend (this PC had lost it): say so, and send it on as mine again
+ns.On("SelfRestored", function()
+  U.Say("ho ritrovato li dati tua dall'amichi der patto: piotte, statistiche e titoli so' tornati.")
+  C.MarkSelfDirty(1)
+  ns.Fire("Refresh")
+end)
+
 -- a ding of someone else: News.lua says it (one line with "[Er Patto]" and the ping), not here too
 ns.On("MemberSwitched", function(rec, oldTeam)
   if not ns.state then return end

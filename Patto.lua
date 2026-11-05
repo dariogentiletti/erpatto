@@ -194,7 +194,7 @@ function P.CleanMember(r)
     il = Num(r.il, 0, 2000), race = Str(r.race, 20), rid = Num(r.rid, 1, 200), sex = Num(r.sex, 1, 3),
     eq = type(r.eq) == "string" and #r.eq <= 600 and r.eq:match("^[%d%./%-]*$") and r.eq or nil,
     stats = { t = CleanStats(r.stats and r.stats.t), w = {} }, h2h = {}, alts = {},
-    ti = Str(r.ti, 24),
+    ti = Str(r.ti, 24), fresh = r.fresh == true or nil,
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
     nkl = {},
   }
@@ -385,7 +385,8 @@ function P.NewState(code)
 end
 
 local function NewMember(guid, name)
-  return { guid = guid, name = name, up = U.Now(), lv = 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION }
+  -- fresh: made on this PC just now; until the friends have been heard, it may be a lost record coming back
+  return { guid = guid, name = name, up = U.Now(), lv = 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION, fresh = true }
 end
 
 -- opts: name, start (epoch), h20, h60, teams = { {name=, hours=}, ... }, guid, playerName, teamIndex
@@ -622,10 +623,27 @@ function P.MergeBans(state, incoming)
 end
 
 -- myGuid: records about myself only ever come from me.
+-- what the game says about me right now: kept when my old record comes back from a friend
+local LIVE = { "lv", "xp", "xpm", "rest", "zone", "eq", "il", "ver", "name", "cls", "race", "rid", "sex", "alts" }
+
 function P.MergeMember(state, incoming, myGuid)
   local r = P.CleanMember(incoming)
-  if not r or r.guid == myGuid or P.IsBanned(state, r.guid) then return false end
+  if not r or P.IsBanned(state, r.guid) then return false end
+  if r.guid == myGuid then
+    -- my own record from a friend: taken back only when mine is new on this PC (the WTF folder lost, a new
+    -- computer) and theirs is a real one; then it's mine again, with what the game says now on top
+    local mine = state.members[myGuid]
+    if not (mine and mine.fresh and not r.fresh) then return false end
+    for _, k in ipairs(LIVE) do if mine[k] ~= nil then r[k] = mine[k] end end
+    r.fresh = nil
+    r.up = math.max(U.Now(), (mine.up or 0) + 1)
+    state.members[myGuid] = r
+    ns.Fire("SelfRestored", r)
+    return true
+  end
   local cur = state.members[r.guid]
+  -- a record started again from nothing never replaces a real copy: its owner is about to get the real one back
+  if cur and not cur.fresh and r.fresh then return false end
   if cur and (cur.up or 0) >= r.up then return false end
   if not cur then
     local n = 0
