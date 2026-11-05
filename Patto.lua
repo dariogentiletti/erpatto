@@ -591,6 +591,7 @@ local function LogSwitch(state, rec, from, to, at)
   table.insert(state.switches, 1, { name = rec.name, from = from, to = to, at = at or U.Now() })
   while #state.switches > P.MAX_SWITCHES do table.remove(state.switches) end
 end
+P.LogSwitch = LogSwitch
 
 function P.ChooseTeam(state, me, teamId)
   local rec = state.members[me]

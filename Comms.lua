@@ -14,7 +14,9 @@ local MAXLEN = 240
 local HELLO_EVERY = 300
 C.HELLO_WHISPER = 120
 local ONLINE_WINDOW = 420
-local BUCKET_MAX, REFILL = 8, 1.1
+-- the game lets ~10 addon messages go at once, then about one a second: we keep 6 of them for what can't wait
+-- (a flash, a hello's answer asked for), the rest of the traffic goes at the steady pace
+local BUCKET_MAX, REFILL, RESERVE = 10, 1.1, 6
 
 local state, me, myName
 local chanName, chanPw, chanId
@@ -181,9 +183,11 @@ end
 ----------------------------------------------------------------------
 -- a quick message (X: a duel, a gufata, the strings pulled...) goes before the pieces of a record waiting to go
 local urgentAt = 0
-local function Push(kind, target, text, urgent, key)
+local function Push(kind, target, text, urgent, key, at)
   if #queue > 300 then C.stats.dropped = C.stats.dropped + 1 return end
-  if urgent then
+  if at and not urgent then
+    table.insert(queue, math.max(urgentAt + 1, math.min(at, #queue + 1)), { kind, target, text, key })
+  elseif urgent then
     urgentAt = math.min(urgentAt + 1, #queue + 1)
     table.insert(queue, urgentAt, { kind, target, text, key })
   else
@@ -192,13 +196,17 @@ local function Push(kind, target, text, urgent, key)
 end
 
 -- a newer copy of the same thing to the same place (my record, the settings, a hello) replaces the one still waiting
+-- (the new copy takes the old one's place in the line: a hello asked again doesn't send it back to the end)
 local function Supersede(key)
+  local at
   for i = #queue, 1, -1 do
     if queue[i][4] == key then
       table.remove(queue, i)
       if i <= urgentAt then urgentAt = urgentAt - 1 end
+      at = i
     end
   end
+  return at
 end
 
 -- who is in my group, by whole name (looked at again every few seconds)
@@ -235,18 +243,19 @@ local function Enqueue(kind, target, body, urgent, key)
   end
   local bn = type(target) == "string" and tonumber(target:match("^bn:(%d+)$"))
   if bn then kind, target = "BN", bn end
+  local at
   if key then
     -- a whole record also makes the changes still waiting useless
-    if key:sub(1, 2) == "M:" then Supersede("D:" .. key:sub(3) .. ">" .. tostring(target)) end
+    if key:sub(1, 2) == "M:" then at = Supersede("D:" .. key:sub(3) .. ">" .. tostring(target)) end
     key = key .. ">" .. tostring(target)
-    Supersede(key)
+    at = Supersede(key) or at
   end
-  if #body <= MAXLEN then Push(kind, target, "!" .. body, urgent, key) return end
+  if #body <= MAXLEN then Push(kind, target, "!" .. body, urgent, key, at) return end
   seq = seq % 999 + 1
   local size = MAXLEN - 14
   local n = math.ceil(#body / size)
   for i = 1, n do
-    Push(kind, target, "#" .. seq .. "~" .. i .. "~" .. n .. "~" .. body:sub((i - 1) * size + 1, i * size), nil, key)
+    Push(kind, target, "#" .. seq .. "~" .. i .. "~" .. n .. "~" .. body:sub((i - 1) * size + 1, i * size), urgent, key, at and (at + i - 1))
   end
 end
 
@@ -379,7 +388,7 @@ local function Tick()
   if #queue == 0 then return end
   if C.InLockdown() then C.stats.held = #queue return end
   C.stats.held = 0
-  while #queue > 0 and tokens >= 1 do
+  while #queue > 0 and tokens >= ((urgentAt > 0) and 1 or (1 + RESERVE)) do
     local item = table.remove(queue, 1)
     urgentAt = math.max(0, urgentAt - 1)
     local ok, res
@@ -424,44 +433,93 @@ end
 
 -- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
 local introduced = {}
-newPeer = function(guid, name)
+newPeer = function(guid, name, urgent)
   if not state or not Whispering() or type(name) ~= "string" then return end
   if introduced[guid] and Clock() - introduced[guid] < 60 then return end
   introduced[guid] = Clock()
-  U.Log("Comms", "ner canale c'è", name)
-  Enqueue("WHISPER", name, Body("H", HelloData()), false, "H")
+  U.Log("Comms", urgent and "novo ner patto:" or "ner canale c'è", name)
+  Enqueue("WHISPER", name, Body("H", HelloData()), urgent == true, "H")
 end
 
--- my record goes whole at most every five minutes; in between only what changed since the last whole one ("D").
--- Whispered to each member one by one (WoW Forever), a whole record is 7-8 messages, a change 1-2.
-C.FULL_EVERY = 300
+-- my record goes whole at most every half hour; in between only what changed since the last whole one ("D").
+-- Whispered to each member one by one (WoW Forever), a whole record is 7-10 messages, a change 1-2.
+C.FULL_EVERY = 1800
 local fullSer, fullUp, fullAt -- my record as last sent whole, field by field
 local selfUrgent
 function C.NoteFull(rec)
   fullSer, fullUp, fullAt = {}, rec.up, Clock()
   for k, v in pairs(rec) do fullSer[k] = U.Serialize(v) end
 end
+
+-- what changed since my last whole record, or nil when a whole one is due (none sent, too old, or too much changed)
+local function SelfDelta(rec)
+  if not (fullSer and fullUp and rec.up and rec.up > fullUp and fullAt and Clock() - fullAt < C.FULL_EVERY) then return nil end
+  local ch, gone, size, total = {}, {}, 0, 0
+  for k, v in pairs(rec) do
+    local ser = U.Serialize(v)
+    total = total + #ser
+    if k ~= "up" and ser ~= fullSer[k] then ch[k] = v size = size + #ser end
+  end
+  for k in pairs(fullSer) do if rec[k] == nil then gone[#gone + 1] = k end end
+  if size >= total * 0.6 then return nil end
+  return { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil }
+end
+
+-- something the others must see now (a ding, a death, a squadra): a "flash" of just those fields, one message,
+-- first in the queue, good on any copy of my record; the record itself follows at its pace
+local sentT, sentW, sentTop = {}, {}, {}
+local FLASH_FIELD = 160
+local function Flash(rec)
+  local wk = 0
+  if P.HasSettings(state) and ns.M and ns.M.WeekIndex then wk = ns.M.WeekIndex(state.settings, U.Now()) or 0 end
+  local e = { g = me, up = rec.up, c = {}, t = {}, w = {} }
+  local any = false
+  for k, v in pairs(rec) do
+    if k ~= "up" and k ~= "guid" and k ~= "stats" and k ~= "fresh" and k ~= "abt" then
+      local ser = U.Serialize(v)
+      if ser ~= sentTop[k] and #ser <= FLASH_FIELD then e.c[k] = v any = true end
+    end
+  end
+  local t = rec.stats and rec.stats.t or {}
+  for k, v in pairs(t) do if v ~= sentT[k] then e.t[k] = v any = true end end
+  local w = rec.stats and rec.stats.w and rec.stats.w[wk] or {}
+  local ww = {}
+  for k, v in pairs(w) do if v ~= sentW[k] then ww[k] = v any = true end end
+  if next(ww) then e.w[wk] = ww end
+  if not any then return end
+  local body = Body("E", e)
+  if #body <= MAXLEN then Broadcast(body, true, nil) end
+end
+-- what the others have of me now, to tell a flash what's new
+local function NoteSent(rec)
+  sentTop = {}
+  for k, v in pairs(rec) do if k ~= "stats" then sentTop[k] = U.Serialize(v) end end
+  sentT = {}
+  for k, v in pairs(rec.stats and rec.stats.t or {}) do sentT[k] = v end
+  sentW = {}
+  local wk = P.HasSettings(state) and ns.M and ns.M.WeekIndex and ns.M.WeekIndex(state.settings, U.Now()) or 0
+  for k, v in pairs(rec.stats and rec.stats.w and rec.stats.w[wk] or {}) do sentW[k] = v end
+end
+
 function C.SendSelf()
   if not state or not state.members[me] then return end
   local rec = state.members[me]
   recent["M:" .. me .. ":" .. (rec.up or 0)] = Clock()
-  local now = Clock()
-  if fullSer and fullUp and rec.up and rec.up > fullUp and fullAt and now - fullAt < C.FULL_EVERY then
-    local ch, gone, size, total = {}, {}, 0, 0
-    for k, v in pairs(rec) do
-      local ser = U.Serialize(v)
-      total = total + #ser
-      if k ~= "up" and ser ~= fullSer[k] then ch[k] = v size = size + #ser end
-    end
-    for k in pairs(fullSer) do if rec[k] == nil then gone[#gone + 1] = k end end
-    if size < total * 0.6 then
-      C.Send("D", { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil }, selfUrgent)
-      selfUrgent = nil
-      return
-    end
-  end
-  C.Send("M", rec, selfUrgent)
+  if selfUrgent then pcall(Flash, rec) end
   selfUrgent = nil
+  NoteSent(rec)
+  local d = SelfDelta(rec)
+  if d then C.Send("D", d) return end
+  C.Send("M", rec)
+end
+
+-- my record to one who asked (their copy is from `theirUp`): only the changes when they have my last whole one
+function C.SendSelfTo(to, theirUp)
+  local rec = state and state.members[me]
+  if not rec then return end
+  local d = (theirUp or 0) >= (fullUp or math.huge) and SelfDelta(rec)
+  -- someone who never had me (just come in): first in the line
+  if d then C.SendTo("D", d, to) else C.SendTo("M", rec, to, (theirUp or 0) == 0) end
 end
 
 -- Send my record after `delay` seconds (XP ticks wait longer than dings or team changes).
@@ -477,22 +535,23 @@ local function Schedule(key, fn)
 end
 
 -- to one player only (whispered): the answers to a hello on Forever go to who asked, not to everyone
-function C.SendTo(kind, data, who)
+function C.SendTo(kind, data, who, urgent)
   if not state then return end
-  if not who then C.Send(kind, data) return end
-  Enqueue("WHISPER", who, Body(kind, data), false, KeyOf(kind, data))
-  if kind == "M" and type(data) == "table" and data.guid == me then C.NoteFull(data) end
+  if not who then C.Send(kind, data, urgent) return end
+  Enqueue("WHISPER", who, Body(kind, data), urgent == true, KeyOf(kind, data))
+  -- (a whole record to one friend isn't "the last whole one" for everyone else: the changes stay counted from that)
 end
 
-function C.HelloTo(who)
+function C.HelloTo(who, urgent)
   if not state then return end
-  if who then Enqueue("WHISPER", who, Body("H", HelloData()), false, "H") else C.Hello() end
+  if who then Enqueue("WHISPER", who, Body("H", HelloData()), urgent == true, "H") else C.Hello() end
 end
 
+-- the patto's rules: small, rare, and without them who just came in can't start: first in the line
 local function SendPiece(kind, to)
-  if kind == "S" then C.SendTo("S", state.settings, to)
-  elseif kind == "A" then C.SendTo("A", state.admins, to)
-  elseif kind == "B" then C.SendTo("B", state.bans, to) end
+  if kind == "S" then C.SendTo("S", state.settings, to, true)
+  elseif kind == "A" then C.SendTo("A", state.admins, to, true)
+  elseif kind == "B" then C.SendTo("B", state.bans, to, true) end
 end
 
 local prevSentAt = {}
@@ -545,11 +604,16 @@ local function OnHello(from, h, sender)
   local count = 0
   for g, rec in pairs(state.members) do
     local theirs = type(d[g]) == "number" and d[g] or 0
-    if (rec.up or 0) > theirs and count < 8 then
+    -- whispering, every record sent is 7-10 whispers: someone else's goes from me only when they aren't around
+    -- to send it themselves (or nobody has it: they never had it at all)
+    local mine = g == me
+    local relay = mine or not to or not C.IsOnline(g) or theirs == 0
+    if (rec.up or 0) > theirs and count < 8 and relay then
       count = count + 1
       local up = rec.up
       Schedule("M:" .. g .. ":" .. up .. tag, function()
-        if state.members[g] and state.members[g].up == up then C.SendTo("M", state.members[g], to) end
+        if not state.members[g] or state.members[g].up ~= up then return end
+        if mine then C.SendSelfTo(to, theirs) else C.SendTo("M", state.members[g], to) end
       end)
     end
   end
@@ -576,7 +640,9 @@ local function OnHello(from, h, sender)
     local last = helloReplyAt[from]
     if not last or Clock() - last > 20 then
       helloReplyAt[from] = Clock()
-      Schedule("H:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to) end)
+      -- someone I never heard of (just come in): my hello goes first, so their record comes at once
+      local stranger = not state.members[from]
+      Schedule("H:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to, stranger) end)
     end
   end
 end
@@ -631,6 +697,49 @@ local function Handle(body, sender, channel)
       changed = P.MarkLeft(state, from, data.up)
       if changed and rec then ns.Fire("MemberLeft", rec) end
     end
+  elseif kind == "N" then
+    -- a friend tells me someone new is in the patto: a hello to them now (they answer with their record)
+    if type(data) == "table" and type(data.g) == "string" and type(data.n) == "string" and data.g ~= me
+      and not state.members[data.g] and not P.IsBanned(state, data.g) then
+      nameOf[data.g] = nameOf[data.g] or data.n
+      newPeer(data.g, data.n, true)
+    end
+  elseif kind == "E" then
+    -- a flash: a ding, a death, a squadra, on top of my copy of their record at once (its date stays: the
+    -- record itself, with everything else, still comes and is still asked for)
+    local cur = state.members[from]
+    if cur and type(data) == "table" and data.g == from and type(data.up) == "number" and data.up > (cur.up or 0) then
+      local new = U.Copy(cur)
+      if type(data.c) == "table" then
+        for k, v in pairs(data.c) do if k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" then new[k] = v end end
+      end
+      new.stats = type(new.stats) == "table" and new.stats or { t = {}, w = {} }
+      new.stats.t = type(new.stats.t) == "table" and new.stats.t or {}
+      new.stats.w = type(new.stats.w) == "table" and new.stats.w or {}
+      if type(data.t) == "table" then
+        for k, v in pairs(data.t) do if type(v) == "number" and v > (new.stats.t[k] or 0) then new.stats.t[k] = v end end
+      end
+      if type(data.w) == "table" then
+        for wk, kv in pairs(data.w) do
+          if type(wk) == "number" and type(kv) == "table" then
+            new.stats.w[wk] = type(new.stats.w[wk]) == "table" and new.stats.w[wk] or {}
+            for k, v in pairs(kv) do if type(v) == "number" and v > (new.stats.w[wk][k] or 0) then new.stats.w[wk][k] = v end end
+          end
+        end
+      end
+      local r = P.CleanMember(new)
+      if r then
+        r.up = cur.up
+        local oldLv, oldTeam = cur.lv, cur.team
+        if r.team ~= oldTeam and P.LogSwitch then P.LogSwitch(state, r, oldTeam, r.team, r.tat) end
+        state.members[from] = r
+        C.stats.flash = (C.stats.flash or 0) + 1
+        if oldLv and r.lv and r.lv > oldLv then ns.Fire("MemberDing", r, oldLv) end
+        if r.team ~= oldTeam then ns.Fire("MemberSwitched", r, oldTeam) end
+        ns.Fire("MemberUpdated", r, cur)
+        changed = true
+      end
+    end
   elseif kind == "F" then
     -- a sfottò: only the one it's for shows it
     ns.Fire("Sfotto", from, data)
@@ -675,6 +784,10 @@ local function Handle(body, sender, channel)
       if old and rec.team ~= oldTeam then ns.Fire("MemberSwitched", rec, oldTeam) end
       -- whispering, a member we hear of for the first time gets a hello from us: no waiting for the next round
       if not old and data.guid ~= me and not seen[data.guid] then newPeer(data.guid, nameOf[data.guid] or rec.name) end
+      -- someone new, heard from them directly: the others online hear of them in one message, and say hello at once
+      if not old and data.guid == from and Whispering() and type(sender) == "string" then
+        Broadcast(Body("N", { g = from, n = sender }), true, nil)
+      end
       ns.Fire("MemberUpdated", rec, old or nil)
     end
   end
@@ -872,14 +985,16 @@ function C.Start(st, myGuid, playerName)
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
   if not helloTicker then
-    helloTicker = C_Timer.NewTicker(30, function()
+    helloTicker = C_Timer.NewTicker(10, function()
       if state and not P.HasSettings(state) and Clock() - searchedAt >= 60 and Clock() - (C.startedAt or 0) < 1800 then C.Search() end
       -- a minute after the first friend was heard, and nobody had an older record of mine: it's really new
       local mine = state and state.members[me]
       if mine and mine.fresh and firstHeardAt and Clock() - firstHeardAt > 60 then
         P.UpdateSelf(state, me, { fresh = false }, "fresh")
       end
-      if state and Clock() - lastHelloAt >= (Whispering() and C.HELLO_WHISPER or HELLO_EVERY) then C.Hello() end
+      -- still waiting for the patto's data (a whisper lost on the way): ask again every 20 seconds, not every 2 minutes
+      local every = (state and not P.HasSettings(state)) and 20 or (Whispering() and C.HELLO_WHISPER or HELLO_EVERY)
+      if state and Clock() - lastHelloAt >= every then C.Hello() end
     end)
   end
   -- the channel's list, once a minute (a dozen names at most to read)

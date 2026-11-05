@@ -144,8 +144,10 @@ sizes = []
 orig = F.ns.C.SendSelf
 F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 4, 'zone': 'Mulgore'})); F.ns.C.MarkSelfDirty(0.1); secs(1)
 sent = [m for m in []]
-secs(10)
-fails(E.state.members['G-NIA'].lv == 4 and G.state.members['G-NIA'].zone == 'Mulgore' and (E.ns.C.stats.deltas or 0) >= 1, 'Forever: a ding arrives to both as a change of the record (changes applied: %s)' % E.ns.C.stats.deltas)
+secs(2)
+# (the first one after coming in goes whole: answers to one friend aren't the "last whole one" for the others)
+F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 5})); F.ns.C.MarkSelfDirty(0.1); secs(8)
+fails(E.state.members['G-NIA'].lv == 5 and G.state.members['G-NIA'].zone == 'Mulgore' and (E.ns.C.stats.deltas or 0) >= 1, 'Forever: a ding arrives to both as a change of the record (changes applied: %s)' % E.ns.C.stats.deltas)
 fails(F.ns.U.Short('Er Nia-Realm') == 'Er Nia' and F.ns.U.Short('Dario (prova)') == 'Dario', 'names: realm and test mark go, the surname stays')
 F.ns.state = F.state
 fails(str(F.ns.U.Surnames('|cffc69b6dEr Nia|r 40')) == '|cffc69b6dNia|r 40', 'names: a narrow column keeps the surname, not the first name')
