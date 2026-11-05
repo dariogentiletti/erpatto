@@ -150,6 +150,28 @@ end
 
 F.SILLY = { cascato = true, affogato = true, pischello = true }
 
+-- the game's own death recap, where the client gives it: the blow that killed me and who dealt it ("Falling",
+-- "Drowning", or a mob's name). Better than any guess; nil when there's none (or it's the one of a death before).
+local lastRecapAt
+function F.RecapKind()
+  if not (C_DeathRecap and C_DeathRecap.GetRecapEvents) then return nil end
+  local ok, events = pcall(C_DeathRecap.GetRecapEvents)
+  if not ok or type(events) ~= "table" or U.IsSecret(events) then return nil end
+  local blow = events[1]
+  if type(blow) ~= "table" then return nil end
+  local at = Plain(blow.timestamp, "number")
+  if at and at == lastRecapAt then return nil end
+  lastRecapAt = at
+  local env = Plain(blow.environmentalType, "string")
+  if env then
+    env = env:upper()
+    if env == "FALLING" then return "cascato" end
+    if env == "DROWNING" then return "affogato" end
+    return "mostro"
+  end
+  return nil, Plain(blow.sourceName, "string")
+end
+
 -- the last thing I wrote in chat, for the epitaph (only if said in the last ten minutes)
 local lastWords
 F.WORDS_FRESH = 600
@@ -175,7 +197,22 @@ end
 
 function F.OnDeath()
   if not Ready() then return end
+  -- what the screen says now (the target, the fall), then half a second for the game's recap to be there
   local kind, killer = F.DeathKind()
+  local function finish()
+    local ok, rk, rkiller = pcall(F.RecapKind)
+    if ok and rk then kind = rk end
+    if ok and rkiller then
+      killer = rkiller
+      -- the recap names who killed me: then it was a mob, whatever the screen seemed to say (a jump, a fall)
+      if kind == "cascato" and not rk then kind = "mostro" end
+    end
+    F.Record(kind, killer)
+  end
+  if C_Timer then C_Timer.After(0.5, finish) else finish() end
+end
+
+function F.Record(kind, killer)
   pcall(Grave, kind, killer)
   local j = Journal()
   -- the journal wrote its own entry on the same event; give it the kind (and the killer, if it missed it)

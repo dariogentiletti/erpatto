@@ -117,6 +117,26 @@ check(A.rec().ne and str(A.rec().ne.n) == 'Kobold Vermin' and A.rec().ne.c == 2,
 secs(10)
 check(any('Dario' in n and 'Kobold Vermin' in n for n in B.news()), "silly death in the others' news: " + str(B.news()[:3]))
 
+# the game's death recap, where there is one, says what really happened: it beats any guess
+A.lua.eval("""function() C_DeathRecap = { GetRecapEvents = function() return { { timestamp = 1001, event = "ENVIRONMENTAL_DAMAGE", environmentalType = "Falling" } } end }
+  UNITS.target = { guid = "Creature-0-1-2-3-4-62", name = "Gnoll", level = 12, attack = true } end""")()
+_em = A.stat('em')
+A.g.FIRE('PLAYER_DEAD'); secs(1)
+check(str(A.rec().rip[1].k) == 'cascato' and A.stat('em') == _em + 1, 'recap says Falling: a fall, even with a mob in the target')
+A.lua.eval("""function() C_DeathRecap = { GetRecapEvents = function() return { { timestamp = 1002, event = "SWING_DAMAGE", sourceName = "Murloc Raider" } } end }
+  UNITS.target = nil end""")()
+A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False; secs(1)
+check(str(A.rec().rip[1].k) == 'mostro' and str(A.rec().rip[1].by) == 'Murloc Raider', 'recap names a mob: killed by it, not a fall, whatever the jump: ' + str(A.rec().rip[1].k) + ' ' + str(A.rec().rip[1].by))
+A.lua.eval("function() C_DeathRecap = nil end")()
+secs(3)
+# kills from the game's PARTY_KILL (Midnight, Forever): mine and my group's, grey mobs too; no guessing then
+A.lua.eval("function() C_EventUtils = { IsEventValid = function(e) return e == 'PARTY_KILL' end } end")()
+_k = A.ns.J.Get().counters.kills or 0
+A.g.FIRE('PARTY_KILL', 'Player-1-AAA', 'Creature-0-1-2-3-99-777')
+A.g.FIRE('PARTY_KILL', 'Player-9-ZZZ', 'Creature-0-1-2-3-99-778')
+check((A.ns.J.Get().counters.kills or 0) == _k + 1, 'PARTY_KILL: my kill counted, a stranger\'s not')
+A.lua.eval("function() C_EventUtils = nil end")()
+
 # ---- famous kills, travel, hearthstone
 A.g.FIRE('ENCOUNTER_END', 1, 'Edwin VanCleef', 1, 5, 1)
 secs(5)

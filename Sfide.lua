@@ -2386,6 +2386,7 @@ if fights then
     fightAt = nil
     if not began or now - began < 1.5 then return end
     if UnitIsDeadOrGhost and select(2, pcall(UnitIsDeadOrGhost, "player")) == true then return end
+    if ns.J and ns.J.UsesPartyKill and ns.J.UsesPartyKill() then return end
     Killed()
   end)
 end

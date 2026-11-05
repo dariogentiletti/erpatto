@@ -95,6 +95,29 @@ local function CountKill(guid)
   ns.Fire("J_Kill", id, k)
 end
 
+-- the game says who killed what (PARTY_KILL, the event Midnight and Forever give in place of the combat log): a
+-- kill by me or by someone in my group, grey mobs too. Where the client has it, the guesses below aren't needed.
+function J.UsesPartyKill()
+  if not (C_EventUtils and C_EventUtils.IsEventValid) then return false end
+  local ok, valid = pcall(C_EventUtils.IsEventValid, "PARTY_KILL")
+  return ok and valid == true
+end
+
+local function InMyGroup(guid)
+  if guid == ns.me then return true end
+  if IsGUIDInGroup then
+    local ok, yes = pcall(IsGUIDInGroup, guid)
+    if ok and yes == true then return true end
+  end
+  return false
+end
+
+function J.OnPartyKill(attacker, target)
+  attacker, target = Plain(attacker, "string"), Plain(target, "string")
+  if not (attacker and target and NpcOf(target)) then return end
+  if InMyGroup(attacker) then CountKill(target) end
+end
+
 function J.CheckDeath(unit)
   local guid = Plain(Safe(UnitGUID, unit), "string")
   if not guid or not NpcOf(guid) then return end
@@ -212,7 +235,7 @@ function J.OnXp()
     if gain and gain > 0 then
       Add(j.xp, "total", gain)
       -- experience not from a quest: a mob killed (works where the target's death can't be read)
-      if U.Now() - questXpAt > 2 then ns.Fire("J_XpKill") end
+      if U.Now() - questXpAt > 2 and not J.UsesPartyKill() then ns.Fire("J_XpKill") end
     end
   end
   lastXp, lastXpMax, lastLevel = xp, xpm, lv
@@ -432,6 +455,7 @@ end)
 ----------------------------------------------------------------------
 local frame = CreateFrame("Frame")
 local handlers = {
+  PARTY_KILL = function(attacker, target) J.OnPartyKill(attacker, target) end,
   PLAYER_TARGET_CHANGED = function() J.CheckDeath("target") end,
   UPDATE_MOUSEOVER_UNIT = function() Remember("mouseover") end,
   NAME_PLATE_UNIT_ADDED = function(unit) Remember(unit) end,
