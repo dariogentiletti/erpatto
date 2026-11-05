@@ -477,7 +477,7 @@ function TB.LedgerText(x)
   local k = x.k
   if k == "st" then return "Le piotte de partenza" end
   if k == "tp" then return "Le piotte de prova" end
-  if k == "gp" then return "Ore in gruppo co' er patto: " .. (x.g or 0) end
+  if k == "gp" then return "Paghetta pe' fa' gruppo" end
   if k == "tb" then return "Tombola, settimana " .. tostring(x.w or "?") .. (x.open and " (finora)" or "") end
   if k == "sc" then return "Schedina, settimana " .. tostring(x.w or "?") end
   if k == "fo" then return x.o and ("Sfottò a " .. Who(x.o)) or "Sfottò" end

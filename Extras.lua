@@ -213,7 +213,7 @@ X.INFO = {
     "Er Campione: chi manna a la gogna er campione se pija la corona.",
     "'Sta settimana e Da sempre cambiano er periodo contato." },
   -- the Botteghino has one text per tab of its own (botteghino:<page>); this one is the fallback
-  botteghino = { "Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20, e ogni ora in gruppo co' quarcuno der patto te dà 'na piotta." },
+  botteghino = { "Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20, e a giocà in gruppo cor patto se ne guadagnano (vedi Scontrini)." },
   ["botteghino:tombola"] = { "Tombola", "'Na cartella de 9 imprese a settimana, uguale pe' tutti.",
     "1 piotta a casella, +2 a terno, +10 tombola.", "Si 'na casella nun se pò fà, er capo la pò cambià." },
   ["botteghino:schedina"] = { "Schedina", "Tre domande nove ogni settimana: chi sale de più, chi pesca de più, chi more de più...",
@@ -226,7 +226,7 @@ X.INFO = {
     "Duelli: quanno due der patto se menano, chi sta ne la stessa zona pò puntà su uno: chi indovina raddoppia.",
     "Sfotti (tasto destro su 'n amico): pe' 3 piotte je scrivi grosso sur su' schermo 'na frase su li numeri sua." },
   ["botteghino:conti"] = { "Scontrini", "Ogni piotta che hai messo e preso, riga pe' riga. Scegli 'n amico pe' vede li sua.",
-    "Se parte co' 20 piotte, e ogni ora in gruppo co' quarcuno der patto te ne dà una." },
+    "Se parte co' 20 piotte. La paghetta pe' fa' gruppo: 1 piotta l'ora in gruppo co' quarcuno der patto, +1 pe' ognuno der patto che te sta proprio vicino (giocate insieme), fino a 5 l'ora." },
   ["botteghino:ricchi"] = { "Li ricchi", "Chi c'ha più piotte.",
     "Schedine: quante n'ha vinte su quante n'ha giocate. Resa: quanto j'hanno fruttato le piotte puntate; dice chi è bravo davero." },
   imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni.",

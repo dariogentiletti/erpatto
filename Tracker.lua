@@ -550,24 +550,53 @@ function T.OnDeath()
   Bump("dt")
 end
 
--- in a party or raid with someone of the patto (each hour of it is worth a piotta, Tombola.lua)
-local function GroupedWithPatto()
-  if not (IsInGroup and UnitName) then return false end
-  local ok, grouped = pcall(IsInGroup)
-  if not ok or U.IsSecret(grouped) or not grouped then return false end
-  local names = {}
-  for g, r in pairs(state.members) do
-    if g ~= me and type(r.name) == "string" then
-      names[r.name] = true
-      names[r.name:match("^([^%s%-]+)") or r.name] = true
+-- in a party or raid with someone of the patto: how many of them, and how many right next to me (in range, ~40
+-- yards: playing together, not just sharing a group). Names whole: on Forever everyone is "Er Something"
+local function Near(unit)
+  if UnitIsConnected then
+    local on = U.Plain(UnitIsConnected(unit), "boolean")
+    if on == false then return false end
+  end
+  if UnitInRange then
+    -- (in range, checked): not checked = the game doesn't know, try the other way
+    local ok, inRange, checked = pcall(UnitInRange, unit)
+    if ok then
+      inRange, checked = U.Plain(inRange, "boolean"), U.Plain(checked, "boolean")
+      if inRange ~= nil and checked ~= false then return inRange end
     end
   end
-  local raid = IsInRaid and IsInRaid()
-  for i = 1, raid and 40 or 4 do
-    local n = U.FullName((raid and "raid" or "party") .. i)
-    if n and (names[n] or names[U.Short(n)]) then return true end
+  if CheckInteractDistance then
+    local ok, close = pcall(CheckInteractDistance, unit, 4)
+    if ok and U.Plain(close, "boolean") then return true end
   end
   return false
+end
+local function GroupedWithPatto()
+  if not (IsInGroup and UnitName) then return false, 0, 0 end
+  local ok, grouped = pcall(IsInGroup)
+  if not ok or U.IsSecret(grouped) or not grouped then return false, 0, 0 end
+  local names = {}
+  for g, r in pairs(state.members) do
+    if g ~= me and type(r.name) == "string" then names[U.Short(r.name):lower()] = true end
+  end
+  local raid = IsInRaid and IsInRaid()
+  local with, near = 0, 0
+  for i = 1, raid and 40 or 4 do
+    local unit = (raid and "raid" or "party") .. i
+    local n = U.FullName(unit)
+    if n and names[U.Short(n):lower()] then
+      with = with + 1
+      if Near(unit) then near = near + 1 end
+    end
+  end
+  return with > 0, with, near
+end
+-- piotte an hour in a group: 1 with someone of the patto in it, +1 for each of them right next to me, at most 5
+T.GROUP_RATE_MAX = 5
+function T.GroupRate()
+  local yes, _, near = GroupedWithPatto()
+  if not yes then return 0, 0 end
+  return math.min(T.GROUP_RATE_MAX, 1 + near), near
 end
 T.GroupedWithPatto = GroupedWithPatto
 
@@ -582,10 +611,15 @@ local function PlayedMinute()
   T.CheckPvP()
   if P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) < 1 then return end
   Bump("pt", 60)
-  if GroupedWithPatto() then
-    Bump("gp", 60)
-    local gp = state.members[me].stats.t.gp or 0
-    if gp % 3600 == 0 and ns.News then ns.News.Add("+1 piotta: 'n'antra ora in gruppo co' er patto.") end
+  -- "gp": a piotta every 3600 of it; a minute in a group counts 60 for each piotta an hour it's worth now
+  local rate, near = T.GroupRate()
+  if rate > 0 then
+    local before = state.members[me].stats.t.gp or 0
+    Bump("gp", 60 * rate)
+    local after = state.members[me].stats.t.gp or 0
+    if math.floor(after / 3600) > math.floor(before / 3600) and ns.News then
+      ns.News.Add("+1 piotta pe' fa' gruppo co' er patto" .. (near > 0 and (" (" .. rate .. " l'ora: " .. near .. (near == 1 and " amico vicino" or " amici vicini") .. ")") or "") .. ".")
+    end
   end
 end
 
