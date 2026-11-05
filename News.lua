@@ -215,8 +215,17 @@ function N.DingClip(rec)
 end
 
 local quietUntil = 0
+-- live: it happened while I'm playing, not while I was away. With its time: in the last two minutes; without
+-- (older versions, or no time kept): not in the first two minutes after I log in, while the records arrive
+N.LIVE_FOR = 120
+local function Live(at)
+  if type(at) == "number" and at > 0 then return U.Now() - at <= N.LIVE_FOR end
+  return (GetTime and GetTime() or 0) >= (N.settleUntil or 0)
+end
+N.Live = Live
+
 local function Diff(rec, old, quiet)
-  if T0(rec, "dt") > (old.dt or 0) then Wipe(rec, quiet) end
+  if T0(rec, "dt") > (old.dt or 0) then Wipe(rec, quiet or not Live(nil)) end
   local you = rec.guid == ns.recordGuid
   local name = Hex(rec)
   local st = ns.state
@@ -229,7 +238,9 @@ local function Diff(rec, old, quiet)
       if s and s.started and not s.lifted and rec.lv > s.cap then over = s.cap end
     end
     N.Add(name .. " è salito ar livello |cffffffff" .. rec.lv .. "|r" .. (over and (" |cffff4040(cap " .. over .. ")|r") or ""))
-    if not quiet then
+    -- the clip and the banner only for a ding just now; one from while I was away goes in the list only
+    local dingAt = type(rec.dl) == "table" and rec.dl.lv == rec.lv and rec.dl.at or nil
+    if not quiet and Live(dingAt) then
       local quip = QUIPS[math.random(#QUIPS)]:format(Short(rec))
       if over then quip = "Ma er cap è " .. over .. "... furbetto!" end
       N.Banner((you and "Sei" or Short(rec) .. " è") .. " ar livello " .. rec.lv .. "!", quip, over and { 1, 0.35, 0.3 } or nil, "ding")
@@ -240,14 +251,14 @@ local function Diff(rec, old, quiet)
   if T0(rec, "le") > (old.le or 0) then
     local first = rec.fe and rec.fe.at ~= old.fe and rec.fe.n
     N.Add(name .. " ha trovato 'n |cffa335eeepico|r" .. (first and (": " .. first) or ""))
-    if not quiet then N.Banner(Short(rec) .. " ha trovato 'n epico!", first or "Che culo.", { 0.75, 0.4, 1 }, "evento") end
+    if not quiet and Live(first and rec.fe.at or nil) then N.Banner(Short(rec) .. " ha trovato 'n epico!", first or "Che culo.", { 0.75, 0.4, 1 }, "evento") end
   end
   -- silly death
   if rec.ed and rec.ed.at ~= old.ed and T0(rec, "em") > (old.em or 0) then
     local fmt = SILLY[rec.ed.k] or "%s è morto male"
     local txt = fmt:format(Short(rec), rec.ed.by or "pischello")
     N.Add(name .. txt:sub(#Short(rec) + 1) .. (rec.ed.z and (" a " .. rec.ed.z) or ""))
-    if not quiet then N.Banner(txt .. "!", "Morti ridicole: " .. T0(rec, "em"), { 0.8, 0.8, 0.8 }, "evento") end
+    if not quiet and Live(rec.ed.at) then N.Banner(txt .. "!", "Morti ridicole: " .. T0(rec, "em"), { 0.8, 0.8, 0.8 }, "evento") end
   end
   if T0(rec, "rk") > (old.rk or 0) then
     local r = rec.rl and rec.rl[1]
@@ -263,10 +274,10 @@ local function Diff(rec, old, quiet)
     if sc and sc.wk == old.tw then
       if sc.full and (old.tf or 0) == 0 then
         N.Add(name .. " ha fatto |cffffd100TOMBOLA|r!")
-        if not quiet then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento", true) end
+        if not quiet and Live(nil) then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento", true) end
       elseif sc.lines > (old.tl or 0) then
         N.Add(name .. " ha fatto terno a la tombola")
-        if not quiet then N.Banner(Short(rec) .. " ha fatto terno!", "'Na riga de la tombola completa.", nil, "evento") end
+        if not quiet and Live(nil) then N.Banner(Short(rec) .. " ha fatto terno!", "'Na riga de la tombola completa.", nil, "evento") end
       end
     end
   end

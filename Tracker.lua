@@ -135,10 +135,9 @@ function T.RefreshSelf(reason, levelOverride)
   if fields.lv and before and fields.lv > before then
     local rec = state.members[me]
     local pt = rec.stats and rec.stats.t and rec.stats.t.pt
-    if pt then
-      fields.dl = { lv = fields.lv, s = rec.lp and math.max(0, pt - rec.lp) or nil }
-      fields.lp = pt
-    end
+    -- when it happened, always (the others show the clip only for a ding just now)
+    fields.dl = { lv = fields.lv, s = pt and rec.lp and math.max(0, pt - rec.lp) or nil, at = U.Now() }
+    if pt then fields.lp = pt end
   end
   P.UpdateSelf(state, me, fields, reason)
   if fields.lv and before and fields.lv > before and fields.lv - before <= 5 and reason ~= "login" then

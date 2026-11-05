@@ -778,6 +778,24 @@ A.ns.News.Check(A.lua.eval('''function() return { guid = "Player-1-NEW", name = 
 A.ns.News.Check(A.lua.eval('''function() return { guid = "Player-1-NEW", name = "Er Novo", lv = 6, fresh = true, stats = { t = {}, w = {} } } end''')())
 check(len(A.news()) == nb and not (A.g.ErPattoDing and A.g.ErPattoDing.shown), 'new one at 1 then his real 6: no ding either')
 check(A.ns.P.Join('X', 'G', 'Y').members['G'].lv == A.g.P_LEVEL, 'a new record has the real level from the start')
+# dings while I was away: at login they're in the list, but no clip and no banner; only a ding while I play gets them
+now = int(T[0])
+def ding(lv, at):
+    return A.lua.eval('''function(lv, at) return { guid = "Player-1-AWAY", name = "Er Lontano", lv = lv, fresh = nil, dl = at and { lv = lv, s = 3600, at = at } or nil, stats = { t = {}, w = {} } } end''')(lv, at)
+def clip(): return bool(A.g.ErPattoDing and A.g.ErPattoDing.shown)
+def hide():
+    if A.g.ErPattoDing: A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+hide(); A.ns.News.Check(ding(8, None))
+nb = len(A.news())
+A.ns.News.Check(ding(9, now - 3 * 3600))
+check(not clip() and 'Er Lontano' in A.news()[0] and '9' in A.news()[0], 'a ding three hours ago, arriving now: in the news, no clip')
+A.ns.News.settleUntil = A.g.GetTime() + 100
+A.ns.News.Check(ding(10, None))
+check(not clip(), 'a ding with no time (older version) in the first minutes after login: no clip')
+A.ns.News.settleUntil = 0
+A.ns.News.Check(ding(11, now))
+check(clip(), 'a ding just now: the clip')
+hide()
 N.g.P_LEVEL = 13; N.g.FIRE('PLAYER_LEVEL_UP', 13); secs(80)
 check(any('Nando' in n and '13' in n for n in A.news()), 'his real ding later is told')
 
