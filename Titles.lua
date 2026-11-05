@@ -26,10 +26,17 @@ local function Count(t)
   return n
 end
 
-local function BestProfession(m)
-  local best = 0
-  for _, p in ipairs(m.pr or {}) do if (p.l or 0) > best then best = p.l end end
-  return best
+-- all the professions together: Fishing 70 and Blacksmithing 40 beat Fishing 70 alone
+local function AllProfessions(m)
+  local sum = 0
+  for _, p in ipairs(m.pr or {}) do sum = sum + (tonumber(p.l) or 0) end
+  return sum
+end
+-- the fewest deaths, among who played at least 5 hours; the same deaths: who played longer
+local function FewestDeaths(m)
+  local pt = Stat(m, "pt")
+  if pt < 18000 then return 0 end
+  return math.max(1, 10000 - Stat(m, "dt")) * 100000 + math.min(99999, math.floor(pt / 3600))
 end
 
 -- kind "top": the one with the highest value, if above zero; nobody on a tie
@@ -49,7 +56,8 @@ Ti.LIST = {
   { id = "nottambulo", name = "A Nottambulo", kind = "top", value = function(m) return H.StatOf(m, "pt", "w") end, desc = "Chi ha giocato de più 'sta settimana." },
   { id = "cascamorto", name = "A Cascamorto", kind = "top", value = function(m) return Stat(m, "dt") end, desc = "Chi è morto più vorte. Casca e more." },
   { id = "griffato", name = "A Griffato", kind = "top", value = function(m, c) return c.il(m) end, desc = "Er livello oggetti più arto der patto: tutto firmato." },
-  { id = "mastro", name = "A Mastro", kind = "top", value = BestProfession, desc = "La professione più arta der patto, quarunque sia." },
+  { id = "mastro", name = "A Mastro", kind = "top", value = AllProfessions, desc = "Er mastro de le professioni: la somma de tutte le professioni sua è la più arta der patto." },
+  { id = "pellaccia", name = "A Pellaccia", kind = "top", value = FewestDeaths, desc = "Chi è morto meno vorte (armeno 5 ore de gioco; a pari morti, chi ha giocato de più). C'ha la pelle dura." },
   { id = "fortunello", name = "A Fortunello", kind = "top", desc = "Er più fortunato: più blu e epici pe' ora de gioco (armeno 2 ore).",
     value = function(m) return Stat(m, "pt") >= 7200 and ns.Fun and ns.Fun.LuckOf(m, "t") or 0 end },
   { id = "iettato", name = "A Iettato", kind = "top", desc = "Er più sfigato: manco 'n blu (armeno 5 ore de gioco). Toccate quarcosa.",

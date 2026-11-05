@@ -319,6 +319,19 @@ look = A.lua.eval('''function(Ti)
     tostring(Ti.Lookup(map, "Dario-Realm")) }, ",")
 end''')(A.ns.Titles)
 check(str(look) == 'pescivendolo,pescivendolo,pescivendolo,sorcapo,sorcapo,nil,nil,nottambulo', 'chat titles on Forever: each "Er" his own, whatever way the chat writes the name: ' + str(look))
+# A Mastro: all the professions together; A Pellaccia: the fewest deaths among who played 5 hours
+vals = A.lua.eval('''function(Ti)
+  local m = Ti.BY_ID.mastro.value
+  local a = { pr = { { n = "Fishing", l = 70 } }, stats = { t = {} } }
+  local b = { pr = { { n = "Fishing", l = 70 }, { n = "Blacksmithing", l = 40 } }, stats = { t = {} } }
+  local p = Ti.BY_ID.pellaccia.value
+  local new = { stats = { t = { pt = 3600, dt = 0 } } }
+  local one = { stats = { t = { pt = 36000, dt = 1 } } }
+  local three = { stats = { t = { pt = 72000, dt = 3 } } }
+  local oneLonger = { stats = { t = { pt = 72000, dt = 1 } } }
+  return m(a) .. "," .. m(b) .. "," .. tostring(p(new) == 0) .. "," .. tostring(p(one) > p(three)) .. "," .. tostring(p(oneLonger) > p(one))
+end''')(A.ns.Titles)
+check(str(vals) == '70,110,true,true,true', 'A Mastro adds the professions (Fishing 70 + Blacksmithing 40 beats Fishing 70); A Pellaccia: fewest deaths, 5 hours at least, then who played longer: ' + str(vals))
 res2 = A.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Sconosciuto-Realm')
 check(res2 is False or res2 == False or (isinstance(res2, tuple) and len(res2) == 1), 'strangers unchanged')
 secs(8)
