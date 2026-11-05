@@ -201,7 +201,10 @@ local function Supersede(key)
   end
 end
 
+-- a friend reached over Battle.net is addressed "bn:<game account>": their messages go by SendGameData
 local function Enqueue(kind, target, body, urgent, key)
+  local bn = type(target) == "string" and tonumber(target:match("^bn:(%d+)$"))
+  if bn then kind, target = "BN", bn end
   if key then
     -- a whole record also makes the changes still waiting useless
     if key:sub(1, 2) == "M:" then Supersede("D:" .. key:sub(3) .. ">" .. tostring(target)) end
@@ -344,7 +347,12 @@ local function Tick()
   while #queue > 0 and tokens >= 1 do
     local item = table.remove(queue, 1)
     urgentAt = math.max(0, urgentAt - 1)
-    local ok, res = pcall(C_ChatInfo.SendAddonMessage, PREFIX, item[3], item[1], item[2])
+    local ok, res
+    if item[1] == "BN" then
+      if C_BattleNet and C_BattleNet.SendGameData then ok, res = pcall(C_BattleNet.SendGameData, item[2], PREFIX, item[3]) end
+    else
+      ok, res = pcall(C_ChatInfo.SendAddonMessage, PREFIX, item[3], item[1], item[2])
+    end
     if ok and ResultIsThrottle(res) then
       table.insert(queue, 1, item)
       tokens = 0
@@ -656,18 +664,20 @@ function C.Search()
 end
 
 -- someone asks for my patto: if the code is mine, a hello to them (once in a while per name)
-local function OnSearch(d)
+-- the answer goes back the way the question came (the whisper's sender, the Battle.net friend): a name typed
+-- or built by the addon may not be the one the game wants for a whisper, the sender always is
+local function OnSearch(d, route)
   if not (state and type(d) == "table" and d.c == state.code and type(d.n) == "string" and d.n ~= myName) then return end
   if answered[d.n] and Clock() - answered[d.n] < 20 then return end
   answered[d.n] = Clock()
-  U.Log("Comms", d.n, "cerca er patto: je scrivo")
-  C.AddSeed(d.n)
+  U.Log("Comms", d.n, "cerca er patto: je risponno", route or d.n)
+  if type(route) == "string" and route ~= "" then C.HelloTo(route) else C.AddSeed(d.n) end
 end
 
 local function OnInviteMessage(text, sender)
   local kind, payload = text:match("^%?(%u)~?(.*)$")
   if kind == "Q" then
-    OnSearch(U.Deserialize(payload))
+    OnSearch(U.Deserialize(payload), sender)
   elseif kind == "I" then
     local d = U.Deserialize(payload)
     if type(d) ~= "table" or type(d.c) ~= "string" then return end
@@ -684,10 +694,17 @@ local function OnInviteMessage(text, sender)
   end
 end
 
--- the search over Battle.net (a friend's game, any realm)
-function C.OnBNAddon(prefix, text)
+-- Battle.net (a friend's game, any realm): the search, and then everything else with that friend
+function C.OnBNAddon(prefix, text, channel, senderID)
   if U.IsSecret(prefix) or U.IsSecret(text) or prefix ~= PREFIX or type(text) ~= "string" then return end
-  if text:sub(1, 3) == "?Q~" then OnInviteMessage(text, nil) end
+  senderID = U.Plain(senderID, "number")
+  if not senderID then return end
+  local route = "bn:" .. senderID
+  if text:sub(1, 1) == "?" then
+    if text:sub(1, 3) == "?Q~" then OnInviteMessage(text, route) end
+    return
+  end
+  C.OnAddonMessage(prefix, text, "WHISPER", route)
 end
 
 -- who never answered an invite (no addon, or offline)
@@ -740,10 +757,17 @@ if type(ERR_CHAT_PLAYER_NOT_FOUND_S) == "string" then
   notFound = "^" .. ERR_CHAT_PLAYER_NOT_FOUND_S:gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%%%s", "(.+)") .. "$"
 end
 
+local notFoundAt = {}
 local function SystemFilter(_, _, msg)
   if not notFound or U.IsSecret(msg) or type(msg) ~= "string" then return false end
   local name = msg:match(notFound)
-  if name and whispered[name] and Clock() - whispered[name] < 20 then return true end
+  if name and whispered[name] and Clock() - whispered[name] < 20 then
+    if not notFoundAt[name] or Clock() - notFoundAt[name] > 60 then
+      notFoundAt[name] = Clock()
+      U.Log("Comms", "sussurro nun arrivato a", name)
+    end
+    return true
+  end
   return false
 end
 

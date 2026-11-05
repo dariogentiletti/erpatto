@@ -55,6 +55,8 @@ def step(n=1, dt=0.25):
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
                     elif m.kind == 'BN' and m.target == d.g.BNID:
                         d.ns.C.OnBNAddon(m.prefix, m.text, 'WHISPER', c.g.BNID or 0)
+                    elif m.kind == 'WHISPER' and m.target == d.name and d.g.NO_WHISPERS:
+                        continue
                     elif m.kind == 'WHISPER' and m.target == d.name:
                         # a full server loses some whispers
                         if LOSS[0] and random.random() < LOSS[0]: continue
@@ -204,6 +206,8 @@ fails(str(E.ns.P.ParseInvite('98lx8 Er Gnomo')[0]) == '98LX8' and str(E.ns.P.Par
 # 14) the code alone, as a password: Er Solo is on another internal realm (the channel never sees him), knows no
 # name, but he's a Battle.net friend of Er Martellone. He writes the 5 letters and he's in.
 J = Client('Er Solo', 'G-SOLO'); clients['J'] = J; J.g.NOWV = T[0]; J.g.REFUSE_CHANNEL = True
+# and no whisper reaches him (as Er Cortello in the game): only Battle.net, both ways
+J.g.NO_WHISPERS = True; J.g.BNID = 777
 G.g.BNID = 4242
 J.g.BNFRIENDS = J.lua.table_from([J.lua.table_from({'id': 4242})])
 J.state = J.ns.P.Join(code2, 'G-SOLO', 'Er Solo')
