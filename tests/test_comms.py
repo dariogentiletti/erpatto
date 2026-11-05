@@ -195,3 +195,6 @@ fails(mine.pts is not None and mine.pts.t == 57 and mine.team == 't1' and mine.l
       'lost WTF: her record came back from the friends (57 piotte, her squadra), with her level of now (5): %s %s %s' % (mine.pts and mine.pts.t, mine.team, mine.lv))
 fails(all(c.state.members['G-NIA'].pts is not None and c.state.members['G-NIA'].pts.t == 57 for c in (E, G)), 'and nobody\'s copy was wiped by the empty one')
 print('errori 13:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G))})
+
+fails(str(E.ns.P.ParseInvite('98lx8 Er Gnomo')[0]) == '98LX8' and str(E.ns.P.ParseInvite('98lx8 Er Gnomo')[1]) == 'Er Gnomo'
+      and E.ns.P.ParseInvite('K7Q 2M')[0] == 'K7Q2M' and E.ns.P.ParseInvite('98LX8')[1] is None, 'the code with the name inside: read right; old codes still work')

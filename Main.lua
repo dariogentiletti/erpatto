@@ -70,13 +70,15 @@ function ns.CreatePatto(opts)
   state.main = ns.me
   ns.db.patti[state.code] = state
   Activate(state, ns.me, false)
-  U.Say("Patto creato! Er codice è |cffffffff" .. state.code .. "|r: dallo all'amichi.")
+  U.Say("Patto creato! Er codice è |cffffffff" .. P.InviteCode(state.code, ns.myName) .. "|r: dallo all'amichi (tutto, cor nome).")
   return state
 end
 
--- by: the name of who gave the code (or sent the invite), the first one to whisper on Forever
+-- text: the code a friend gave ("98LX8 Er Gnomo": the code and their name, the first one to whisper on Forever);
+-- by: the name of who sent an invite
 function ns.JoinPatto(text, by)
-  local code = P.NormalizeCode(text)
+  local code, named = P.ParseInvite(text)
+  by = by or named
   if not code then return nil, "Er codice nun è giusto: so' 5 lettere o nummeri, tipo K7Q2M." end
   if ns.state and not ns.alt then
     if ns.state.code == code then return ns.state end
@@ -326,7 +328,7 @@ function ns.InviteFriend(name, out)
   if C_Timer then
     C_Timer.After(8, function()
       for _, who in ipairs(C.PendingInvites(7)) do
-        tell(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice " .. ns.state.code .. ".")
+        tell(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice " .. P.InviteCode(ns.state.code, ns.myName) .. ".")
       end
     end)
   end
