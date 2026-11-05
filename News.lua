@@ -20,6 +20,11 @@ local MAX_NEWS = 80
 ----------------------------------------------------------------------
 local function Ping(sound)
   if not (ns.db and ns.db.opts.toastSound and PlaySound) then return end
+  -- a death: the game's soft falling "quest failed" note, heard in play only when a quest fails
+  if sound == "rip" then
+    pcall(PlaySound, SOUNDKIT and SOUNDKIT.IG_QUEST_FAILED or 847, "Master")
+    return
+  end
   -- a file of our own (Media)
   if type(sound) == "string" and sound:find("^Interface") then
     if PlaySoundFile then pcall(PlaySoundFile, sound, "Master") end
@@ -92,7 +97,7 @@ local function T0(rec, k) return rec.stats and rec.stats.t and rec.stats.t[k] or
 
 local function Snapshot(rec)
   local s = { lv = rec.lv, le = T0(rec, "le"), em = T0(rec, "em"), rk = T0(rec, "rk"), dg = T0(rec, "dg"), dt = T0(rec, "dt"),
-    ed = rec.ed and rec.ed.at, fe = rec.fe and rec.fe.at, nk = {} }
+    ed = rec.ed and rec.ed.at, fe = rec.fe and rec.fe.at, lr = rec.lr and rec.lr.at, nk = {} }
   for _, x in ipairs(rec.nkl or {}) do s.nk[x.n] = x.c end
   if ns.Tombola then
     local sc = ns.Tombola.Score(rec)
@@ -214,6 +219,23 @@ function N.DingClip(rec)
   end
 end
 
+-- "R.I.P. Er Canaro, livello 12, ammazzato da Lightning Hide a Durotar"
+function N.DeathLine(rec)
+  local g = rec.lr or {}
+  local how = ns.Sfide and ns.Sfide.GraveText and ns.Sfide.GraveText(g) or ""
+  if g.k == "pischello" and g.by then how = how:gsub(", ammazzato da ", ", ammazzato da 'n pischello: ") end
+  local you = rec.guid == ns.recordGuid
+  return "R.I.P. " .. (you and "tu" or Hex(rec)) .. "|cffbfbfbf" .. how .. "|r"
+end
+-- "Urtime parole: "aiuto" (16 morti in tutto, 3 ridicole)"
+function N.DeathSub(rec)
+  local g = rec.lr or {}
+  local dt, em = T0(rec, "dt"), T0(rec, "em")
+  local count = "(" .. dt .. (dt == 1 and " morte" or " morti") .. " in tutto" .. (em > 0 and (", " .. em .. (em == 1 and " ridicola" or " ridicole")) or "") .. ")"
+  if g.w and g.w ~= "" then return "Urtime parole: \"" .. g.w .. "\" " .. count end
+  return count
+end
+
 local quietUntil = 0
 -- live: it happened while I'm playing, not while I was away. With its time: in the last two minutes; without
 -- (older versions, or no time kept): not in the first two minutes after I log in, while the records arrive
@@ -253,12 +275,16 @@ local function Diff(rec, old, quiet)
     N.Add(name .. " ha trovato 'n |cffa335eeepico|r" .. (first and (": " .. first) or ""))
     if not quiet and Live(first and rec.fe.at or nil) then N.Banner(Short(rec) .. " ha trovato 'n epico!", first or "Che culo.", { 0.75, 0.4, 1 }, "evento") end
   end
-  -- silly death
-  if rec.ed and rec.ed.at ~= old.ed and T0(rec, "em") > (old.em or 0) then
+  -- silly death: in the list (the chat line is the death's own, below)
+  local silly = rec.ed and rec.ed.at ~= old.ed and T0(rec, "em") > (old.em or 0)
+  if silly then
     local fmt = SILLY[rec.ed.k] or "%s è morto male"
     local txt = fmt:format(Short(rec), rec.ed.by or "pischello")
     N.Add(name .. txt:sub(#Short(rec) + 1) .. (rec.ed.z and (" a " .. rec.ed.z) or ""))
-    if not quiet and Live(rec.ed.at) then N.Banner(txt .. "!", "Morti ridicole: " .. T0(rec, "em"), { 0.8, 0.8, 0.8 }, "evento") end
+  end
+  -- a death, as it happens: one line for everyone, how, where, the last words, how many in all
+  if type(rec.lr) == "table" and rec.lr.at and rec.lr.at ~= old.lr and not quiet and Live(rec.lr.at) then
+    N.Banner(N.DeathLine(rec), N.DeathSub(rec), { 0.75, 0.75, 0.75 }, "rip")
   end
   if T0(rec, "rk") > (old.rk or 0) then
     local r = rec.rl and rec.rl[1]

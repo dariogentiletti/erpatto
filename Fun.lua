@@ -172,9 +172,9 @@ function F.RecapKind()
   return nil, Plain(blow.sourceName, "string")
 end
 
--- the last thing I wrote in chat, for the epitaph (only if said in the last ten minutes)
+-- the last thing I wrote in chat, for the epitaph (only if said in the two minutes before dying)
 local lastWords
-F.WORDS_FRESH = 600
+F.WORDS_FRESH = 120
 function F.Said(msg, author)
   if type(msg) ~= "string" or U.IsSecret(msg) or type(author) ~= "string" or U.IsSecret(author) then return end
   local me = ns.myName or U.FullName("player")
@@ -197,7 +197,7 @@ local function Grave(kind, killer)
     if not (type(g.at) == "number" and type(last.at) == "number" and math.abs(last.at - g.at) <= 5) then rip[#rip + 1] = g end
   end
   lastWords = nil
-  P.UpdateSelf(ns.state, ns.recordGuid, { rip = rip }, "rip")
+  P.UpdateSelf(ns.state, ns.recordGuid, { rip = rip, lr = stone }, "rip")
 end
 
 function F.OnDeath()

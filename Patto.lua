@@ -302,6 +302,11 @@ function P.CleanMember(r)
     return { id = Str(x.id, 40), on = Str(x.on, 60), s = math.floor(Num(x.s, 0, 1e5) or 0), at = Num(x.at, 0, 4e9) }
   end)
   -- the graveyard: my last deaths with who, where, the level and my last words
+  -- the last death alone (small: it travels in the flash, so everyone is told at once)
+  if type(r.lr) == "table" and Num(r.lr.at, 0, 4e9) then
+    local x = r.lr
+    c.lr = { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
+  end
   c.rip = List(r.rip, 10, function(x)
     if not Num(x.at, 0, 4e9) then return nil end
     return { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }

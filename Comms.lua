@@ -469,6 +469,8 @@ end
 -- first in the queue, good on any copy of my record; the record itself follows at its pace
 local sentT, sentW, sentTop = {}, {}, {}
 local FLASH_FIELD = 160
+local FLASH_BIG = { lr = 260 } -- the last death, with its last words
+local FLASH_MAX = MAXLEN * 2
 local function Flash(rec)
   local wk = 0
   if P.HasSettings(state) and ns.M and ns.M.WeekIndex then wk = ns.M.WeekIndex(state.settings, U.Now()) or 0 end
@@ -477,7 +479,7 @@ local function Flash(rec)
   for k, v in pairs(rec) do
     if k ~= "up" and k ~= "guid" and k ~= "stats" and k ~= "fresh" and k ~= "abt" then
       local ser = U.Serialize(v)
-      if ser ~= sentTop[k] and #ser <= FLASH_FIELD then e.c[k] = v any = true end
+      if ser ~= sentTop[k] and #ser <= (FLASH_BIG[k] or FLASH_FIELD) then e.c[k] = v any = true end
     end
   end
   local t = rec.stats and rec.stats.t or {}
@@ -488,7 +490,7 @@ local function Flash(rec)
   if next(ww) then e.w[wk] = ww end
   if not any then return end
   local body = Body("E", e)
-  if #body <= MAXLEN then Broadcast(body, true, nil) end
+  if #body <= FLASH_MAX then Broadcast(body, true, nil) end
 end
 -- what the others have of me now, to tell a flash what's new
 local function NoteSent(rec)

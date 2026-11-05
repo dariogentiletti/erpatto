@@ -320,6 +320,21 @@ B.g.FIRE('PLAYER_DEAD'); secs(15)
 check(any('Wipe' in n and 'Dario' in n and 'Pietro' in n for n in A.news()), 'wipe in the news: ' + str([n for n in A.news() if 'Wipe' in n][:1]))
 check(A.ns.News.WipeCount() == 1 and B.ns.News.WipeCount() == 1, 'one wipe counted, on both sides')
 
+# ---- a death, told to everyone at once: one line in the chat, how, where, the last words, how many in all
+secs(20)
+clear = A.lua.eval('function() CHAT = {} SOUNDS = {} end'); clear()
+B.g.FIRE('CHAT_MSG_SAY', 'mo me sarvo', 'Pietro'); secs(1)
+B.lua.eval('''function() UNITS.target = { guid = "Creature-0-1-2-3-4-77", name = "Lightning Hide", level = 12, attack = true } end''')()
+B.g.FIRE('PLAYER_DEAD'); secs(2)
+B.lua.eval("function() UNITS.target = nil end")()
+lines = [str(x) for x in A.g.CHAT.values() if 'R.I.P.' in str(x)]
+check(len(lines) == 1 and '[Er Patto]' in lines[0] and 'Pietro' in lines[0] and 'Lightning Hide' in lines[0] and 'mo me sarvo' in lines[0] and 'in tutto' in lines[0],
+      'a death: one line in the chat of the others within two seconds, killer, last words, deaths in all: ' + str(lines))
+check(847 in [x for x in A.g.SOUNDS.values()], 'with its own soft sound')
+secs(30)
+check(len([x for x in A.g.CHAT.values() if 'R.I.P.' in str(x)]) == 1, 'said once, not again when the whole record follows')
+check(any('R.I.P. tu' in str(x) for x in B.g.CHAT.values()), 'and on the screen of who died')
+
 # ---- the race to each milestone: hours played when reaching level 10
 B.g.P_LEVEL = 10; B.g.FIRE('PLAYER_LEVEL_UP', 10); secs(10)
 mp = A.ns.state.members['Player-1-BBB'].mp
