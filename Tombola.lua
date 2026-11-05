@@ -541,7 +541,8 @@ function TB.Mine(guid)
   local all = ns.state and ns.state.members or {}
   local me, other = all[ns.recordGuid], all[guid]
   if not (me and other) then return false end
-  local function short(n) return (tostring(n or ""):match("^([^%s%-]+)")) or "" end
+  -- the whole name without the realm: on Forever many share the first name ("Er Nia", "Er Matto")
+  local function short(n) return U.Short(tostring(n or "")) end
   for _, a in ipairs(me.alts or {}) do if short(a.name) == short(other.name) then return true end end
   for _, a in ipairs(other.alts or {}) do if short(a.name) == short(me.name) then return true end end
   return false
@@ -675,9 +676,18 @@ function TB.Odds(wk, list, qkey, without)
       total = total + st
     end
   end
+  -- the form counts as the week goes: at the reset nobody has done anything yet, so everyone starts even, and by the
+  -- close of the bets the form is the whole of the house's part (a few herbs in the first hour mean nothing)
+  local wkStart = wk and TB.WeekStart(wk)
+  local weight = 1
+  if wkStart then
+    local span = math.max(1, TB.Closes(wk) - wkStart)
+    weight = math.max(0, math.min(1, (U.Now() - wkStart) / span))
+  end
   local out = {}
   for _, m in ipairs(list) do
-    local p = ((staked[m.guid] or 0) + HOUSE * form[m.guid] / sumForm) / (total + HOUSE)
+    local share = weight * form[m.guid] / sumForm + (1 - weight) / math.max(1, #list)
+    local p = ((staked[m.guid] or 0) + HOUSE * share) / (total + HOUSE)
     local x10 = math.floor(10 * EDGE / p + 0.5)
     out[m.guid] = { q = math.max(MINQ, math.min(MAXQ, x10)), staked = staked[m.guid] or 0, n = count[m.guid] or 0 }
   end

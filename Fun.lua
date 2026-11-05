@@ -121,6 +121,9 @@ end)
 -- and the last moment I was falling
 local env, envAt = nil, 0
 local breathEnd, lastFall = nil, 0
+-- a jump is half a second in the air, a fall that hurts more than a second: only a long one makes the death "cascato"
+local fallStart, lastFallDur = nil, 0
+F.FALL_MIN = 1.2
 local function Now() return GetTime and GetTime() or 0 end
 
 function F.DeathKind()
@@ -136,7 +139,8 @@ function F.DeathKind()
   local recent = Now() - envAt < 3 and env
   if recent == "Falling" then kind = "cascato"
   elseif recent == "Drowning" then kind = "affogato"
-  elseif Safe(IsFalling) == true or Now() - lastFall < 2.5 then kind = "cascato"
+  elseif (Safe(IsFalling) == true and fallStart and Now() - fallStart >= F.FALL_MIN)
+    or (Now() - lastFall < 2.5 and lastFallDur >= F.FALL_MIN) then kind = "cascato"
   elseif breathEnd and Now() >= breathEnd - 2 then kind = "affogato"
   elseif kPlayer then kind = "pvp"
   elseif killer and (kType == "Critter" or (kLv and kLv > 0 and kLv <= myLv - 5)) then kind = "pischello"
@@ -317,18 +321,22 @@ for ev in pairs(handlers) do
   if ev == "UNIT_SPELLCAST_SUCCEEDED" and frame.RegisterUnitEvent then pcall(frame.RegisterUnitEvent, frame, ev, "player")
   else pcall(frame.RegisterEvent, frame, ev) end
 end
--- falling is a state, not an event: look at it often while it lasts
-local acc = 0
-frame:SetScript("OnUpdate", function(_, elapsed)
-  acc = acc + (elapsed or 0)
-  if acc < 0.15 then return end
-  acc = 0
-  if Safe(IsFalling) == true then lastFall = Now() end
-end)
+-- falling is a state, not an event: look at it often (and how long it lasts: a jump isn't a fall)
+function F.WatchFall()
+  if Safe(IsFalling) == true then
+    fallStart = fallStart or Now()
+    lastFall = Now()
+    lastFallDur = Now() - fallStart
+  else
+    fallStart = nil
+  end
+end
 
 ns.On("J_Flight", function() Bump("fl") end)
 ns.On("Login", function()
   if C_Timer then
+    -- a look at IsFalling every 0.15 seconds: one call to the game, nothing else
+    C_Timer.NewTicker(0.15, F.WatchFall)
     C_Timer.NewTicker(2, function() local ok, err = pcall(F.SampleTravel) if not ok then U.Log("Errore", "viaggi", err) end end)
     C_Timer.After(20, function() F.RaiseFromGame() F.Sync() end)
   end

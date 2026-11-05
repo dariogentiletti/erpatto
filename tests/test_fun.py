@@ -96,9 +96,16 @@ check(any('Dario' in n and 'epico' in n for n in B.news()), 'the epic is news fo
 check(A.ns.Fun.LuckOf(A.rec(), 't') > 0, 'luck has a value')
 
 # ---- silly deaths and the nemesis
-A.g.FALLING = True; A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
+# a jump in a fight (half a second in the air) with the mob that kills him in the target: not a fall
+A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-61", name = "Murloc Raider", level = 12, attack = true } end""")()
+A.g.FALLING = True; secs(0.5); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
+A.lua.eval("function() UNITS.target = nil end")()
+secs(3)
+check(A.stat('em') == 0 and str(A.rec().rip[1].k) != 'cascato', 'jumping while a mob kills you is not a fall: ' + str(A.rec().rip[1].k))
+A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = False
 secs(1)
-check(A.stat('em') == 1 and str(A.rec().ed.k) == 'cascato', 'death by falling is a silly death')
+check(A.stat('em') == 1 and str(A.rec().ed.k) == 'cascato', 'death by falling (two seconds in the air) is a silly death')
+secs(3)
 A.g.P_LEVEL = 12
 A.lua.eval("""function() UNITS.target = { guid = "Creature-0-1-2-3-4-60", name = "Kobold Vermin", level = 2 } end""")()
 A.g.FIRE('PLAYER_DEAD'); secs(1)
@@ -150,6 +157,28 @@ A.ns.Botteghino.Show('ricchi')
 check(A.has('Li ricchi') and A.has('Piotte') and not A.has('Sfotti'), 'Li ricchi page, no sfottò button there')
 A.ns.Botteghino.Show('schedina')
 check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Piotte'), 'Schedina page: the three questions with odds')
+
+# ---- "mine" (self or own alt) by the whole name: on Forever many share the first name
+_mine = A.lua.eval("""function(ns, other)
+  local me, o = ns.state.members[ns.recordGuid], ns.state.members[other]
+  local oldAlts, oldName = me.alts, o.name
+  o.name = "Er Matto"
+  me.alts = { { name = "Er Gnomo-Realm", lv = 3 } }
+  local a = ns.Tombola.Mine(other)
+  me.alts = { { name = "Er Matto", lv = 3 } }
+  local b = ns.Tombola.Mine(other)
+  me.alts, o.name = oldAlts, oldName
+  return a, b
+end""")(A.ns, 'Player-1-BBB')
+check(_mine[0] is False and _mine[1] is True, 'another "Er" is not mine; my alt with the same whole name is: ' + str(_mine))
+
+# ---- odds: at the reset everyone is even (nothing done yet); the form counts as the week goes
+_wk = A.ns.Tombola.Week(); _save = A.g.NOWV
+A.g.NOWV = A.ns.Tombola.WeekStart(_wk) + 60
+_o = A.ns.Tombola.Odds(_wk, A.ns.UI.Members(), 'a')[0]
+_qs = set(int(x.q) for x in _o.values())
+A.g.NOWV = _save
+check(len(_qs) == 1, 'odds at the reset: all the same, whatever was done before: ' + str(_qs))
 
 # ---- la Schedina: Dario bets 10 on Pietro levelling most; Pietro bets 5 on himself, Gina nobody
 TB = A.ns.Tombola

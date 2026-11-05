@@ -219,7 +219,7 @@ X.INFO = {
   ["botteghino:schedina"] = { "Schedina", "Tre domande nove ogni settimana: chi sale de più, chi pesca de più, chi more de più...",
     "Se gioca dar reset fino ar sabato sera; poi se pò ancora ribartà tutto, e ar reset de mercoledì se paga (la linea in arto lo fa vede).",
     "Una giocata pe' domanda, ar massimo 25 piotte, e nun se cambia. Mai su te stesso o su 'n alt tuo.",
-    "Più piotte ce stanno sopra a uno, meno paga: vinci la posta per la quota de quanno hai puntato. Chi azzecca dove nessuno punta vince de più." },
+    "Ar reset le quote so' tutte pari; poi, coi giorni, conta chi sta avanti (e paga meno). Più piotte ce stanno sopra a uno, meno paga: vinci la posta per la quota de quanno hai puntato. Chi azzecca dove nessuno punta vince de più." },
   ["botteghino:sfide"] = { "Sfide", "Sfidi 'n amico a chi fa de più (quest, sordi, pesci...) o a chi arriva prima ar livello, fino a la fine de la settimana. Chi vince se pija la posta.",
     "Taja: piotte su la testa de quarcuno, se le pija chi lo batte a duello.",
     "Gufata (tasto destro su 'n amico): scommetti che more entro 5 minuti. Si more vinci mezza posta, si campa se la pija lui.",
