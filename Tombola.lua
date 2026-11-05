@@ -345,7 +345,8 @@ local function Book()
   ns.db.points = type(ns.db.points) == "table" and ns.db.points or {}
   local key = TB.BookKey()
   local b = ns.db.points[key]
-  if type(b) ~= "table" then b = {} ns.db.points[key] = b end
+  -- new: no book on this PC yet (a new player, or a known one on a new computer: see TB.Update)
+  if type(b) ~= "table" then b = { new = true } ns.db.points[key] = b end
   b.weeks = type(b.weeks) == "table" and b.weeks or {}
   b.spent = b.spent or 0
   b.right = b.right or 0
@@ -518,7 +519,7 @@ function TB.Balance()
   local rec = ns.MyRecord and ns.MyRecord()
   if not (b and rec) then return TB.START end
   local wk = Week() or 0
-  local total = TB.START - b.spent + TB.GroupPiotte(rec) + (TB.Testing() and TB.TEST_PIOTTE or 0)
+  local total = TB.START - b.spent + TB.GroupPiotte(rec) + (TB.Testing() and TB.TEST_PIOTTE or 0) + (b.carry or 0)
   for w, e in pairs(b.weeks) do if w < wk then total = total + (e.t or 0) + (e.w or 0) end end
   local now = TB.Score(rec, wk)
   total = total + (now and now.points or 0)
@@ -745,7 +746,17 @@ local function Result(wk, rec, list, mine, sc, test)
 end
 TB.Result = Result
 
+local Update
+-- one at a time: what it calls (the sfide paying back) can ask for it again before it's done
+local updating = false
 function TB.Update()
+  if updating then return end
+  updating = true
+  local ok, err = pcall(Update)
+  updating = false
+  if not ok then error(err, 0) end
+end
+Update = function()
   if not ns.state or ns.alt or not P.HasSettings(ns.state) then return end
   for _, m in pairs(ns.state.members) do Remember(m) end
   if TB.Testing() then return end
@@ -765,6 +776,13 @@ function TB.Update()
       P.UpdateSelf(ns.state, ns.recordGuid, { vt = valid }, "vote")
       if ns.News and back > 0 then ns.News.Add("Er capo ha cambiato 'na domanda de la schedina: te so' tornate |cffffffff" .. TB.Piotte(back) .. "|r.") end
     end
+  end
+  -- a new book on this PC: if my record came back from the friends (a new computer, the WTF folder lost) it
+  -- knows my piotte; wait until the patto's records are all in (a minute and a half), then carry them over
+  local nb = Book()
+  if nb and nb.new then
+    if TB.Testing() then nb.new = nil
+    elseif not rec or rec.fresh or (GetTime and ns.C and ns.C.startedAt and GetTime() - ns.C.startedAt < 90) then return end
   end
   local wk = RealWeek()
   if not (rec and wk and wk >= 1) then return end
@@ -788,6 +806,18 @@ function TB.Update()
   end
   b.closed = math.max(b.closed, wk - 1)
   local bal = TB.Balance()
+  if b.new then
+    b.new = nil
+    if type(rec.pts) == "table" and type(rec.pts.t) == "number" then
+      local had = rec.pts.t
+      -- the sfide, taje and gufate already paid come back in the new book first; the rest is the carry
+      b.carry = 0
+      if ns.Sfide and ns.Sfide.Update then pcall(ns.Sfide.Update) end
+      b.carry = had - TB.Balance()
+      bal = TB.Balance()
+      U.Log("Tombola", "PC novo: piotte riprese da la scheda", had, "riporto", b.carry)
+    end
+  end
   local now = TB.Score(rec, wk)
   local cur = rec.pts or {}
   local lg = Shared()

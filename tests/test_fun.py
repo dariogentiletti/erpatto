@@ -845,6 +845,19 @@ hide()
 N.g.P_LEVEL = 13; N.g.FIRE('PLAYER_LEVEL_UP', 13); secs(80)
 check(any('Nando' in n and '13' in n for n in A.news()), 'his real ding later is told')
 
+# a new computer (no WTF folder): the books of the piotte are gone, the record comes back from the friends.
+# The piotte stay what they were, and what comes after counts on top
+A.ns.Tombola.Update(); secs(5)
+had = A.ns.Tombola.Balance()
+pub = A.rec().pts.t
+A.lua.eval('function(ns) ns.db.points = nil ns.db.sfide = nil ns.C.startedAt = GetTime() end')(A.ns)
+A.ns.Tombola.Update()
+check(A.rec().pts.t == pub, 'new PC: nothing published before the records are in (%s)' % A.rec().pts.t)
+secs(100); A.ns.Tombola.Update()
+check(A.ns.Tombola.Balance() == had and A.rec().pts.t == pub, 'new PC: the piotte are the ones of before (%s -> %s)' % (had, A.ns.Tombola.Balance()))
+A.lua.eval('function(ns) local r = ns.MyRecord() r.stats.t.gp = (r.stats.t.gp or 0) + 3600 end')(A.ns)
+check(A.ns.Tombola.Balance() == had + 1, 'and an hour in a group after it adds one, as always (%s)' % A.ns.Tombola.Balance())
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)
