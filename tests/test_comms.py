@@ -295,8 +295,15 @@ fails(not mine.fresh and (mine.stats.t.rk or 0) == 0, 'the old record is gone ev
 K.ns.T.Bump('q', 3) if K.ns.T and K.ns.T.Ready() else setstat(K, 'G-CORT', q=3); secs(10)
 H.login(); secs(400)
 mine = K.state.members['G-CORT']
-fails(mine.stats.t.rk == 1 and mine.stats.t.q == 12 and mine.stats.t.nk == 1,
-      'Er Mutanda comes in with his old record: his rari, quests and famous kills are his again (%s %s %s)' % (mine.stats.t.rk, mine.stats.t.q, mine.stats.t.nk))
+fails(mine.stats.t.rk == 1 and mine.stats.t.q == 15 and mine.stats.t.nk == 1,
+      'Er Mutanda comes in with his old record: his rari, quests and famous kills are his again, added to what he did meanwhile (12 + 3 quest): %s %s %s' % (mine.stats.t.rk, mine.stats.t.q, mine.stats.t.nk))
+# the same old copy again (from another friend, or a second hello): nothing counted twice
+old = K.lua.eval('function(r) local c = {} for k, v in pairs(r) do c[k] = v end c.stats = { t = { rk = 1, q = 12, nk = 1 }, w = {} } c.up = 1 return c end')(mine)
+K.ns.P.MergeMember(K.state, old, 'G-CORT')
+fails(mine.stats.t.q == 15, 'the same old copy twice: counted once (%s)' % mine.stats.t.q)
+old.stats.t.q = 14
+K.ns.P.MergeMember(K.state, old, 'G-CORT')
+fails(K.state.members['G-CORT'].stats.t.q == 17, 'a newer copy of the old life: only what is new in it is added (%s)' % K.state.members['G-CORT'].stats.t.q)
 secs(300)
 fails(all(c.state.members['G-CORT'] is not None and c.state.members['G-CORT'].stats.t.rk == 1 for c in (E, F, G, H)), 'and the whole patto sees them')
 fails(H.state.prev is None or H.state.prev['G-CORT'] is None, 'and the old copy, given back, is dropped')

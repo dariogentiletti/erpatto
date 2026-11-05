@@ -208,7 +208,7 @@ function P.CleanMember(r)
     il = Num(r.il, 0, 2000), race = Str(r.race, 20), rid = Num(r.rid, 1, 200), sex = Num(r.sex, 1, 3),
     eq = type(r.eq) == "string" and #r.eq <= 600 and r.eq:match("^[%d%./%-]*$") and r.eq or nil,
     stats = { t = CleanStats(r.stats and r.stats.t), w = {} }, h2h = {}, alts = {},
-    ti = Str(r.ti, 24), fresh = r.fresh == true or nil, lp = Num(r.lp, 0, 1e9),
+    ti = Str(r.ti, 24), fresh = r.fresh == true or nil, abt = type(r.abt) == "table" and CleanStats(r.abt) or nil, lp = Num(r.lp, 0, 1e9),
     dl = type(r.dl) == "table" and Num(r.dl.lv, 1, 100) and { lv = Num(r.dl.lv, 1, 100), s = Num(r.dl.s, 0, 1e8) } or nil,
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
     nkl = {},
@@ -678,21 +678,40 @@ function P.KeepPrev(state, rec)
   if n > P.MAX_PREV then state.prev[oldG] = nil end
 end
 
--- my old life coming back: every counter takes the bigger of the two (never counted twice), and what my record
--- of now doesn't have yet (rari, the famous kills, the squadra...) comes from the old one; the game's fields stay
+-- my old life coming back. born: when my record of now started from zero. An old life that ended before that is
+-- apart from this one: its counters add to mine (what I do meanwhile isn't lost); `abt` remembers what was taken,
+-- so a newer copy of the same old life only adds what's new in it. A copy that isn't clearly apart: every counter
+-- takes the bigger of the two (never counted twice). What my record doesn't have yet (the rari list, the famous
+-- kills, the squadra...) comes from the old one; the game's fields stay mine
 local LIVE
-function P.Absorb(mine, old)
+-- does this old copy bring me something: more than I have, or (an old life apart) more than I took from it
+function P.HasMore(mine, old, born)
+  if P.Behind(mine, old) then return true end
+  if not (type(born) == "number" and (old.up or 0) <= born and type(mine.abt) == "table") then return false end
+  for _, k in ipairs(STAT_KEYS) do if Total(old, k) > (mine.abt[k] or 0) then return true end end
+  return false
+end
+
+function P.Absorb(mine, old, born)
   local t = mine.stats and mine.stats.t or {}
   mine.stats = mine.stats or { t = t, w = {} }
   mine.stats.t = t
+  local apart = type(born) == "number" and (old.up or 0) <= born
+  local took = type(mine.abt) == "table" and mine.abt or {}
   for _, k in ipairs(STAT_KEYS) do
     local o = Total(old, k)
-    if o > (t[k] or 0) then t[k] = o end
+    if apart then
+      local had = took[k] or 0
+      if o > had then t[k] = (t[k] or 0) + (o - had) took[k] = o end
+    elseif o > (t[k] or 0) then
+      t[k] = o
+    end
   end
+  if apart then mine.abt = took end
   local live = {}
   for _, k in ipairs(LIVE) do live[k] = true end
   for k, v in pairs(old) do
-    if not live[k] and k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" then
+    if not live[k] and k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" and k ~= "abt" then
       local m = mine[k]
       if m == nil or (type(m) == "table" and next(m) == nil) then mine[k] = U.Copy(v) end
     end
@@ -737,8 +756,8 @@ function P.MergeMember(state, incoming, myGuid)
     -- computer) and theirs is a real one; then it's mine again, with what the game says now on top
     local mine = state.members[myGuid]
     -- or an old life of mine (I left, was cacciato, came back): what it counted is mine again
-    if mine and not mine.fresh and not r.fresh and P.Behind(mine, r) then
-      P.Absorb(mine, r)
+    if mine and not mine.fresh and not r.fresh and P.HasMore(mine, r, state.joinedAt) then
+      P.Absorb(mine, r, state.joinedAt)
       mine.up = math.max(U.Now(), (mine.up or 0) + 1)
       ns.Fire("SelfRestored", mine)
       return true

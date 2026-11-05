@@ -96,7 +96,7 @@ function ns.JoinPatto(text, by)
   -- back in a patto I left from this PC: what I had done in it is mine again
   local gone = type(ns.db.gone) == "table" and ns.db.gone[code]
   if type(gone) == "table" and gone.guid == ns.me and state.members[ns.me] then
-    P.Absorb(state.members[ns.me], P.CleanMember(gone) or {})
+    P.Absorb(state.members[ns.me], P.CleanMember(gone) or {}, state.joinedAt)
     ns.db.gone[code] = nil
     U.Log("Patto", "rientrato ner patto", code, ": ripresi li dati de prima")
   end
