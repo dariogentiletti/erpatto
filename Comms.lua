@@ -253,7 +253,7 @@ function C.AddSeed(name)
     ns.db.seeds[state.code] = ns.db.seeds[state.code] or {}
     ns.db.seeds[state.code][name] = true
   end
-  if state and C.HelloTo and C.Whispering() then C.HelloTo(name) end
+  if state and C.HelloTo then C.HelloTo(name) end
 end
 
 -- no channel to speak in (refused, as on Forever, or never joined): every message is whispered
@@ -606,9 +606,69 @@ function C.Invite(name)
   return ok
 end
 
+----------------------------------------------------------------------
+-- the search: who comes in with the code alone asks "who is in patto X?" to everyone they can reach without a
+-- name: their Battle.net friends in the game, their friends list, their group, their guild, the patto's channel.
+-- Who is in that patto answers with a hello, and from there the data come. The code is the password: whoever
+-- doesn't have it can't ask, and who isn't in that patto doesn't answer.
+----------------------------------------------------------------------
+local searchedAt, answered = 0, {}
+function C.Search()
+  if not state then return 0 end
+  searchedAt = Clock()
+  local msg = "?Q~" .. U.Serialize({ c = state.code, n = myName })
+  local sent, done = 0, {}
+  -- Battle.net friends playing this same game (across realms, the surest way between friends)
+  if C_BattleNet and C_BattleNet.SendGameData and C_BattleNet.GetFriendAccountInfo and BNGetNumFriends then
+    local okn, n = pcall(BNGetNumFriends)
+    for i = 1, (okn and type(n) == "number" and math.min(n, 200) or 0) do
+      local ok, info = pcall(C_BattleNet.GetFriendAccountInfo, i)
+      local g = ok and type(info) == "table" and info.gameAccountInfo
+      if type(g) == "table" and g.isOnline and g.clientProgram == "WoW" and type(g.gameAccountID) == "number"
+        and (not WOW_PROJECT_ID or g.wowProjectID == nil or g.wowProjectID == WOW_PROJECT_ID) then
+        if pcall(C_BattleNet.SendGameData, g.gameAccountID, PREFIX, msg) then sent = sent + 1 end
+      end
+    end
+  end
+  -- the friends list of the game
+  if C_FriendList and C_FriendList.GetNumFriends and C_FriendList.GetFriendInfoByIndex then
+    local okn, n = pcall(C_FriendList.GetNumFriends)
+    for i = 1, (okn and type(n) == "number" and math.min(n, 100) or 0) do
+      local ok, f = pcall(C_FriendList.GetFriendInfoByIndex, i)
+      if ok and type(f) == "table" and f.connected and type(f.name) == "string" and not done[f.name] then
+        done[f.name] = true
+        Enqueue("WHISPER", f.name, msg:sub(1))
+        sent = sent + 1
+      end
+    end
+  end
+  -- the group, the guild
+  if IsInGroup and IsInGroup() then
+    pcall(C_ChatInfo.SendAddonMessage, PREFIX, msg, (IsInRaid and IsInRaid()) and "RAID" or "PARTY")
+    sent = sent + 1
+  end
+  if IsInGuild and IsInGuild() then
+    pcall(C_ChatInfo.SendAddonMessage, PREFIX, msg, "GUILD")
+    sent = sent + 1
+  end
+  U.Log("Comms", "cerco er patto", state.code, "fra", sent, "amichi/gruppi")
+  return sent
+end
+
+-- someone asks for my patto: if the code is mine, a hello to them (once in a while per name)
+local function OnSearch(d)
+  if not (state and type(d) == "table" and d.c == state.code and type(d.n) == "string" and d.n ~= myName) then return end
+  if answered[d.n] and Clock() - answered[d.n] < 20 then return end
+  answered[d.n] = Clock()
+  U.Log("Comms", d.n, "cerca er patto: je scrivo")
+  C.AddSeed(d.n)
+end
+
 local function OnInviteMessage(text, sender)
   local kind, payload = text:match("^%?(%u)~?(.*)$")
-  if kind == "I" then
+  if kind == "Q" then
+    OnSearch(U.Deserialize(payload))
+  elseif kind == "I" then
     local d = U.Deserialize(payload)
     if type(d) ~= "table" or type(d.c) ~= "string" then return end
     pcall(C_ChatInfo.SendAddonMessage, PREFIX, "?R~", "WHISPER", sender)
@@ -624,6 +684,12 @@ local function OnInviteMessage(text, sender)
   end
 end
 
+-- the search over Battle.net (a friend's game, any realm)
+function C.OnBNAddon(prefix, text)
+  if U.IsSecret(prefix) or U.IsSecret(text) or prefix ~= PREFIX or type(text) ~= "string" then return end
+  if text:sub(1, 3) == "?Q~" then OnInviteMessage(text, nil) end
+end
+
 -- who never answered an invite (no addon, or offline)
 function C.PendingInvites(olderThan)
   local out = {}
@@ -637,7 +703,8 @@ function C.OnAddonMessage(prefix, text, channel, sender, target, zoneChannelID, 
   if U.IsSecret(prefix) or U.IsSecret(text) or U.IsSecret(sender) then return end
   if prefix ~= PREFIX or type(text) ~= "string" then return end
   if text:sub(1, 1) == "?" then
-    if channel == "WHISPER" and type(sender) == "string" then OnInviteMessage(text, sender) end
+    if channel == "WHISPER" and type(sender) == "string" then OnInviteMessage(text, sender)
+    elseif text:sub(1, 3) == "?Q~" then OnInviteMessage(text, sender) end
     return
   end
   if not state then return end
@@ -698,6 +765,7 @@ function C.Start(st, myGuid, playerName)
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
   if not helloTicker then
     helloTicker = C_Timer.NewTicker(30, function()
+      if state and not P.HasSettings(state) and Clock() - searchedAt >= 60 and Clock() - (C.startedAt or 0) < 1800 then C.Search() end
       -- a minute after the first friend was heard, and nobody had an older record of mine: it's really new
       local mine = state and state.members[me]
       if mine and mine.fresh and firstHeardAt and Clock() - firstHeardAt > 60 then
@@ -713,6 +781,8 @@ function C.Start(st, myGuid, playerName)
     C.filterSet = true
   end
   C.JoinChannel()
+  C.startedAt = Clock()
+  if not P.HasSettings(st) and C_Timer then C_Timer.After(4, function() if state and not P.HasSettings(state) then C.Search() end end) end
 end
 
 function C.Stop()

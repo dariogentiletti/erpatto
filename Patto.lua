@@ -30,14 +30,10 @@ function P.NormalizeCode(text)
   return s
 end
 
--- what a member gives to a friend: the code and their own name ("98LX8 Er Gnomo"). On WoW Forever the addons
--- find each other only by whisper, so the name in the code is whom the friend's addon writes to first.
-function P.InviteCode(code, name)
-  if type(name) ~= "string" or name == "" or name == "?" then return code end
-  return code .. " " .. U.Short(name)
-end
+-- what a member gives to a friend: the code, 5 letters and numbers (the friend's addon finds the patto by itself)
+function P.InviteCode(code) return code end
 
--- "98LX8 Er Gnomo", "98lx8", "PATTO-K7Q2M": the code, and the name that came with it (if any)
+-- "98lx8", "PATTO-K7Q2M", or a code from 1.0.2 with a name after it ("98LX8 Er Gnomo"): the code, and that name
 function P.ParseInvite(text)
   text = tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local first, rest = text:match("^(%S+)%s+(.+)$")

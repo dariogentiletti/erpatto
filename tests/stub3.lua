@@ -54,3 +54,11 @@ function MAX_PER_SECOND()
   end
   return best
 end
+
+-- Battle.net friends: the harness fills BNFRIENDS with { id = gameAccountID } of friends online in this game
+BNFRIENDS = {}
+BNGetNumFriends = function() return #BNFRIENDS end
+C_BattleNet = {
+  GetFriendAccountInfo = function(i) local f = BNFRIENDS[i] if f then return { gameAccountInfo = { isOnline = true, clientProgram = "WoW", gameAccountID = f.id } } end end,
+  SendGameData = function(id, prefix, text) table.insert(OUTBOX, { prefix = prefix, text = text, kind = "BN", target = id }) return 0 end,
+}

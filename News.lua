@@ -310,10 +310,15 @@ local function AddMenuEntry()
   for _, tag in ipairs({ "MENU_UNIT_PLAYER", "MENU_UNIT_PARTY", "MENU_UNIT_RAID_PLAYER", "MENU_UNIT_FRIEND", "MENU_UNIT_TARGET", "MENU_UNIT_CHAT_ROSTER" }) do
     pcall(Menu.ModifyMenu, tag, function(owner, root, data)
       if not (ns.state and not ns.alt and data and data.name) then return end
-      local name = data.name
-      if data.server and data.server ~= "" then name = name .. "-" .. data.server end
+      -- the whole name: from the unit when there is one; else the menu's two parts, which on Forever are
+      -- name and surname ("Er" "Nia" -> "Er Nia"), on retail name and realm ("Dario" "Realm" -> "Dario-Realm")
+      local name = data.unit and U.FullName(data.unit)
+      if not name then
+        name = data.name
+        if data.server and data.server ~= "" then name = name .. (U.IsForever() and " " or "-") .. data.server end
+      end
       if ns.state then
-        for _, m in pairs(ns.state.members) do if m.name == data.name then return end end
+        for _, m in pairs(ns.state.members) do if m.name == name or U.Short(m.name) == U.Short(name) then return end end
       end
       if root.CreateDivider then root:CreateDivider() end
       root:CreateButton("Invita ner patto", function() ns.InviteFriend(name) end)

@@ -107,16 +107,14 @@ bw = B.ns.UI._views.welcome
 # the code as Impostazioni gives it to friends: the code and the name of who gives it
 A.ns.UI.Show('imp')
 invite = str(A.ns.UI._views.imp.code.text)
-check(invite == str(st.code) + ' Dario', 'Impostazioni gives the code with the name: ' + invite)
-bw.code.SetText(bw.code, ' ' + invite + ' ')
+check(invite == str(st.code), 'Impostazioni gives the code, 5 letters and numbers: ' + invite)
+bw.code.SetText(bw.code, ' ' + invite.lower() + ' ')
 bw.join.Click(bw.join)
-check(B.ns.db.seeds is not None and B.ns.db.seeds[str(st.code)]['Dario'], 'pasting it, the name inside is whom to whisper first: no name to type')
 check(B.ns.state is not None and B.has('Aspetto li dati'), 'join from UI, waiting screen until data arrives')
 wv = B.ns.UI._views.waiting
-wv.seed.SetText(wv.seed, str(st.code).lower() + ' Dario')
-cerca = [o for o in B.g.WIDGETS.values() if o.kind == 'Button' and o.text == 'Cercalo' and o.IsVisible(o)][0]
-cerca.Click(cerca)
-check(B.ns.db.seeds is not None and B.ns.db.seeds[str(st.code)]['Dario'] and 'Dario' in str(wv.msg.text), 'waiting: the whole code (with the name) unblocks an old code: ' + str(wv.msg.text))
+again = [o for o in B.g.WIDGETS.values() if o.kind == 'Button' and o.text == "Riprova mo'" and o.IsVisible(o)][0]
+again.Click(again)
+check(str(wv.msg.text) != '', 'waiting: "Riprova mo\'" searches again and says how: ' + str(wv.msg.text))
 secs(20)
 B.ns.UI.Refresh()
 check(B.ns.state.settings.v >= 1 and not B.has('Aspetto li dati'), 'data arrived, waiting screen gone')

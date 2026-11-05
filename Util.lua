@@ -82,6 +82,13 @@ function U.Surnames(t)
   return t
 end
 
+-- WoW Forever (interface 1.6x): names are "Name Surname", custom channels don't carry addon messages
+function U.IsForever()
+  if not GetBuildInfo then return false end
+  local toc = select(4, GetBuildInfo())
+  return type(toc) == "number" and toc >= 16000 and toc < 20000
+end
+
 -- the name to show: no realm, no test mark ("Er Nia-Realm", "Dario (prova)" -> "Er Nia", "Dario")
 function U.Short(name)
   if type(name) ~= "string" then return "?" end

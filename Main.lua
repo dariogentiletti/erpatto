@@ -70,7 +70,7 @@ function ns.CreatePatto(opts)
   state.main = ns.me
   ns.db.patti[state.code] = state
   Activate(state, ns.me, false)
-  U.Say("Patto creato! Er codice è |cffffffff" .. P.InviteCode(state.code, ns.myName) .. "|r: dallo all'amichi (tutto, cor nome).")
+  U.Say("Patto creato! Er codice è |cffffffff" .. state.code .. "|r: dallo all'amichi.")
   return state
 end
 
@@ -265,7 +265,9 @@ SLASH_ERPATTO2 = "/erpatto"
 SlashCmdList.ERPATTO = function(raw)
   raw = tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local msg = string.lower(raw)
-  local invite = raw:match("^[Ii][Nn][Vv][Ii][Tt][Aa]%s+(%S+)")
+  -- the whole name after "invita": on Forever it's name and surname ("/patto invita Er Nia")
+  local invite = raw:match("^[Ii][Nn][Vv][Ii][Tt][Aa]%s+(.-)%s*$")
+  if invite == "" then invite = nil end
   if invite then
     ns.InviteFriend(invite)
   elseif msg == "invita" then
@@ -328,7 +330,7 @@ function ns.InviteFriend(name, out)
   if C_Timer then
     C_Timer.After(8, function()
       for _, who in ipairs(C.PendingInvites(7)) do
-        tell(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice " .. P.InviteCode(ns.state.code, ns.myName) .. ".")
+        tell(who .. " nun risponne: forse nun ha l'addon o nun è online. Daje er codice " .. ns.state.code .. ".")
       end
     end)
   end
@@ -415,6 +417,7 @@ handlers.UPDATE_BATTLEFIELD_STATUS = function(index) T.OnBattlefieldStatus(index
 handlers.PVP_MATCH_COMPLETE = function(winner) T.OnMatchComplete(winner) end
 handlers.UPDATE_BATTLEFIELD_SCORE = function() T.OnBattlefieldScore() end
 handlers.CHAT_MSG_ADDON = function(...) C.OnAddonMessage(...) end
+handlers.BN_CHAT_MSG_ADDON = function(...) C.OnBNAddon(...) end
 -- the patto's channel: its member list, and the notice that it refuses addon messages (WoW Forever)
 handlers.CHANNEL_ROSTER_UPDATE = function(index) C.OnRosterUpdate(index) end
 handlers.CHANNEL_COUNT_UPDATE = function(index) C.OnChannelCount(index) end

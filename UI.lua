@@ -1043,7 +1043,7 @@ local function BuildWelcome()
   local jt = Text(left, "GameFontNormal", "Entra co' 'n codice")
   jt:SetPoint("TOPLEFT", 16, -16)
   local js = Text(left, "GameFontHighlight",
-    "Chi è der patto t'ha dato er codice (5 lettere e nummeri, cor nome suo). Incollalo qui sotto: entri subito e poi te scegli la squadra.", 330)
+    "Chi è der patto t'ha dato 'n codice de 5 lettere e nummeri. Scrivilo qui sotto: entri subito e poi te scegli la squadra.", 330)
   js:SetPoint("TOPLEFT", 16, -44)
   local jerr = Text(left, "GameFontRedSmall", "", 330)
   local code
@@ -1053,7 +1053,7 @@ local function BuildWelcome()
     if not st then jerr:SetText(e or "Nun so' riuscito a entrà.") return end
     current = "gruppi"
   end
-  code = Input(left, 190, 60, DoJoin)
+  code = Input(left, 140, 40, DoJoin)
   code:SetPoint("TOPLEFT", 24, -122)
   Label(left, "Codice", code)
   local join = Btn(left, "Entra", 100, DoJoin)
@@ -1169,34 +1169,22 @@ end
 
 local function BuildWaiting()
   local v = NewView("waiting")
-  local b = Box(v, 520, 230)
-  b:SetPoint("TOP", 0, -50)
+  local b = Box(v, 520, 190)
+  b:SetPoint("TOP", 0, -60)
   local t = Text(b, "GameFontNormal", "Aspetto li dati der patto...", 490, "CENTER")
   t:SetPoint("TOP", 0, -18)
   v.info = Text(b, "GameFontHighlight", "", 490, "CENTER")
   v.info:SetPoint("TOP", t, "BOTTOM", 0, -12)
-  -- an old code (no name in it): the code of anyone in the patto, as Impostazioni gives it, unblocks it here
+  -- "Riprova mo'": the search again (Battle.net friends, friends list, group, guild, the channel)
   v.msg = Text(b, "GameFontGreenSmall", "", 490, "CENTER")
-  local function Find()
-    local code, name = P.ParseInvite(v.seed:GetText())
-    if not (code and name) or not ns.state or code ~= ns.state.code then
-      v.msg:SetText("|cffff2020Ce vole er codice de 'sto patto cor nome, come lo dà Impostazioni (" .. (ns.state and ns.state.code or "") .. " Nome Cognome).|r")
-      return
-    end
-    C.AddSeed(name)
+  v.msg:SetPoint("BOTTOM", 0, 44)
+  local again = Btn(b, "Riprova mo'", 140, function()
+    local n = C.Search()
     C.Hello()
-    v.seed:SetText("")
-    v.seed:ClearFocus()
-    v.msg:SetText("Ho scritto a " .. name .. ": appena risponne, arriveno li dati.")
-  end
-  v.seed = Input(b, 220, 60, Find)
-  v.seed:SetPoint("BOTTOMLEFT", 100, 54)
-  Label(b, "Codice cor nome", v.seed)
-  local find = Btn(b, "Cercalo", 100, Find)
-  find:SetPoint("LEFT", v.seed, "RIGHT", 10, 0)
-  v.msg:SetPoint("BOTTOM", 0, 36)
-  local again = Btn(b, "Riprova mo'", 140, function() C.Hello() end)
-  again:SetPoint("BOTTOM", 0, 10)
+    v.msg:SetText(n > 0 and ("Ho chiesto er patto a " .. n .. (n == 1 and " amico o gruppo." or " amichi e gruppi.")) or
+      "|cffff2020Nun c'è nessun amico tuo online da chiede: fatte invità da uno der patto (tasto destro sur ritratto tuo).|r")
+  end)
+  again:SetPoint("BOTTOM", 0, 14)
 end
 
 ----------------------------------------------------------------------
@@ -1554,10 +1542,10 @@ local function BuildImp()
   b1:SetPoint("TOPLEFT", 0, 0)
   v.pattoName = Text(b1, "GameFontNormal", "", 480)
   v.pattoName:SetPoint("TOPLEFT", 12, -10)
-  v.code = Input(b1, 220, 60)
+  v.code = Input(b1, 190, 20)
   v.code:SetPoint("TOPLEFT", 20, -52)
   v.code:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-  v.code:SetScript("OnTextChanged", function(self, user) if user and ns.state then self:SetText(P.InviteCode(ns.state.code, ns.myName)) self:HighlightText() end end)
+  v.code:SetScript("OnTextChanged", function(self, user) if user and ns.state then self:SetText(ns.state.code) self:HighlightText() end end)
   Label(b1, "Codice der patto", v.code)
   -- one-click invite: they get a window with "Entra"
   v.invite = Input(b1, 150, 40, function(self)
@@ -1565,7 +1553,7 @@ local function BuildImp()
     ns.InviteFriend(name, v.say) self:SetText("")
     self:ClearFocus()
   end)
-  v.invite:SetPoint("TOPLEFT", 262, -52)
+  v.invite:SetPoint("TOPLEFT", 250, -52)
   Label(b1, "Invita 'n amico", v.invite)
   v.inviteBtn = Btn(b1, "Invita", 70, function()
     local name = v.invite:GetText() or ""
@@ -1631,7 +1619,7 @@ local function RefreshImp(v)
   local state = ns.state
   local s = state.settings
   v.pattoName:SetText(tostring(s.name or "Er Patto"))
-  if not v.code:HasFocus() then v.code:SetText(P.InviteCode(state.code, ns.myName)) end
+  if not v.code:HasFocus() then v.code:SetText(state.code) end
   local capo = state.members[state.admins.capo]
   local vices = {}
   for g in pairs(state.admins.vice or {}) do

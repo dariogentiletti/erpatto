@@ -53,6 +53,8 @@ def step(n=1, dt=0.25):
                         continue
                     if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
+                    elif m.kind == 'BN' and m.target == d.g.BNID:
+                        d.ns.C.OnBNAddon(m.prefix, m.text, 'WHISPER', c.g.BNID or 0)
                     elif m.kind == 'WHISPER' and m.target == d.name:
                         # a full server loses some whispers
                         if LOSS[0] and random.random() < LOSS[0]: continue
@@ -198,3 +200,18 @@ print('errori 13:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G))})
 
 fails(str(E.ns.P.ParseInvite('98lx8 Er Gnomo')[0]) == '98LX8' and str(E.ns.P.ParseInvite('98lx8 Er Gnomo')[1]) == 'Er Gnomo'
       and E.ns.P.ParseInvite('K7Q 2M')[0] == 'K7Q2M' and E.ns.P.ParseInvite('98LX8')[1] is None, 'the code with the name inside: read right; old codes still work')
+
+# 14) the code alone, as a password: Er Solo is on another internal realm (the channel never sees him), knows no
+# name, but he's a Battle.net friend of Er Martellone. He writes the 5 letters and he's in.
+J = Client('Er Solo', 'G-SOLO'); clients['J'] = J; J.g.NOWV = T[0]; J.g.REFUSE_CHANNEL = True
+G.g.BNID = 4242
+J.g.BNFRIENDS = J.lua.table_from([J.lua.table_from({'id': 4242})])
+J.state = J.ns.P.Join(code2, 'G-SOLO', 'Er Solo')
+J.login()
+J.g.JOINED = 'isola-lontana'
+secs(30)
+fails(J.ns.P.HasSettings(J.state) and 'G-SOLO' in [str(k) for k in G.state.members.keys()],
+      'code alone: found through a Battle.net friend, data in, and the friend sees him (%s)' % summary(J))
+secs(130)
+fails(all('G-SOLO' in [str(k) for k in c.state.members.keys()] for c in (E, F, H)), 'code alone: within a round everyone in the patto sees him')
+print('errori 14:', {k: errs(c) for k, c in (('G', G), ('J', J))})
