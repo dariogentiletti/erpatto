@@ -229,7 +229,8 @@ X.INFO = {
     "Se parte co' 20 piotte, e ogni ora in gruppo co' quarcuno der patto te ne dà una." },
   ["botteghino:ricchi"] = { "Li ricchi", "Chi c'ha più piotte.",
     "Schedine: quante n'ha vinte su quante n'ha giocate. Resa: quanto j'hanno fruttato le piotte puntate; dice chi è bravo davero." },
-  imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni." },
+  imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni.",
+    "Dai a l'amichi er codice e er nome tuo (nome e cognome): su WoW Forever l'addon se trova coi sussurri e je serve armeno 'n nome pe' comincià. Co' \"Invita\" er nome ce va da solo." },
   capo = { "Capo", "Solo pe' er capo: squadre, ore, partenza, annunci e vice.",
     "\"Addon spento\" vicino a 'n nome: ha giocato senza addon (lo dice er /played suo quanno lo riaccenne) o l'hanno visto online in gilda, in gruppo o in chat co' l'addon zitto. Er mouse sopra pe' li dettagli." },
 }

@@ -285,7 +285,7 @@ ns.On("Invited", function(code, pattoName, by)
     inv.text:SetPoint("TOP", 0, -36)
     inv.yes = H.Btn(inv, "Entra", 110, function()
       inv:Hide()
-      local ok, err = ns.JoinPatto(inv.code)
+      local ok, err = ns.JoinPatto(inv.code, inv.by)
       if not ok then U.Say(err or "nun so' riuscito a entrà.") return end
       UI.Show("gruppi")
     end)
@@ -294,7 +294,7 @@ ns.On("Invited", function(code, pattoName, by)
     inv.no:SetPoint("BOTTOMLEFT", inv, "BOTTOM", 6, 18)
     if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoInvite") end
   end
-  inv.code = code
+  inv.code, inv.by = code, by
   inv.text:SetText("|cffffffff" .. tostring(by) .. "|r te invita ner patto\n|cffffd100" .. tostring(pattoName or code) .. "|r")
   inv:Show()
   Ping("big")

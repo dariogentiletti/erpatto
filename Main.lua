@@ -74,7 +74,8 @@ function ns.CreatePatto(opts)
   return state
 end
 
-function ns.JoinPatto(text)
+-- by: the name of who gave the code (or sent the invite), the first one to whisper on Forever
+function ns.JoinPatto(text, by)
   local code = P.NormalizeCode(text)
   if not code then return nil, "Er codice nun è giusto: so' 5 lettere o nummeri, tipo K7Q2M." end
   if ns.state and not ns.alt then
@@ -93,6 +94,7 @@ function ns.JoinPatto(text)
   state.main = ns.me
   ns.db.patti[code] = state
   Activate(state, ns.me, false)
+  if type(by) == "string" and by:match("%S") then C.AddSeed(by) end
   U.Say("Sei entrato ner patto " .. code .. ". Mo' aspetta 'n attimo che l'altri te passino i dati.")
   return state
 end

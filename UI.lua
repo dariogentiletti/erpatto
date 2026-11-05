@@ -1043,26 +1043,30 @@ local function BuildWelcome()
   local jt = Text(left, "GameFontNormal", "Entra co' 'n codice")
   jt:SetPoint("TOPLEFT", 16, -16)
   local js = Text(left, "GameFontHighlight",
-    "Chi ha creato er patto t'ha dato 'n codice de 5 lettere e nummeri. Scrivilo qui sotto: entri subito e poi te scegli la squadra.", 330)
+    "Chi ha creato er patto t'ha dato 'n codice de 5 lettere e nummeri. Scrivilo qui sotto, cor nome de chi te l'ha dato: entri subito e poi te scegli la squadra.", 330)
   js:SetPoint("TOPLEFT", 16, -44)
   local jerr = Text(left, "GameFontRedSmall", "", 330)
-  local code
+  local code, by
   local function DoJoin()
     jerr:SetText("")
-    local st, e = ns.JoinPatto(code:GetText())
+    local st, e = ns.JoinPatto(code:GetText(), by:GetText())
     if not st then jerr:SetText(e or "Nun so' riuscito a entrà.") return end
     current = "gruppi"
   end
   code = Input(left, 140, 12, DoJoin)
   code:SetPoint("TOPLEFT", 24, -122)
   Label(left, "Codice", code)
+  -- on WoW Forever the addons find each other by whisper: one name of the patto is enough to start
+  by = Input(left, 180, 40, DoJoin)
+  by:SetPoint("TOPLEFT", 24, -168)
+  Label(left, "Chi te l'ha dato (nome e cognome)", by)
   local join = Btn(left, "Entra", 110, DoJoin)
   join:SetPoint("LEFT", code, "RIGHT", 12, 0)
-  jerr:SetPoint("TOPLEFT", 16, -152)
+  jerr:SetPoint("TOPLEFT", 16, -198)
   local note = Text(left, "GameFontDisableSmall",
     "L'addon parla co' l'altri dentro ar gioco, senza internet. Pe' ricevve i dati serve che armeno uno der patto sia online.", 330)
   note:SetPoint("BOTTOMLEFT", 16, 16)
-  v.code, v.join, v.jerr = code, join, jerr
+  v.code, v.by, v.join, v.jerr = code, by, join, jerr
 
   local right = Box(v, 374, 375)
   right:SetPoint("TOPRIGHT", 0, 0)

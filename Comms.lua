@@ -24,6 +24,8 @@ local seen, nameOf = {}, {}
 local whisperPeers = {} -- members who can only be reached by whisper (their channel failed)
 local chanBlocked = false -- the channel is there, but addon messages in it are refused: whispers to the roster
 local roster, rosterOK, displayIdx = {}, false, nil -- guid -> name of who is in the patto's channel now
+-- names to start from when we know nobody yet: who invited us, or the name written next to the code
+local seeds = {}
 local recent = {}
 local helloReplyAt = {}
 local askedFull = {}
@@ -88,7 +90,7 @@ function C.JoinChannel()
     chanId = CurrentChannelId()
     if chanId then
       HideChannel()
-      C.stats.mode = chanBlocked and "sussurri a chi sta ner canale" or "canale"
+      C.stats.mode = chanBlocked and "sussurri" or "canale"
       U.Log("Comms", "canale pronto", chanId, chanBlocked and "(solo pe' trovasse: li messaggi vanno a sussurri)" or "")
       C.RefreshRoster()
     else
@@ -167,7 +169,7 @@ function C.OnChannelNotice(notice, _, _, _, _, _, _, index, baseName)
     or (chanId and index == chanId)
   if not mine then return end
   chanBlocked = true
-  C.stats.mode = "sussurri a chi sta ner canale"
+  C.stats.mode = "sussurri"
   U.Log("Comms", "er canale nun porta li messaggi de l'addon: mo' uso li sussurri")
   C.RefreshRoster()
   C_Timer.After(1.5, function() C.Hello() end)
@@ -227,19 +229,41 @@ local function WhisperTargets(isHello)
   for g, t in pairs(seen) do
     if g ~= me and nameOf[g] and now - t < ONLINE_WINDOW then add(nameOf[g]) end
   end
+  -- a hello goes to every member we know, online or not: on Forever the channel splits the realm in islands
+  -- (each internal realm its own copy of the channel), whispers reach everyone; the offline ones' "no player
+  -- named" is hidden (SystemFilter)
   for g, rec in pairs(state and state.members or {}) do
     if g ~= me then
       local who = nameOf[g] or rec.name
-      if seen[g] and now - seen[g] < ONLINE_WINDOW then add(who)
-      elseif isHello and not rosterOK then add(who) end
+      if (seen[g] and now - seen[g] < ONLINE_WINDOW) or isHello then add(who) end
     end
   end
+  if isHello then for who in pairs(seeds) do if who ~= myName then add(who) end end end
   return out
 end
 
+function C.AddSeed(name)
+  if type(name) ~= "string" then return end
+  name = name:gsub("^%s+", ""):gsub("%s+$", "")
+  if name == "" or name == myName then return end
+  seeds[name] = true
+  if ns.db and state then
+    ns.db.seeds = type(ns.db.seeds) == "table" and ns.db.seeds or {}
+    ns.db.seeds[state.code] = ns.db.seeds[state.code] or {}
+    ns.db.seeds[state.code][name] = true
+  end
+  if state and C.HelloTo and C.Whispering() then C.HelloTo(name) end
+end
+
+-- no channel to speak in (refused, as on Forever, or never joined): every message is whispered
+local function Whispering()
+  return chanBlocked or not CurrentChannelId()
+end
+C.Whispering = Whispering
+
 local function Broadcast(body, urgent, key)
   chanId = CurrentChannelId()
-  if chanId and chanBlocked then
+  if chanBlocked or not chanId then
     for _, who in ipairs(WhisperTargets(body:sub(1, 1) == "H")) do Enqueue("WHISPER", who, body, urgent, key) end
     return
   end
@@ -251,15 +275,6 @@ local function Broadcast(body, urgent, key)
       if seen[g] and now - seen[g] < ONLINE_WINDOW then Enqueue("WHISPER", who, body, urgent, key) end
     end
     return
-  end
-  -- fallback: whisper the members we know, only those seen lately (plus everyone for hellos)
-  local isHello = body:sub(1, 1) == "H"
-  local now = Clock()
-  for g, rec in pairs(state and state.members or {}) do
-    local who = nameOf[g] or rec.name
-    if g ~= me and who and (isHello or (seen[g] and now - seen[g] < ONLINE_WINDOW)) then
-      Enqueue("WHISPER", who, body, urgent, key)
-    end
   end
 end
 
@@ -364,7 +379,7 @@ end
 -- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
 local introduced = {}
 newPeer = function(guid, name)
-  if not state or not chanBlocked then return end
+  if not state or not Whispering() or type(name) ~= "string" then return end
   if introduced[guid] and Clock() - introduced[guid] < 60 then return end
   introduced[guid] = Clock()
   U.Log("Comms", "ner canale c'è", name)
@@ -425,7 +440,6 @@ end
 
 function C.HelloTo(who)
   if not state then return end
-  lastHelloAt = Clock()
   if who then Enqueue("WHISPER", who, Body("H", HelloData()), false, "H") else C.Hello() end
 end
 
@@ -443,7 +457,7 @@ local function OnHello(from, h, sender)
   end
   local theyNewer = false
   -- whispering (Forever): what they miss goes to them alone
-  local to = chanBlocked and type(sender) == "string" and sender or nil
+  local to = Whispering() and type(sender) == "string" and sender or nil
   local tag = to and (">" .. to) or ""
   local function cmp(kind, mine, theirs)
     theirs = type(theirs) == "number" and theirs or 0
@@ -539,7 +553,7 @@ local function Handle(body, sender, channel)
         local last = askedFull[from]
         if type(sender) == "string" and (not last or Clock() - last > 20) then
           askedFull[from] = Clock()
-          Schedule("H:" .. from .. ":full", function() C.HelloTo(chanBlocked and sender or nil) end)
+          Schedule("H:" .. from .. ":full", function() C.HelloTo(Whispering() and sender or nil) end)
         end
       end
     end
@@ -555,6 +569,8 @@ local function Handle(body, sender, channel)
       local rec = state.members[data.guid]
       if oldLv and rec.lv and rec.lv > oldLv then ns.Fire("MemberDing", rec, oldLv) end
       if old and rec.team ~= oldTeam then ns.Fire("MemberSwitched", rec, oldTeam) end
+      -- whispering, a member we hear of for the first time gets a hello from us: no waiting for the next round
+      if not old and data.guid ~= me and not seen[data.guid] then newPeer(data.guid, nameOf[data.guid] or rec.name) end
       ns.Fire("MemberUpdated", rec, old or nil)
     end
   end
@@ -662,12 +678,14 @@ function C.Start(st, myGuid, playerName)
   queue, pendingSends, partsIn, whisperPeers = {}, {}, {}, {}
   roster, rosterOK, displayIdx = {}, false, nil
   chanBlocked = ForeverClient()
+  seeds = {}
+  for who in pairs(ns.db and type(ns.db.seeds) == "table" and ns.db.seeds[st.code] or {}) do seeds[who] = true end
   fullSer, fullUp, fullAt = nil, nil, nil
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
   if not helloTicker then
     helloTicker = C_Timer.NewTicker(30, function()
-      if state and Clock() - lastHelloAt >= (chanBlocked and C.HELLO_WHISPER or HELLO_EVERY) then C.Hello() end
+      if state and Clock() - lastHelloAt >= (Whispering() and C.HELLO_WHISPER or HELLO_EVERY) then C.Hello() end
     end)
   end
   -- the channel's list, once a minute (a dozen names at most to read)

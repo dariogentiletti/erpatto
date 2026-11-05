@@ -438,7 +438,7 @@ peg = C.g.ErPattoPegno
 check(peg.shown, 'Gina chooses er pegno')
 row = [r for r in peg.pena.radios.values() if r.v == 6][0]
 row.Click(row)
-secs(5)
+secs(10)  # whispered to each one on Forever: a few seconds more than over the channel
 gB = A.ns.Sfide.AtGogna('Player-1-BBB')
 check(gB is not None and gB.til - T[0] < 86400 and str(SC.Champion()) == 'Player-1-CCC', 'Pietro a la gogna a day; Gina has the crown')
 check(shown(B, 'ErPattoPena') and 'servo de Gina' in str(B.g.ErPattoPena.text.text) and 'is the slave of Gina' in str(B.g.ErPattoPena.text.text), 'Pietro is told what being er servo means: ' + str(B.g.ErPattoPena.text.text))

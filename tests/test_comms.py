@@ -152,7 +152,6 @@ H.g.ROSTER_LATE = T[0] + 40
 H.login(); secs(10)
 # he picks his squadra before the list comes (the window asks at once)... and then does nothing more
 H.ns.P.ChooseTeam(H.state, 'G-SCHIZO', 't1'); H.ns.C.MarkSelfDirty(0.3, True); secs(20)
-fails('G-SCHIZO' not in [str(k) for k in E.state.members.keys()], 'busy server: no list yet, nobody to whisper (as in the game)')
 secs(10 + 15)
 fails(E.state.members['G-SCHIZO'] is not None and E.state.members['G-SCHIZO'].team == 't1' and H.ns.P.HasSettings(H.state),
       'busy server: once the list comes, Er Schizo and his squadra are seen by the capo within seconds')
@@ -167,3 +166,16 @@ got = {k: (c.state.members['G-SCHIZO'].lv if c.state.members['G-SCHIZO'] else No
 fails(all(v == 4 for v in got.values()), 'lost whispers: everyone ends with Er Schizo at level 4: ' + str(got))
 print('   cambi usati', {k: c.ns.C.stats.deltas for k, c in (('E', E), ('F', F), ('G', G))}, 'cambi vecchi', {k: c.ns.C.stats.stale for k, c in (('E', E), ('F', F), ('G', G))})
 print('errori 10-11:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G), ('H', H))})
+
+# 12) islands: on Forever each internal realm has its own copy of the channel. Er Lontano is on another one: the
+# channel never lists him, yet with the code and one name (who invited him) he and the others find each other
+I = Client('Er Lontano', 'G-LONT'); clients['I'] = I; I.g.NOWV = T[0]; I.g.REFUSE_CHANNEL = True
+I.state = I.ns.P.Join(code2, 'G-LONT', 'Er Lontano')
+I.login()
+I.g.JOINED = 'altra-copia'  # his channel is another island's
+I.ns.C.AddSeed('Er Gnomo')
+secs(30)
+fails(I.ns.P.HasSettings(I.state) and 'G-LONT' in [str(k) for k in E.state.members.keys()], 'islands: Er Lontano, on another internal realm, joins with the code and Er Gnomo\'s name')
+secs(130)
+fails(all('G-LONT' in [str(k) for k in c.state.members.keys()] for c in (F, G, H)) and len(list(I.state.members.keys())) >= 5,
+      'islands: within a round of hellos everyone sees Er Lontano, and he sees everyone')
