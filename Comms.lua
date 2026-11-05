@@ -565,6 +565,10 @@ local function OnHello(from, h, sender)
   end
 end
 
+local invitesOut = {}
+-- who I invited and when (lower case names), kept half an hour: a cacciato I invite again may come back
+local invitedAt = {}
+
 local function Handle(body, sender, channel)
   local kind, payload = body:match("^(%u)~(.*)$")
   if not kind then return end
@@ -573,7 +577,12 @@ local function Handle(body, sender, channel)
   -- another patto's message (the group or the guild carry everyone's)
   if type(msg.c) == "string" and msg.c ~= state.code then return end
   local from = msg.f
-  if P.IsBanned(state, from) then return end
+  if P.IsBanned(state, from) then
+    -- cacciato, but I (capo or vice) invited them again in the last half hour: they're back
+    local asked = type(sender) == "string" and invitedAt[sender:lower()]
+    if not (asked and Clock() - asked < 1800 and P.Unban(state, me, from)) then return end
+    U.Log("Comms", sender, "era stato cacciato: l'hai reinvitato, mo' po' rientrà")
+  end
   C.stats.received = C.stats.received + 1
   seen[from] = Clock()
   firstHeardAt = firstHeardAt or Clock()
@@ -664,12 +673,12 @@ function C.RegisterPrefix()
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
 end
 
-local invitesOut = {}
 function C.Invite(name)
   if not state or type(name) ~= "string" or name == "" then return false end
   local body = "?I~" .. U.Serialize({ c = state.code, n = state.settings and state.settings.name, by = myName })
   local ok = pcall(C_ChatInfo.SendAddonMessage, PREFIX, body, "WHISPER", name)
   invitesOut[name:lower()] = Clock()
+  invitedAt[name:lower()] = Clock()
   return ok
 end
 

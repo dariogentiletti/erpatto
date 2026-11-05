@@ -246,3 +246,20 @@ fails(not still, 'left: within a round nobody has him, and nobody brings him bac
 K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); secs(40)
 fails(K.ns.P.HasSettings(K.state) and 'G-CORT' in [str(k) for k in E.state.members.keys()], 'and with the code he\'s back in')
 print('errori 16:', {k: errs(c) for k, c in (('E', E), ('K', K))})
+
+# 17) tonight's case: the capo cacciò Er Cortello (Caccia), then invited him again from the menu. He accepts:
+# his messages count again (the ban goes), and he's in. Whispers work for him now, and no group
+K.g.NO_WHISPERS = False; K.g.GROUP = None; E.g.GROUP = None
+K.g.GROUPMATES = K.lua.table_from([]); E.g.GROUPMATES = E.lua.table_from([])
+ok = E.ns.P.Ban(E.state, 'G-GNOMO', 'G-CORT'); E.ns.C.Send('B', E.state.bans); secs(10)
+fails(ok and E.ns.P.IsBanned(E.state, 'G-CORT') and 'G-CORT' not in [str(k) for k in E.state.members.keys()], 'cacciato: out')
+K.ns.C.Stop(); K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); secs(40)
+fails('G-CORT' not in [str(k) for k in E.state.members.keys()], 'cacciato: the code alone doesn\'t bring him back')
+E.ns.C.Invite('Er Cortello'); secs(2)
+K.ns.C.Stop(); K.state = K.ns.P.Join(code2, 'G-CORT', 'Er Cortello'); K.login(); K.ns.C.AddSeed('Er Gnomo'); secs(40)
+fails(not E.ns.P.IsBanned(E.state, 'G-CORT') and 'G-CORT' in [str(k) for k in E.state.members.keys()] and K.ns.P.HasSettings(K.state),
+      'invited again by the capo: the ban goes and he\'s in (%s)' % summary(K))
+secs(300)
+fails(all(not c.ns.P.IsBanned(c.state, 'G-CORT') and 'G-CORT' in [str(x) for x in c.state.members.keys()] for c in (F, G, H)),
+      'and the others take him back too')
+print('errori 17:', {k: errs(c) for k, c in (('E', E), ('K', K))})

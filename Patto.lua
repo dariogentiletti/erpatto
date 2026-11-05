@@ -570,6 +570,19 @@ function P.Ban(state, me, guid)
   return true
 end
 
+-- someone cacciato and invited again by a capo or vice: the ban is lifted
+function P.Unban(state, me, guid)
+  if not P.IsAdmin(state, me) or not P.IsBanned(state, guid) then return false end
+  local new = U.Copy(state.bans)
+  new.list[guid] = nil
+  new.v = (state.bans.v or 0) + 1
+  new.at = U.Now()
+  new.by = me
+  state.bans = CleanBans(new)
+  ns.Fire("MembersChanged", state)
+  return true
+end
+
 local function LogSwitch(state, rec, from, to, at)
   table.insert(state.switches, 1, { name = rec.name, from = from, to = to, at = at or U.Now() })
   while #state.switches > P.MAX_SWITCHES do table.remove(state.switches) end
