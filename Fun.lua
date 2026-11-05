@@ -375,8 +375,61 @@ function F.WatchFall()
   end
 end
 
+-- the deaths the game told twice (hunters and warlocks on Forever: PLAYER_DEAD comes twice, a second apart),
+-- counted twice before 1.0.7: once per character, the doubles go from the journal, the gravestones and the count
+local function SameDeath(a, b) return type(a.at) == "number" and type(b.at) == "number" and math.abs(a.at - b.at) <= 3 end
+function F.FixDoubleDeaths()
+  if not (Ready() and ns.db) then return 0 end
+  ns.db.fixed = type(ns.db.fixed) == "table" and ns.db.fixed or {}
+  local key = "deaths2:" .. tostring(ns.recordGuid)
+  if ns.db.fixed[key] then return 0 end
+  ns.db.fixed[key] = true
+  local rec = ns.MyRecord()
+  local j = Journal()
+  local doubles, silly = {}, 0
+  if j and type(j.deaths) == "table" then
+    local keep = {}
+    for _, d in ipairs(j.deaths) do
+      local last = keep[#keep]
+      if last and SameDeath(last, d) then doubles[#doubles + 1] = d.at else keep[#keep + 1] = d end
+    end
+    j.deaths = keep
+  end
+  if type(rec.rip) == "table" then
+    local keep = {}
+    for _, g in ipairs(rec.rip) do
+      local last = keep[#keep]
+      if last and SameDeath(last, g) then
+        if F.SILLY[g.k] then silly = silly + 1 end
+      else keep[#keep + 1] = g end
+    end
+    rec.rip = keep
+  end
+  local n = #doubles
+  local t = rec.stats and rec.stats.t
+  if t and n > 0 then
+    t.dt = math.max(0, (t.dt or 0) - n)
+    if silly > 0 then t.em = math.max(0, (t.em or 0) - silly) end
+    -- the weeks still kept lose theirs too
+    if P.HasSettings(ns.state) and type(rec.stats.w) == "table" then
+      for _, at in ipairs(doubles) do
+        local wk = M.WeekIndex(ns.state.settings, at)
+        local w = rec.stats.w[wk]
+        if type(w) == "table" and (w.dt or 0) > 0 then w.dt = w.dt - 1 end
+      end
+    end
+  end
+  if n > 0 or silly > 0 then
+    rec.up = math.max(U.Now(), (rec.up or 0) + 1)
+    U.Log("Fun", "morti contate due vorte, tolte:", n, "ridicole:", silly)
+    ns.Fire("SelfChanged", ns.state, "fun")
+  end
+  return n
+end
+
 ns.On("J_Flight", function() Bump("fl") end)
 ns.On("Login", function()
+  if C_Timer then C_Timer.After(15, function() pcall(F.FixDoubleDeaths) end) end
   if C_Timer then
     -- a look at IsFalling every 0.15 seconds: one call to the game, nothing else
     C_Timer.NewTicker(0.15, F.WatchFall)

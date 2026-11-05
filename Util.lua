@@ -89,8 +89,8 @@ function U.IsForever()
   return type(toc) == "number" and toc >= 16000 and toc < 20000
 end
 
--- the name to show: no realm, no test mark ("Er Nia-Realm", "Dario (prova)" -> "Er Nia", "Dario")
--- one death, one count: WoW Forever sends PLAYER_DEAD twice for the same death (a second or two apart);
+-- one death, one count: WoW Forever sends PLAYER_DEAD twice for one death of a hunter or a warlock (seen in the
+-- saved data: two gravestones a second apart, the second without the killer);
 -- each part of the addon that hears it asks here, by its own key, and goes on only the first time
 local deathAt = {}
 function U.FirstDeath(key)
@@ -100,6 +100,7 @@ function U.FirstDeath(key)
   return true
 end
 
+-- the name to show: no realm, no test mark ("Er Nia-Realm", "Dario (prova)" -> "Er Nia", "Dario")
 function U.Short(name)
   if type(name) ~= "string" then return "?" end
   local s = name:gsub(" %(prova%)$", ""):match("^([^%-]+)")

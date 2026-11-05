@@ -138,6 +138,20 @@ secs(16); A.g.FALLING = True; secs(2); A.g.FIRE('PLAYER_DEAD'); A.g.FALLING = Fa
 check(str(A.rec().rip[1].k) == 'mostro' and str(A.rec().rip[1].by) == 'Murloc Raider', 'recap names a mob: killed by it, not a fall, whatever the jump: ' + str(A.rec().rip[1].k) + ' ' + str(A.rec().rip[1].by))
 A.lua.eval("function() C_DeathRecap = nil end")()
 secs(3)
+# the doubles from before (a hunter's deaths told twice, counted twice): once, at login, they go
+A.lua.eval('''function(ns)
+  local now = GetServerTime()
+  local j = ns.J.Get()
+  j.deaths = { { at = now - 900 }, { at = now - 899 }, { at = now - 500 }, { at = now - 100 }, { at = now - 100 } }
+  local rec = ns.MyRecord()
+  rec.rip = { { at = now - 100, k = "mostro" }, { at = now - 100, k = "mostro", by = "Lightning Hide" }, { at = now - 500, k = "cascato" }, { at = now - 899, k = "mostro" }, { at = now - 900, k = "mostro", by = "Thunder Lizard" } }
+  ns.db.fixed = nil
+end''')(A.ns)
+_dt, _em = A.stat('dt'), A.stat('em')
+n = A.ns.Fun.FixDoubleDeaths()
+check(n == 2 and A.stat('dt') == _dt - 2 and len(list(A.rec().rip.values())) == 3 and len(list(A.ns.J.Get().deaths.values())) == 3,
+      'deaths counted twice before: the doubles go, from the count, the gravestones and the diary (%s, %s -> %s)' % (n, _dt, A.stat('dt')))
+check(A.ns.Fun.FixDoubleDeaths() == 0 and A.stat('dt') == _dt - 2, 'and only once')
 # kills from the game's PARTY_KILL (Midnight, Forever): mine and my group's, grey mobs too; no guessing then
 A.lua.eval("function() C_EventUtils = { IsEventValid = function(e) return e == 'PARTY_KILL' end } end")()
 _k = A.ns.J.Get().counters.kills or 0
