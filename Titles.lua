@@ -161,6 +161,34 @@ end
 
 -- the title a member shows, only if they still hold it
 local cache = { at = -1, earned = {}, byName = {}, verse = {} }
+-- names as the chat writes them: "Er Nia", "Er Nia-Realm", "Er-Nia" (Forever: the surname as if a realm),
+-- "Dario-Realm", any case: all to one key
+local function NameKey(name)
+  name = tostring(name or ""):gsub(" %(prova%)$", "")
+  return name:lower()
+end
+local function Index(map, name, value, firsts)
+  local k = NameKey(name)
+  map[k] = value
+  local short = U.Short(name)
+  if short ~= name then map[NameKey(short)] = value end
+  local first = k:match("^(%S+)")
+  if first and first ~= k and firsts[first] == 1 then map[first] = value end
+end
+local function Lookup(map, author)
+  local k = NameKey(author)
+  if map[k] then return map[k] end
+  -- "Er-Nia": the dash as the space between name and surname
+  local dashed = k:gsub("%-", " ", 1)
+  if map[dashed] then return map[dashed] end
+  local dashedNoRealm = dashed:match("^([^%-]+)")
+  if dashedNoRealm and map[dashedNoRealm] then return map[dashedNoRealm] end
+  -- "Er Nia-Realm" / "Dario-Realm": without the realm
+  local noRealm = k:match("^([^%-]+)")
+  return noRealm and map[noRealm] or nil
+end
+Ti.NameKey, Ti.Lookup, Ti.Index = NameKey, Lookup, Index
+
 local function Refresh(force)
   if not ns.state then cache.earned, cache.byName = {}, {} return end
   local now = GetTime and GetTime() or 0
@@ -170,6 +198,12 @@ local function Refresh(force)
   cache.earned = Ti.Earned(list)
   cache.byName = {}
   cache.verse = {}
+  -- first names that only one member has (on Forever everyone is "Er Something": "Er" alone is nobody)
+  local firsts = {}
+  for _, m in ipairs(list) do
+    local f = type(m.name) == "string" and NameKey(m.name):match("^(%S+)")
+    if f then firsts[f] = (firsts[f] or 0) + 1 end
+  end
   for _, m in ipairs(list) do
     local t = m.ti and Ti.BY_ID[m.ti]
     if not (t and cache.earned[m.guid] and cache.earned[m.guid][t.id]) then t = nil end
@@ -181,16 +215,8 @@ local function Refresh(force)
     if n then t = { id = "gogna", name = "detto " .. n.t, icon = g and g.icon } end
     if sv then t = { id = "gogna", name = "servo de " .. sv.name, icon = ns.Sfide.PENE[6].icon } end
     local v = ns.Sfide and ns.Sfide.VerseOf(m)
-    if v and type(m.name) == "string" then
-      cache.verse[m.name] = v.t
-      local short = m.name:match("^(%S+)")
-      if short then cache.verse[short] = v.t end
-    end
-    if t and type(m.name) == "string" then
-      cache.byName[m.name] = t
-      local short = m.name:match("^(%S+)")
-      if short then cache.byName[short] = t end
-    end
+    if v and type(m.name) == "string" then Index(cache.verse, m.name, v.t, firsts) end
+    if t and type(m.name) == "string" then Index(cache.byName, m.name, t, firsts) end
   end
 end
 
@@ -299,9 +325,8 @@ local function ChatFilter(_, _, msg, author, ...)
   if not ns.state or (ns.db and ns.db.opts.chatTitles == false) then return false end
   if U.IsSecret(msg) or U.IsSecret(author) or type(msg) ~= "string" or type(author) ~= "string" then return false end
   Refresh()
-  local short = author:match("^([^%-]+)") or author
-  local t = cache.byName[short] or cache.byName[author]
-  local verse = cache.verse and (cache.verse[short] or cache.verse[author])
+  local t = Lookup(cache.byName, author)
+  local verse = cache.verse and Lookup(cache.verse, author)
   if verse then msg = msg .. " |cffff8040" .. verse .. "|r" end
   if not t then
     if verse then return false, msg, author, ... end

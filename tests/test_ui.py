@@ -280,6 +280,16 @@ _pick('sorcapo'); a2 = str(A.ns.MyRecord().ti)
 _pick(''); a3 = A.ns.MyRecord().ti
 _pick('sorcapo'); a4 = str(A.ns.MyRecord().ti)
 check(a1 is None and a2 == 'sorcapo' and a3 is None and a4 == 'sorcapo', 'title can be changed again and again (%s %s %s %s)' % (a1, a2, a3, a4))
+# Forever: everyone is "Er Something", and the chat may write "Er Nia", "Er-Nia" or "Er Nia-Realm": each gets
+# their own title, and "Er" alone is nobody's
+look = A.lua.eval('''function(Ti)
+  local map, firsts = {}, { er = 3, dario = 1 }
+  Ti.Index(map, "Er Nia", "pescivendolo", firsts); Ti.Index(map, "Er Gnomo", "sorcapo", firsts); Ti.Index(map, "Dario Rossi", "nottambulo", firsts)
+  return table.concat({ tostring(Ti.Lookup(map, "Er Nia")), tostring(Ti.Lookup(map, "Er-Nia")), tostring(Ti.Lookup(map, "Er Nia-Realm")),
+    tostring(Ti.Lookup(map, "er gnomo")), tostring(Ti.Lookup(map, "Er-Gnomo-Realm")), tostring(Ti.Lookup(map, "Er")), tostring(Ti.Lookup(map, "Er Matto")),
+    tostring(Ti.Lookup(map, "Dario-Realm")) }, ",")
+end''')(A.ns.Titles)
+check(str(look) == 'pescivendolo,pescivendolo,pescivendolo,sorcapo,sorcapo,nil,nil,nottambulo', 'chat titles on Forever: each "Er" his own, whatever way the chat writes the name: ' + str(look))
 res2 = A.ns.Titles.ChatFilter(None, 'CHAT_MSG_SAY', 'ciao', 'Sconosciuto-Realm')
 check(res2 is False or res2 == False or (isinstance(res2, tuple) and len(res2) == 1), 'strangers unchanged')
 secs(8)
