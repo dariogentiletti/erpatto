@@ -12,6 +12,7 @@ ns.C = C
 local PREFIX = "ErPatto"
 local MAXLEN = 240
 local HELLO_EVERY = 300
+C.HELLO_WHISPER = 120
 local ONLINE_WINDOW = 420
 local BUCKET_MAX, REFILL = 8, 1.1
 
@@ -25,6 +26,8 @@ local chanBlocked = false -- the channel is there, but addon messages in it are 
 local roster, rosterOK, displayIdx = {}, false, nil -- guid -> name of who is in the patto's channel now
 local recent = {}
 local helloReplyAt = {}
+local askedFull = {}
+local lastHelloAt = 0
 local pendingSends = {}
 local whispered = {}
 local seq = 0
@@ -132,7 +135,7 @@ local function ReadRoster()
     if g ~= me then
       nameOf[g] = name
       seen[g] = seen[g] and math.max(seen[g], now) or now
-      if not roster[g] and rosterOK and newPeer then newPeer(g, name) end
+      if not roster[g] and newPeer then newPeer(g, name) end
     end
   end
   if not rosterOK then U.Log("Comms", "lista der canale:", got, "presenti") end
@@ -329,6 +332,7 @@ local function Tick()
     if ok and ResultIsThrottle(res) then
       table.insert(queue, 1, item)
       tokens = 0
+      C.stats.throttled = (C.stats.throttled or 0) + 1
       break
     end
     tokens = tokens - 1
@@ -353,12 +357,17 @@ end
 
 function C.Hello()
   if not state then return end
+  lastHelloAt = Clock()
   C.Send("H", HelloData())
 end
 
 -- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
+local introduced = {}
 newPeer = function(guid, name)
   if not state or not chanBlocked then return end
+  if introduced[guid] and Clock() - introduced[guid] < 60 then return end
+  introduced[guid] = Clock()
+  U.Log("Comms", "ner canale c'è", name)
   Enqueue("WHISPER", name, Body("H", HelloData()), false, "H")
 end
 
@@ -406,10 +415,24 @@ local function Schedule(key, fn)
   pendingSends[#pendingSends + 1] = { key = key, created = Clock(), at = Clock() + 0.5 + math.random() * 2.5, fn = fn }
 end
 
-local function SendPiece(kind)
-  if kind == "S" then C.Send("S", state.settings)
-  elseif kind == "A" then C.Send("A", state.admins)
-  elseif kind == "B" then C.Send("B", state.bans) end
+-- to one player only (whispered): the answers to a hello on Forever go to who asked, not to everyone
+function C.SendTo(kind, data, who)
+  if not state then return end
+  if not who then C.Send(kind, data) return end
+  Enqueue("WHISPER", who, Body(kind, data), false, KeyOf(kind, data))
+  if kind == "M" and type(data) == "table" and data.guid == me then C.NoteFull(data) end
+end
+
+function C.HelloTo(who)
+  if not state then return end
+  lastHelloAt = Clock()
+  if who then Enqueue("WHISPER", who, Body("H", HelloData()), false, "H") else C.Hello() end
+end
+
+local function SendPiece(kind, to)
+  if kind == "S" then C.SendTo("S", state.settings, to)
+  elseif kind == "A" then C.SendTo("A", state.admins, to)
+  elseif kind == "B" then C.SendTo("B", state.bans, to) end
 end
 
 local function OnHello(from, h, sender)
@@ -419,10 +442,13 @@ local function OnHello(from, h, sender)
     U.Say("quarcuno usa 'na versione più nova. Aggiorna l'addon su CurseForge.")
   end
   local theyNewer = false
+  -- whispering (Forever): what they miss goes to them alone
+  local to = chanBlocked and type(sender) == "string" and sender or nil
+  local tag = to and (">" .. to) or ""
   local function cmp(kind, mine, theirs)
     theirs = type(theirs) == "number" and theirs or 0
     if mine > theirs then
-      Schedule(kind .. ":" .. mine, function() SendPiece(kind) end)
+      Schedule(kind .. ":" .. mine .. tag, function() SendPiece(kind, to) end)
     elseif theirs > mine then
       theyNewer = true
     end
@@ -437,8 +463,8 @@ local function OnHello(from, h, sender)
     if (rec.up or 0) > theirs and count < 8 then
       count = count + 1
       local up = rec.up
-      Schedule("M:" .. g .. ":" .. up, function()
-        if state.members[g] and state.members[g].up == up then C.Send("M", state.members[g]) end
+      Schedule("M:" .. g .. ":" .. up .. tag, function()
+        if state.members[g] and state.members[g].up == up then C.SendTo("M", state.members[g], to) end
       end)
     end
   end
@@ -451,7 +477,7 @@ local function OnHello(from, h, sender)
     local last = helloReplyAt[from]
     if not last or Clock() - last > 20 then
       helloReplyAt[from] = Clock()
-      Schedule("H:" .. from .. ":" .. math.floor(Clock() / 20), C.Hello)
+      Schedule("H:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to) end)
     end
   end
 end
@@ -507,6 +533,14 @@ local function Handle(body, sender, channel)
         data = new
         kind = "M"
         C.stats.deltas = (C.stats.deltas or 0) + 1
+      elseif not cur or (cur.up or 0) < data.b then
+        -- my copy is too old for this change (a whole record got lost on the way): a hello, and they send it whole
+        C.stats.stale = (C.stats.stale or 0) + 1
+        local last = askedFull[from]
+        if type(sender) == "string" and (not last or Clock() - last > 20) then
+          askedFull[from] = Clock()
+          Schedule("H:" .. from .. ":full", function() C.HelloTo(chanBlocked and sender or nil) end)
+        end
       end
     end
   end
@@ -631,7 +665,11 @@ function C.Start(st, myGuid, playerName)
   fullSer, fullUp, fullAt = nil, nil, nil
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
-  if not helloTicker then helloTicker = C_Timer.NewTicker(HELLO_EVERY, function() C.Hello() end) end
+  if not helloTicker then
+    helloTicker = C_Timer.NewTicker(30, function()
+      if state and Clock() - lastHelloAt >= (chanBlocked and C.HELLO_WHISPER or HELLO_EVERY) then C.Hello() end
+    end)
+  end
   -- the channel's list, once a minute (a dozen names at most to read)
   if not C.rosterTicker then C.rosterTicker = C_Timer.NewTicker(60, function() if state and chanBlocked then C.RefreshRoster() end end) end
   if not C.filterSet and type(ChatFrame_AddMessageEventFilter) == "function" then

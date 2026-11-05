@@ -176,6 +176,7 @@ local function EnvReport()
     local st = ns.C.stats
     Log("Patto", "codice", ns.state and ns.state.code, "alt", ns.alt, "canale", ns.C.ChannelName(), "modo", st.mode,
       "inviati", st.sent, "ricevuti", st.received, "scartati", st.dropped, "trattenuti", st.held, "in coda", ns.C.QueueSize(),
+      "frenati", st.throttled or 0, "cambi", st.deltas or 0, "cambi vecchi", st.stale or 0,
       "blocco messaggi", ns.C.InLockdown())
     if ns.state then
       local n, online = 0, 0
@@ -184,6 +185,9 @@ local function EnvReport()
         if ns.C.IsOnline(g) then online = online + 1 end
       end
       Log("Patto", "membri", n, "online", online, "impostazioni v", ns.state.settings.v, "capi v", ns.state.admins.v)
+      local inChan, names = 0, {}
+      for _, who in pairs(ns.C.Roster and ns.C.Roster() or {}) do inChan = inChan + 1 names[#names + 1] = who end
+      Log("Patto", "ner canale", inChan, table.concat(names, ", "))
     end
   end
   local missing = {}

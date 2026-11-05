@@ -23,12 +23,21 @@ class Client:
         self.ns.C.Stop()
 clients = {}
 T = [START - 86400]
+LOSS = [0]
 def step(n=1, dt=0.25):
     for _ in range(n):
         T[0] += dt
         for c in clients.values():
-            c.g.ROSTER = c.lua.table_from([c.lua.table_from({'name': d.name, 'guid': d.guid}) for d in clients.values()
-                if d.online and d.g.JOINED and d.g.JOINED == c.g.JOINED])
+            # the list of the channel comes late on a busy server: nothing until ROSTER_LATE, then the event
+            late = c.g.ROSTER_LATE
+            if late and T[0] < late:
+                c.g.ROSTER = c.lua.table_from([])
+            else:
+                c.g.ROSTER = c.lua.table_from([c.lua.table_from({'name': d.name, 'guid': d.guid}) for d in clients.values()
+                    if d.online and d.g.JOINED and d.g.JOINED == c.g.JOINED])
+                if late and c.online:
+                    c.g.ROSTER_LATE = None
+                    c.ns.C.OnRosterUpdate(1)
             c.g.NOWV = T[0]
             if c.online: c.g.RUN_TIMERS()
         for c in clients.values():
@@ -45,6 +54,8 @@ def step(n=1, dt=0.25):
                     if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
                     elif m.kind == 'WHISPER' and m.target == d.name:
+                        # a full server loses some whispers
+                        if LOSS[0] and random.random() < LOSS[0]: continue
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'WHISPER', c.name, d.name)
 def secs(s): step(int(s / 0.25))
 def summary(c):
@@ -133,3 +144,26 @@ fails(F.ns.U.Short('Er Nia-Realm') == 'Er Nia' and F.ns.U.Short('Dario (prova)')
 F.ns.state = F.state
 fails(str(F.ns.U.Surnames('|cffc69b6dEr Nia|r 40')) == '|cffc69b6dNia|r 40', 'names: a narrow column keeps the surname, not the first name')
 print('errori Forever:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G))})
+
+# 10) a busy server: the joiner's channel list comes 40 seconds late; the capo still sees him within seconds of it
+H = Client('Er Schizo', 'G-SCHIZO'); clients['H'] = H; H.g.NOWV = T[0]; H.g.REFUSE_CHANNEL = True
+H.state = H.ns.P.Join(code2, 'G-SCHIZO', 'Er Schizo')
+H.g.ROSTER_LATE = T[0] + 40
+H.login(); secs(10)
+# he picks his squadra before the list comes (the window asks at once)... and then does nothing more
+H.ns.P.ChooseTeam(H.state, 'G-SCHIZO', 't1'); H.ns.C.MarkSelfDirty(0.3, True); secs(20)
+fails('G-SCHIZO' not in [str(k) for k in E.state.members.keys()], 'busy server: no list yet, nobody to whisper (as in the game)')
+secs(10 + 15)
+fails(E.state.members['G-SCHIZO'] is not None and E.state.members['G-SCHIZO'].team == 't1' and H.ns.P.HasSettings(H.state),
+      'busy server: once the list comes, Er Schizo and his squadra are seen by the capo within seconds')
+# 11) a quarter of the whispers lost: a ding still reaches everyone, at worst with the next round of hellos
+LOSS[0] = 0.25
+for i in range(3):
+    H.ns.P.UpdateSelf(H.state, 'G-SCHIZO', H.lua.table_from({'lv': 2 + i})); H.ns.C.MarkSelfDirty(0.1); secs(20)
+secs(60)
+LOSS[0] = 0
+secs(130)
+got = {k: (c.state.members['G-SCHIZO'].lv if c.state.members['G-SCHIZO'] else None) for k, c in (('E', E), ('F', F), ('G', G))}
+fails(all(v == 4 for v in got.values()), 'lost whispers: everyone ends with Er Schizo at level 4: ' + str(got))
+print('   cambi usati', {k: c.ns.C.stats.deltas for k, c in (('E', E), ('F', F), ('G', G))}, 'cambi vecchi', {k: c.ns.C.stats.stale for k, c in (('E', E), ('F', F), ('G', G))})
+print('errori 10-11:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G), ('H', H))})
