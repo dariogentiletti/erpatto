@@ -929,6 +929,17 @@ secs(8)
 check(N.ns.Tombola.Balance() == balC and any("nun c'è stato" in n for n in N.news()), 'turned down: his 4 piotte back at once (%s -> %s)' % (balC, N.ns.Tombola.Balance()))
 for x in (A, B, N): x.lua.eval('function() MAPPOS = nil end')()
 
+# the right-click menu finds the member however the game gives the name (Forever: "Er" and "Nia" apart)
+look = A.lua.eval('''function(ns)
+  ns.state.members["G-ERNIA"] = { guid = "G-ERNIA", name = "Er Nia", stats = { t = {}, w = {} } }
+  ns.state.members["G-ERGNO"] = { guid = "G-ERGNO", name = "Er Gnomo", stats = { t = {}, w = {} } }
+  local S = ns.Sfide
+  local r = { S.MemberByName("Er", nil, "Nia"), S.MemberByName("Er Nia"), S.MemberByName("Er-Gnomo"), S.MemberByName("Er") or "nobody", (S.MemberByName("Pietro")) }
+  ns.state.members["G-ERNIA"], ns.state.members["G-ERGNO"] = nil, nil
+  return table.concat(r, ",")
+end''')(A.ns)
+check(str(look) == 'G-ERNIA,G-ERNIA,G-ERGNO,nobody,Player-1-BBB', 'right click: "Er" + "Nia" is Er Nia, "Er" alone is nobody, "Pietro" still Pietro: ' + str(look))
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

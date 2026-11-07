@@ -1675,9 +1675,8 @@ end
 ns.On("J_Duel", function(name, won)
   if not (ns.state and type(name) == "string") or ns.alt then return end
   local other
-  for guid, m in pairs(ns.state.members) do
-    if guid ~= ns.recordGuid and (m.name == name or Short(m) == name or Short(m) == name:match("^([^%-]+)")) then other = m end
-  end
+  local og = S.MemberByName(name)
+  if og and og ~= ns.recordGuid then other = ns.state.members[og] end
   if not other then return end
   local rec = ns.MyRecord and ns.MyRecord()
   local h = rec and rec.h2h and (rec.h2h[name] or rec.h2h[other.name]) or {}
@@ -2382,9 +2381,8 @@ function S.OnEmote(token, target)
   local name = (type(target) == "string" and not U.IsSecret(target) and target ~= "") and target or nil
   if not name then name = U.FullName("target") end
   if not name then return end
-  for guid, m in pairs(Members()) do
-    if guid ~= ns.recordGuid and (m.name == name or Short(m) == name or Short(m) == name:match("^([^%-]+)")) then Send({ t = "gy", to = guid }) end
-  end
+  local tg = S.MemberByName(name, "target")
+  if tg and tg ~= ns.recordGuid then Send({ t = "gy", to = tg }) end
 end
 if hooksecurefunc then
   if JumpOrAscendStart then pcall(hooksecurefunc, "JumpOrAscendStart", function() pcall(S.OnJump) end) end
@@ -2622,8 +2620,9 @@ end)
 -- someone asks me for a duel: if both are in the patto, everyone near can bet
 local function OnDuelRequested(name)
   if not ns.state or ns.alt or U.IsSecret(name) or type(name) ~= "string" then return end
-  for guid, m in pairs(ns.state.members) do
-    if guid ~= ns.recordGuid and (m.name == name or Short(m) == name) then
+  local g = S.MemberByName(name, nil, nil)
+  for guid, m in pairs(g and { [g] = ns.state.members[g] } or {}) do
+    if guid ~= ns.recordGuid then
       local gogna = false
       for _, s in ipairs(S.Series()) do
         if s.state == "incorso" and ((s.a == guid and s.b == ns.recordGuid) or (s.b == guid and s.a == ns.recordGuid)) then gogna = true end
@@ -2645,13 +2644,40 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED", "DUEL_COUNTDOWN" }) do pcall(frame.RegisterEvent, frame, e) end
 
+-- a member of the patto by a name as the game gives it: the whole name ("Er Nia"), "Er-Nia", or on Forever the
+-- name and the surname apart ("Er" + "Nia"); the first name alone only when one member has it
+function S.MemberByName(name, unit, server)
+  if not (ns.state and type(name) == "string") or U.IsSecret(name) then return nil end
+  local full = unit and U.FullName(unit)
+  if not full and type(server) == "string" and server ~= "" and not U.IsSecret(server) then
+    full = name .. (U.IsForever() and " " or "-") .. server
+  end
+  local tries = { name, (name:gsub("%-", " ", 1)) }
+  if full then table.insert(tries, 1, full) end
+  for _, n in ipairs(tries) do
+    if n then
+      for guid, m in pairs(ns.state.members) do
+        if type(m.name) == "string" and (m.name == n or U.Short(m.name) == U.Short(n)) then return guid, m end
+      end
+    end
+  end
+  local found, fm, count = nil, nil, 0
+  for guid, m in pairs(ns.state.members) do
+    if type(m.name) == "string" and m.name:match("^(%S+)") == name then found, fm, count = guid, m, count + 1 end
+  end
+  if count == 1 then return found, fm end
+  return nil
+end
+
 local function AddMenu()
   if not (Menu and Menu.ModifyMenu) then return end
   for _, tag in ipairs({ "MENU_UNIT_PLAYER", "MENU_UNIT_PARTY", "MENU_UNIT_RAID_PLAYER", "MENU_UNIT_FRIEND", "MENU_UNIT_TARGET" }) do
     pcall(Menu.ModifyMenu, tag, function(owner, root, data)
       if not (ns.state and not ns.alt and data and data.name) then return end
-      for guid, m in pairs(ns.state.members) do
-        if guid ~= ns.recordGuid and (m.name == data.name or Short(m) == data.name) then
+      -- (on Forever the menu gives "Er" and "Nia" apart: the whole name is needed, "Er" alone is everybody)
+      local g = S.MemberByName(data.name, data.unit, data.server)
+      for guid, m in pairs(g and { [g] = ns.state.members[g] } or {}) do
+        if guid ~= ns.recordGuid then
           if root.CreateDivider then root:CreateDivider() end
           root:CreateButton("Duello a la gogna", function() S.OpenDuel(guid, data.unit) end)
           root:CreateButton("Gufata", function() S.OpenGufa(guid) end)
