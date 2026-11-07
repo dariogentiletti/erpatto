@@ -317,6 +317,17 @@ check(len([x for x in rw(B) if 'te sfotte' in x]) == 1, 'back: it arrives, once:
 check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'and the outbox is empty again')
 before2 = TB.Balance()
 check(before2 == before - 9, 'three sfottò, nine piotte (%s)' % (before - before2))
+# an older version online never answers: it gets it once, not again every minute
+acks = A.ns.C.AcksSfotto
+A.lua.eval('function(ns) ns.C.AcksSfotto = function() return false end end')(A.ns)
+secs(31)
+B.g.RW = B.lua.table_from([])
+A.ns.Sfide.OpenSfotti('Player-1-BBB')
+sf.yes.Click(sf.yes)
+secs(200)
+check(len([x for x in rw(B) if 'te sfotte' in x]) == 1 and len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'older version: sent once, then off the list: ' + str(rw(B)))
+A.ns.C.AcksSfotto = acks
+book = A.g.ErPattoDB.points[code]; book.spent = book.spent - 3; A.lua.eval("function(b) table.remove(b.sfo, 1) end")(book)   # (the piotte of this one back, for the gufate below)
 B.ns.db.opts.toasts = True
 
 # ---- Casa and Er Bollettino

@@ -925,6 +925,11 @@ local function Deliver(x)
   if not to then return end
   x.try = GetTime and GetTime() or 0
   ns.C.SendTo("F", { t = x.t, x = x.x, i = x.i }, to, true)
+  -- an older version online never says it got it: once is all it gets (or it would see it again every minute)
+  if ns.C.IsOnline(x.t) and not ns.C.AcksSfotto(x.t) then
+    local l = Outbox()
+    if l then for i = #l, 1, -1 do if l[i] == x then table.remove(l, i) end end end
+  end
 end
 
 -- whatever is still waiting for guid (nil: for everyone online, not tried in the last minute)
@@ -932,7 +937,7 @@ function TB.SfottiPending(guid)
   local l = Outbox()
   if not l or #l == 0 then return end
   local now = GetTime and GetTime() or 0
-  for _, x in ipairs(l) do
+  for _, x in ipairs({ unpack(l) }) do
     if (guid and x.t == guid) or (not guid and ns.C.IsOnline(x.t) and now - (x.try or 0) >= 60) then Deliver(x) end
   end
 end

@@ -422,7 +422,7 @@ local function HelloData()
   local mine = state.members[me]
   return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
     bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil,
-    fb = mine and mine.fresh and tonumber(mine.base) or nil,
+    fb = mine and mine.fresh and tonumber(mine.base) or nil, sk = 1,
     lf = type(state.left) == "table" and next(state.left) and state.left or nil }
 end
 
@@ -655,6 +655,8 @@ local invitesOut = {}
 -- who I invited and when (lower case names), kept half an hour: a cacciato I invite again may come back
 local invitedAt = {}
 
+local acksSfotto = {}
+function C.AcksSfotto(guid) return acksSfotto[guid] == true end
 local function Handle(body, sender, channel)
   local kind, payload = body:match("^(%u)~(.*)$")
   if not kind then return end
@@ -684,6 +686,8 @@ local function Handle(body, sender, channel)
   local data = msg.x
   local changed = false
   if kind == "H" then
+    -- a version that says when a sfottò reached it (1.0.12 on): the older ones get it once, never again
+    if type(data) == "table" and data.sk then acksSfotto[from] = true end
     OnHello(from, data, sender)
     if not state.members[from] and type(data) == "table" and type(data.n) == "string" then
       ns.Fire("PeerSeen", from)
