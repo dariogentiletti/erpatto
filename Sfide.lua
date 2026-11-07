@@ -36,6 +36,12 @@ local DAY = 86400
 S.PENDING = DAY           -- a sfida waits a day for the answer
 -- the yes is the game's own: the challenge sends the duel request, accepting it is accepting the gogna
 S.DUEL_WINDOW = 600       -- the duel after the request counts if it ends within ten minutes
+-- a round a la gogna counts only if its duel request was accepted (the duel countdown started, marked x = 3 by one
+-- of the two) within ACCEPT_WIN of the request; a request not accepted by then, turned down, or followed by another
+-- duel request between the two (a normal one) is void: a normal duel after it never counts a la gogna.
+-- (Rounds before ACCEPT_SINCE, 1.0.12, keep the old rule: their results stay.)
+S.ACCEPT_WIN = 90
+S.ACCEPT_SINCE = 1794089000
 S.RV_ASK = 600            -- the loser has ten minutes to ask for la rivincita (or la bella)
 S.RV_FIGHT = 600          -- and it's fought within ten minutes
 S.PICK = 900              -- the winner has a quarter of an hour to choose er pegno
@@ -43,7 +49,7 @@ S.SHORT, S.LONG = 1, 7    -- days a la gogna
 S.TAJA_WINDOW = 7 * DAY
 S.GUFA = 300              -- five minutes
 S.BET_WINDOW = 600        -- a bet on a duel waits ten minutes for the result
-S.BET_RADIUS = 100        -- who can bet: within 100 yards of the duel (they can watch it)
+S.BET_RADIUS = 150        -- who can bet: within 150 yards of the duel (they can watch it)
 S.BET_OPEN = 5            -- the window to bet stays 5 seconds (a bar counts them down), and goes when the duel starts
 local SLACK = 60
 
@@ -446,14 +452,26 @@ function S.Series(all)
         local fightWin = n == 1 and S.DUEL_WINDOW or S.RV_FIGHT
         local t0 = cur.at
         local prev = s.duels[n - 1]
-        local d = FirstDuel(all, cur.from, cur.to, math.max(t0 - SLACK, prev and (prev.at + 1) or 0))
+        -- accepted? (the countdown of its duel started: x = 3 from either of the two, soon after the request)
+        local acc, off
+        for _, x in ipairs(nexts[cur.id] or {}) do
+          if x.x == 3 and x.at >= t0 - 5 and x.at <= t0 + S.ACCEPT_WIN and (not acc or x.at < acc.at) then acc = x end
+          if x.x == 2 and x.at >= t0 - SLACK then off = x end
+        end
+        local newRule = t0 >= S.ACCEPT_SINCE
+        if newRule and off and acc and off.at > acc.at then off = nil end -- turned down after it began: it's on
+        local d
+        if not newRule then
+          d = FirstDuel(all, cur.from, cur.to, math.max(t0 - SLACK, prev and (prev.at + 1) or 0))
+        elseif acc and not off then
+          d = FirstDuel(all, cur.from, cur.to, math.max(acc.at - 5, prev and (prev.at + 1) or 0))
+        end
         if d and d.at > t0 + fightWin then d = nil end
         if not d then
-          -- the duel request turned down (x = 2, written by either of the two), or never fought
-          local off
-          for _, x in ipairs(nexts[cur.id] or {}) do if x.x == 2 and x.at >= t0 - SLACK then off = x end end
+          -- the duel request turned down (x = 2, written by either of the two), never accepted, or never fought
+          if newRule and not acc and not off and now - t0 > S.ACCEPT_WIN then off = { at = t0 + S.ACCEPT_WIN } end
           if off then s.refused = { n = n, id = cur.id, from = cur.from, to = cur.to, at = off.at } end
-          if not off and now - t0 <= fightWin then s.state, s.cur, s.n = "incorso", cur, n
+          if not off and now - t0 <= fightWin then s.state, s.cur, s.n, s.acc = "incorso", cur, n, acc
           elseif n == 1 then s.state = "nunfatto"
           else Close(off and off.at or (t0 + fightWin), "no") end
           break
@@ -462,9 +480,9 @@ function S.Series(all)
         if n >= 3 then Close(d.at, "bella") break end
         local nx
         for _, x in ipairs(nexts[cur.id] or {}) do
-          if x.from == d.l and x.x ~= 2 and x.at >= d.at - SLACK and x.at <= d.at + S.RV_ASK + SLACK and (not nx or x.at < nx.at) then nx = x end
+          if x.from == d.l and (x.x == nil or x.x == 1) and x.at >= d.at - SLACK and x.at <= d.at + S.RV_ASK + SLACK and (not nx or x.at < nx.at) then nx = x end
         end
-        if nx and nx.x then Close(nx.at, "basta") break end
+        if nx and nx.x == 1 then Close(nx.at, "basta") break end
         if nx then
           cur, n = nx, n + 1
         elseif now - d.at <= S.RV_ASK then
@@ -659,6 +677,7 @@ local function UnitFor(name)
   end
 end
 
+local sendingGogna = false -- (set while StartTheDuel sends the request of a round a la gogna)
 -- send the game's duel request to a member (from a click: the game wants a hardware event); hint: a unit token
 local function StartTheDuel(guid, hint)
   local m = Members()[guid]
@@ -671,7 +690,10 @@ local function StartTheDuel(guid, hint)
   end
   u = u or UnitFor(m.name)
   if not u then return false, Short(m) .. " nun è qui vicino: mettilo ner mirino e riprova." end
-  if not pcall(StartDuel, u) then return false, "Er duello nun è partito: riprova." end
+  sendingGogna = true
+  local ok = pcall(StartDuel, u)
+  sendingGogna = false
+  if not ok then return false, "Er duello nun è partito: riprova." end
   return true
 end
 
@@ -686,7 +708,7 @@ end
 
 local function SaveGd(c)
   local keep = { c }
-  for _, x in ipairs(MyList("gd")) do if #keep < 6 then keep[#keep + 1] = x end end
+  for _, x in ipairs(MyList("gd")) do if #keep < 12 then keep[#keep + 1] = x end end
   P.UpdateSelf(ns.state, ns.recordGuid, { gd = keep }, "sfide")
   Send({ t = "gd", c = c })
 end
@@ -728,12 +750,41 @@ end
 local function TurnedDown()
   local me = ns.recordGuid
   for _, x in ipairs(S.Series()) do
-    if x.state == "incorso" and (x.cur.from == me or x.cur.to == me) and Now() - x.cur.at > 2 then
+    -- (a round already accepted and fought keeps its duel; one not accepted is off)
+    if x.state == "incorso" and not x.acc and (x.cur.from == me or x.cur.to == me) and Now() - x.cur.at > 2 then
+      U.Log("Duello", "gogna: richiesta finita senza duello, er giro è annullato")
       SaveGd({ id = NewId(), to = x.cur.from == me and x.cur.to or x.cur.from, rv = x.cur.id, x = 2, at = Now() })
       S.Update()
     end
   end
 end
+
+-- a round a la gogna waiting for its duel request to be accepted, between me and `other` (any if nil)
+local function PendingRound(other)
+  local me = ns.recordGuid
+  for _, x in ipairs(S.Series()) do
+    if x.state == "incorso" and not x.acc and (x.cur.from == me or x.cur.to == me) then
+      local o = x.cur.from == me and x.cur.to or x.cur.from
+      if not other or o == other then return x, o end
+    end
+  end
+end
+-- a new duel request between the two, not the one of the round: the round is off (a normal duel isn't a la gogna)
+local function VoidRound(x, o, why)
+  U.Log("Duello", "gogna: er giro è annullato (" .. tostring(why) .. ")")
+  SaveGd({ id = NewId(), to = o, rv = x.cur.id, x = 2, at = Now() })
+  S.Update()
+end
+
+-- my duel requests: the ones of a round a la gogna go through StartTheDuel; any other one voids my pending round
+if type(hooksecurefunc) == "function" and StartDuel then
+  hooksecurefunc("StartDuel", function()
+    if sendingGogna or not ns.state or ns.alt then return end
+    local x, o = PendingRound()
+    if x and x.cur.from == ns.recordGuid then pcall(VoidRound, x, o, "n'antra richiesta de duello mia") end
+  end)
+end
+S.PendingRound = PendingRound
 
 -- the winner chooses er pegno
 function S.Pick(sid, p, t, e)
@@ -881,22 +932,14 @@ function S.NearDuel(data)
   local px, py, pi = tonumber(data.px), tonumber(data.py), tonumber(data.pi)
   if i and px and py and pi then
     if i ~= pi then return false end
-    return math.sqrt((x - px) ^ 2 + (y - py) ^ 2) <= S.BET_RADIUS
+    local d = math.sqrt((x - px) ^ 2 + (y - py) ^ 2)
+    if d > S.BET_RADIUS then U.Log("Duello", "Colosseo: er duello sta a " .. math.floor(d) .. " metri, troppo lontano") end
+    return d <= S.BET_RADIUS
   end
-  -- no position (an older version, or the client won't say): one of the two on my screen (target, a nameplate,
-  -- my group within range), else not
-  local all = Members()
-  for _, g in ipairs({ data.a, data.b }) do
-    local unit = all[g] and UnitFor(all[g].name)
-    if unit then
-      if unit:find("^nameplate") or unit == "target" or unit == "mouseover" then return true end
-      if UnitInRange then
-        local ok, inRange = pcall(UnitInRange, unit)
-        if ok and inRange == true then return true end
-      end
-    end
-  end
-  return false
+  -- no position on one side (who announced it has an older version, or the client won't say): the same zone is
+  -- enough, as before
+  U.Log("Duello", "Colosseo: posizione nun c'è, basta la zona")
+  return true
 end
 
 -- after the duel window closes: no duel between the two (turned down, or never started)? the bets go back
@@ -997,6 +1040,10 @@ function S.DuelStarts()
   if liveMine and Now() - liveMine.at < 120 then Send({ t = "dgo", a = liveMine.a, b = liveMine.b }) end
   for _, s in ipairs(S.Series(Members())) do
     if s.state == "incorso" and s.cur and (s.cur.to == me or s.cur.from == me) then
+      -- accepted: written (x = 3), so the duel that follows is the round's, whoever reads it later
+      if not s.acc and Now() - s.cur.at <= S.ACCEPT_WIN then
+        SaveGd({ id = NewId(), to = s.cur.from == me and s.cur.to or s.cur.from, rv = s.cur.id, x = 3, at = Now() })
+      end
       Send({ t = "gok", id = s.cur.id })
       Accepted(s.cur.id)
       return
@@ -2604,7 +2651,7 @@ ns.On("Live", function(from, data)
     end
   elseif data.t == "gd" and type(data.c) == "table" and type(data.c.id) == "string" then
     local c = data.c
-    liveGd[c.id:sub(1, 40)] = { id = c.id:sub(1, 40), from = from, to = Txt(c.to, 60), rv = Txt(c.rv, 40), x = (tonumber(c.x) == 1 or tonumber(c.x) == 2) and tonumber(c.x) or nil, at = tonumber(c.at) or Now() }
+    liveGd[c.id:sub(1, 40)] = { id = c.id:sub(1, 40), from = from, to = Txt(c.to, 60), rv = Txt(c.rv, 40), x = (tonumber(c.x) == 1 or tonumber(c.x) == 2 or tonumber(c.x) == 3) and tonumber(c.x) or nil, at = tonumber(c.at) or Now() }
     S.Update()
     return
   elseif data.t == "gp" and type(data.x) == "table" and type(data.x.id) == "string" then
@@ -2669,6 +2716,11 @@ end)
 local function OnDuelRequested(name)
   if not ns.state or ns.alt or U.IsSecret(name) or type(name) ~= "string" then return end
   local g = S.MemberByName(name, nil, nil)
+  -- a round a la gogna from him waiting since more than 20 seconds: this request is another one (a normal duel)
+  if g then
+    local x, o = PendingRound(g)
+    if x and Now() - x.cur.at > 20 then pcall(VoidRound, x, o, "n'antra richiesta de duello sua") end
+  end
   for guid, m in pairs(g and { [g] = ns.state.members[g] } or {}) do
     if guid ~= ns.recordGuid then
       local gogna = false
@@ -2710,10 +2762,16 @@ function S.MemberByName(name, unit, server)
     end
   end
   local found, fm, count = nil, nil, 0
+  local near, nm, ncount = nil, nil, 0
   for guid, m in pairs(ns.state.members) do
-    if type(m.name) == "string" and m.name:match("^(%S+)") == name then found, fm, count = guid, m, count + 1 end
+    if type(m.name) == "string" and m.name:match("^(%S+)") == name then
+      found, fm, count = guid, m, count + 1
+      -- several "Er": the one on my screen (target, nameplate, group) is the one the game means
+      if guid ~= ns.recordGuid and UnitFor(m.name) then near, nm, ncount = guid, m, ncount + 1 end
+    end
   end
   if count == 1 then return found, fm end
+  if ncount == 1 then return near, nm end
   return nil
 end
 
@@ -2912,7 +2970,7 @@ function S.BuildPage(v)
   p.lines = {}
 
   -- the sfide
-  local c = H.Box(p, 378, 347)
+  local c = H.Box(p, 378, 424)
   c:SetPoint("TOPLEFT", 366, -28)
   local tc = H.Text(c, "GameFontNormal", "Le sfide", 200) tc:SetPoint("TOPLEFT", 12, -12)
   p.testBet = H.Btn(c, "Prova: scommessa", 104, function() S.TestBet() end, 18)

@@ -343,7 +343,7 @@ local BADGES = {
 -- the character pane lives inside the window like every other tab:
 -- [ paper doll: slots, model, stat boxes, weapons ] [ ranks in the patto ] [ members ]
 local function BuildDoll(v)
-  local doll = H.Box(v, 380, 375, "rock")
+  local doll = H.Box(v, 380, 452, "rock")
   doll:SetPoint("TOPLEFT", 0, 0)
   v.doll = doll
   local base = doll:GetFrameLevel()
@@ -500,7 +500,7 @@ local function BuildDoll(v)
 
 
   -- ranks in the patto, one row each: icon, what it is, position
-  local ranks = H.Box(v, 150, 375)
+  local ranks = H.Box(v, 150, 452)
   ranks:SetPoint("TOPLEFT", 388, 0)
   local rt = H.Text(ranks, "GameFontNormal", "Classifica", 130)
   rt:SetPoint("TOPLEFT", 10, -10)
@@ -540,7 +540,7 @@ local function BuildDoll(v)
 end
 
 local function BuildSide(v)
-  local side = H.Box(v, 198, 375)
+  local side = H.Box(v, 198, 452)
   side:SetPoint("TOPLEFT", 546, 0)
   v.side = side
   local title = H.Text(side, "GameFontNormal", "Membri")

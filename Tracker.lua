@@ -803,7 +803,7 @@ local function Duel(winner, loser)
   -- the duel log for le sfide: only duels with patto members, by guid
   local function Log(name, won)
     for guid, r in pairs(state.members) do
-      if guid ~= me and (r.name == name or (type(r.name) == "string" and r.name:match("^(%S+)") == name)) then
+      if guid ~= me and type(r.name) == "string" and (r.name == name or U.Short(r.name) == U.Short(name)) then
         local dd = {}
         table.insert(dd, { o = guid, w = won and 1 or 0, at = U.Now() })
         for i = 1, 7 do if rec.dd and rec.dd[i] then dd[#dd + 1] = rec.dd[i] end end

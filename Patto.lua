@@ -285,9 +285,11 @@ function P.CleanMember(r)
   -- er duello a la gogna: the challenges I threw (gd: rv = the duel it's the rivincita of, x = 1: "basta", x = 2: the
   -- duel request turned down), the
   -- pegni I chose as winner (gp: id of the first challenge, which pegno, its text, the emote)
-  c.gd = List(r.gd, 6, function(x)
+  -- (x: 1 "basta", 2 turned down / off, 3 accepted: the duel countdown started)
+  c.gd = List(r.gd, 12, function(x)
     if not (Str(x.id, 40) and Str(x.to, 60) and Num(x.at, 0, 4e9)) then return nil end
-    return { id = Str(x.id, 40), to = Str(x.to, 60), rv = Str(x.rv, 40), x = (Num(x.x, 1, 2) and math.floor(Num(x.x, 1, 2))) or nil, at = Num(x.at, 0, 4e9) }
+    local k = tonumber(x.x)
+    return { id = Str(x.id, 40), to = Str(x.to, 60), rv = Str(x.rv, 40), x = (k == 1 or k == 2 or k == 3) and k or nil, at = Num(x.at, 0, 4e9) }
   end)
   -- li scontrini: the last lines of my piotte (what, with whom, put in, taken)
   c.lg = List(r.lg, 20, function(x)

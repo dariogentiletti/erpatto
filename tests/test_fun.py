@@ -397,7 +397,11 @@ secs(15)
 def first(v): return v[0] if isinstance(v, tuple) else v
 def second(v): return v[1] if isinstance(v, tuple) else None
 NAMES = {A: 'Dario', B: 'Pietro', C: 'Gina'}
-def duel(w, l):
+def duel(w, l, accepted=True):
+    # the duel request accepted: the game's countdown on both screens, then the fight
+    if accepted:
+        for x in (w, l): x.g.FIRE('DUEL_COUNTDOWN')
+        secs(2)
     T[0] += 60
     for x in (w, l): x.ns.T.OnSystemMessage('%s has defeated %s in a duel' % (NAMES[w], NAMES[l]))
     secs(10)
@@ -949,6 +953,37 @@ look = A.lua.eval('''function(ns)
   return table.concat(r, ",")
 end''')(A.ns)
 check(str(look) == 'G-ERNIA,G-ERNIA,G-ERGNO,nobody,Player-1-BBB', 'right click: "Er" + "Nia" is Er Nia, "Er" alone is nobody, "Pietro" still Pietro: ' + str(look))
+
+# ---- a la gogna, the edge cases: only the duel of an accepted request counts
+NAMES[N] = 'Nando'
+def series_with(x, other):
+    for s_ in x.ns.Sfide.Series().values():
+        if {str(s_.a), str(s_.b)} == {str(x.ns.recordGuid), other}: return s_
+    return None
+secs(200)
+A.g.TARGETNAME = 'Nando'
+r = A.ns.Sfide.Gogna('Player-1-NNN', 'target'); secs(3)
+check(first(r) is not False, 'Dario throws a duello a la gogna at Nando: ' + str(r))
+# 1) Nando never accepts it; two minutes later they fight a normal duel: it's not a la gogna
+secs(120)
+duel(A, N)
+s1 = series_with(A, 'Player-1-NNN')
+check(s1 is not None and str(s1.state) != 'chiusa' and A.ns.Sfide.AtGogna('Player-1-NNN') is None,
+      'not accepted, then a normal duel won: Nando is NOT a la gogna (%s)' % (s1 and s1.state))
+# 2) a new one, turned down (the request ends without a duel); then a normal duel right after: not a la gogna
+secs(200)
+r = A.ns.Sfide.Gogna('Player-1-NNN', 'target'); secs(3)
+for x in (A, N): x.g.FIRE('DUEL_FINISHED')
+secs(6)
+duel(A, N)
+check(A.ns.Sfide.AtGogna('Player-1-NNN') is None, 'turned down, then a normal duel: Nando is NOT a la gogna')
+# 3) and one accepted and fought: that one counts
+secs(200)
+r = A.ns.Sfide.Gogna('Player-1-NNN', 'target'); secs(3)
+duel(A, N)
+s3 = series_with(A, 'Player-1-NNN')
+check(s3 is not None and str(s3.state) in ('rivincita', 'chiusa') and len(list(s3.duels.values())) == 1, 'accepted and fought: the duel counts a la gogna (%s)' % (s3 and s3.state))
+A.g.TARGETNAME = 'Pietro'
 
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))

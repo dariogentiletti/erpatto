@@ -50,7 +50,7 @@ function ns.Botteghino.Page() return page end
 ----------------------------------------------------------------------
 local ROWS = 12
 local function BuildTombola(v)
-  local p = H.Box(v, 744, 347)
+  local p = H.Box(v, 744, 424)
   p:SetPoint("TOPLEFT", 0, -28)
   v.tomb = p
   v.cardTitle = H.Text(p, "GameFontNormal", "", 300)
@@ -91,7 +91,7 @@ local function BuildTombola(v)
   v.pays = H.Text(p, "GameFontDisableSmall", "Casella = +1, terno = +2, tombola = +10", 470)
   v.pays:SetPoint("BOTTOMLEFT", 14, 8)
   -- right: how everybody is doing on this card
-  local side = H.Box(p, 238, 323)
+  local side = H.Box(p, 238, 400)
   side:SetPoint("TOPRIGHT", -8, -14)
   v.raceTitle = H.Text(side, "GameFontNormal", "A che stanno", 200)
   v.raceTitle:SetPoint("TOPLEFT", 12, -10)
@@ -140,7 +140,7 @@ local function BuildSchedina(v)
   v.tlBox = tl
   v.q = {}
   for i, q in ipairs(TB.QUESTIONS) do
-    local box = H.Box(v.sch, 244, 291)
+    local box = H.Box(v.sch, 244, 368)
     box:SetPoint("TOPLEFT", (i - 1) * 250, -84)
     local r = { key = q.key, box = box, i = i }
     r.title = H.Text(box, "GameFontNormal", "", 224, "CENTER")
@@ -247,7 +247,7 @@ local function BuildSchedina(v)
 end
 
 local function BuildRicchi(v)
-  local p = H.Box(v, 744, 347)
+  local p = H.Box(v, 744, 424)
   p:SetPoint("TOPLEFT", 0, -28)
   v.ricchi = p
   local cols = { { "", 30, 14 }, { "Chi", 200, 44 }, { "Piotte", 80, 250 }, { "Tombola", 80, 350 }, { "Schedine", 70, 440 }, { "Resa", 60, 520 } }
@@ -286,7 +286,7 @@ end
 local CONTI_ROWS = 15
 local contiOf -- the guid shown (nil: me)
 local function BuildConti(v)
-  local p = H.Box(v, 744, 347)
+  local p = H.Box(v, 744, 424)
   p:SetPoint("TOPLEFT", 0, -28)
   v.conti = p
   local l = H.Text(p, "GameFontNormalSmall", "De chi", 50) l:SetPoint("TOPLEFT", 14, -16)

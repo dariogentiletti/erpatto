@@ -87,7 +87,7 @@ local function Build()
   end
 
   -- news
-  local c = H.Box(v, 368, 191)
+  local c = H.Box(v, 368, 268)
   c:SetPoint("TOPLEFT", 0, -184)
   v.newsTitle = Title(c, "Notizie")
   v.news = {}
@@ -107,7 +107,7 @@ local function Build()
   end
 
   -- this week
-  local d = H.Box(v, 368, 191)
+  local d = H.Box(v, 368, 268)
   d:SetPoint("TOPLEFT", 376, -184)
   v.weekTitle = Title(d, "'Sta settimana")
   v.week = {}

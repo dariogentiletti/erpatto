@@ -470,7 +470,7 @@ end
 -- first in the queue, good on any copy of my record; the record itself follows at its pace
 local sentT, sentW, sentTop = {}, {}, {}
 local FLASH_FIELD = 160
-local FLASH_BIG = { lr = 260 } -- the last death, with its last words
+local FLASH_BIG = { lr = 260, dd = 420 } -- the last death, with its last words; the duels (bets, gogna wait on them)
 local FLASH_MAX = MAXLEN * 2
 local function Flash(rec)
   local wk = 0

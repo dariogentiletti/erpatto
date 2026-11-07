@@ -231,7 +231,7 @@ check(A.has('Membri') and any('Pietro' in t for t in A.texts()), 'member picker 
 PgTab = lambda: [b for b in A.ns.UI._tabs.values() if str(b.key) == 'pg'][0]
 ErTabArt1 = lambda: bool(PgTab().off.fill.shown)
 tab1 = L.eval('function() local p = ErPattoFrameTab1.points[1] return p[1] .. "," .. p[3] .. "," .. p[4] .. "," .. p[5] .. "," .. ErPattoFrameTab1.w end')()
-check(tab1.startswith('TOPLEFT,TOPLEFT,20,-457'), 'first tab under the window, 20 px in: ' + tab1)
+check(tab1.startswith('TOPLEFT,TOPLEFT,20,-534'), 'first tab under the window, 20 px in: ' + tab1)
 check(A.g.ErPattoFrame.selTab[5].shown and A.g.ErPattoFrame.selTab[5].shown and not ErTabArt1(), 'the selected tab stands over the border')
 myEq = str(A.ns.MyRecord().eq)
 check(myEq.startswith('2/') and '1.12345.3.24' in myEq and '5.6789.2.21.0.567' in myEq, 'my gear shared with item levels: ' + myEq)
@@ -475,7 +475,7 @@ check(A.has('Aldo (prova)') or any('Aldo (prova)' in t for t in A.texts()), 'tes
 pv = A.ns.UI._views.progresso
 check(A.has('Corsa') and A.has('Ore giocate') and A.has('Rari ammazzati') and A.has('Duelli vinti') and not A.has('perse'), 'leaderboard cards, wins only')
 top5 = [str(r.pos.text) for r in pv.rank.cards[1].rows.values() if r.shown]
-check(top5 == ['1º', '2º', '3º', '4º', '5º'], 'each card shows the top five: ' + str(top5))
+check(top5 == ['1º', '2º', '3º', '4º'], 'each card shows the top four (three rows of cards): ' + str(top5))
 wk2 = pv.weekBtn; wk2.Click(wk2)
 check(A.has("'sta settimana"), 'week mode labels the cards')
 pv.totBtn.Click(pv.totBtn)

@@ -102,7 +102,7 @@ end
 local ROWS = 18
 
 local function MemberList(parent, onClick)
-  local box = H.Box(parent, 190, 347)
+  local box = H.Box(parent, 190, 424)
   box.title = H.Text(box, "GameFontNormal", "Membri", 170)
   box.title:SetPoint("TOPLEFT", 12, -10)
   box.rows = {}
@@ -165,12 +165,13 @@ end
 ----------------------------------------------------------------------
 -- Classifiche
 ----------------------------------------------------------------------
-local CARD_W, CARD_H = 142, 169
+-- three rows of five cards, each with the first four (and where I stand, if lower)
+local CARD_W, CARD_H, CARD_ROWS = 142, 136, 4
 
 local function BuildCards(v, metrics, field)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
+  f:SetSize(744, 424)
   v[field or "rank"] = f
   f.cards = {}
   local cardMetrics = {}
@@ -183,10 +184,10 @@ local function BuildCards(v, metrics, field)
     card.title = H.Text(card, "GameFontNormalSmall", metric.title, 126)
     card.title:SetPoint("TOPLEFT", 10, -9)
     card.rows = {}
-    for k = 1, 5 do
+    for k = 1, CARD_ROWS do
       local r = CreateFrame("Button", nil, card)
       r:SetSize(128, 22)
-      r:SetPoint("TOPLEFT", 8, -28 - (k - 1) * 24)
+      r:SetPoint("TOPLEFT", 8, -26 - (k - 1) * 22)
       r:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
       r.pos = H.Text(r, "GameFontNormalSmall", "", 24)
       r.pos:SetPoint("TOPLEFT", 2, -2)
@@ -276,7 +277,7 @@ local function RefreshCards(v, list, field)
     end
     if not anyone then
       card.me:SetText(GREY .. "Ancora gnente pe' nessuno.|r")
-    elseif myPos and myPos > 5 and me then
+    elseif myPos and myPos > CARD_ROWS and me then
       card.me:SetText("Tu: " .. Ordinal(myPos) .. " su " .. #sorted .. ", " .. TextOf(metric, me))
     else
       card.me:SetText("")
@@ -342,8 +343,8 @@ local ADV = {
 ----------------------------------------------------------------------
 -- Titoli: every title, who holds it, how it's won
 ----------------------------------------------------------------------
-local GROUPS = { { "primi", "Li primi der patto", 0, 0, 494, 222, 2 }, { "traguardi", "Traguardi", 0, -228, 494, 119, 2 },
-  { "mestieri", "Mestieri", 500, 0, 244, 347, 1 } }
+local GROUPS = { { "primi", "Li primi der patto", 0, 0, 494, 270, 2 }, { "traguardi", "Traguardi", 0, -276, 494, 148, 2 },
+  { "mestieri", "Mestieri", 500, 0, 244, 424, 1 } }
 local TSTEP = 15
 
 -- the titles as the Diario: a box per kind, a line per title (name, who holds it); the tooltip has how it's won
@@ -351,7 +352,7 @@ local TSTEP = 15
 local function BuildTitles(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
+  f:SetSize(744, 424)
   v.titles = f
   f.cols = {}
   for i, g in ipairs(GROUPS) do
@@ -449,7 +450,7 @@ end
 local function BuildDiary(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
+  f:SetSize(744, 424)
   v.diary = f
   f.list = MemberList(f, function(guid) diaryGuid = guid ~= ns.recordGuid and guid or nil end)
   f.list:SetPoint("TOPLEFT", 0, 0)
@@ -727,11 +728,11 @@ local BAR_W = 150
 local function BuildVs(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
+  f:SetSize(744, 424)
   v.vs = f
   f.list = MemberList(f, function(guid) vsGuid = guid end)
   f.list:SetPoint("TOPLEFT", 0, 0)
-  local box = H.Box(f, 546, 347)
+  local box = H.Box(f, 546, 424)
   box:SetPoint("TOPLEFT", 198, 0)
   f.box = box
   local mid = 273
@@ -840,9 +841,9 @@ end
 local function BuildCimitero(v)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
-  f:SetSize(744, 347)
+  f:SetSize(744, 424)
   v.cimitero = f
-  local box = H.Box(f, 494, 347)
+  local box = H.Box(f, 494, 424)
   box:SetPoint("TOPLEFT")
   local t = H.Text(box, "GameFontNormal", "Cimitero", 200) t:SetPoint("TOPLEFT", 12, -10)
   f.graves = {}
@@ -857,7 +858,7 @@ local function BuildCimitero(v)
     f.graves[i] = r
   end
   f.none = H.Text(box, "GameFontDisableSmall", "", 400) f.none:SetPoint("TOPLEFT", 14, -30)
-  local side = H.Box(f, 244, 347)
+  local side = H.Box(f, 244, 424)
   side:SetPoint("TOPLEFT", 500, 0)
   local t1 = H.Text(side, "GameFontNormal", "Li più morti", 200) t1:SetPoint("TOPLEFT", 12, -10)
   f.dead = Lines(side, 8, 14, -30, 216, 15)

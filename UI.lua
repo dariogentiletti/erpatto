@@ -7,7 +7,8 @@ ns.UI = UI
 local BD = BackdropTemplateMixin and "BackdropTemplate" or nil
 local BAR = "Interface\\TargetingFrame\\UI-StatusBar"
 
-local W, H = 780, 457
+-- (77 taller than the first versions: Progresso shows three rows of rankings)
+local W, H = 780, 534
 local TAB_H = 30 -- how far the bottom tabs hang under the window
 local f, content
 local views, tabs = {}, {}
@@ -1038,7 +1039,7 @@ local wantCreate = false
 
 local function BuildWelcome()
   local v = NewView("welcome")
-  local left = Box(v, 362, 375)
+  local left = Box(v, 362, 452)
   left:SetPoint("TOPLEFT", 0, 0)
   local jt = Text(left, "GameFontNormal", "Entra co' 'n codice")
   jt:SetPoint("TOPLEFT", 16, -16)
@@ -1064,7 +1065,7 @@ local function BuildWelcome()
   note:SetPoint("BOTTOMLEFT", 16, 16)
   v.code, v.join, v.jerr = code, join, jerr
 
-  local right = Box(v, 374, 375)
+  local right = Box(v, 374, 452)
   right:SetPoint("TOPRIGHT", 0, 0)
   local ct = Text(right, "GameFontNormal", "Crea 'n patto novo")
   ct:SetPoint("TOPLEFT", 16, -16)
@@ -1079,7 +1080,7 @@ end
 -- an alt of a member: nothing of the patto until this character joins as one of its own
 local function BuildAlt()
   local v = NewView("alt")
-  local b = Box(v, 744, 375)
+  local b = Box(v, 744, 452)
   b:SetPoint("TOPLEFT", 0, 0)
   local t = Text(b, "GameFontNormal", "Stai co' 'n alt")
   t:SetPoint("TOPLEFT", 16, -16)
@@ -1098,7 +1099,7 @@ end
 
 local function BuildCreate()
   local v = NewView("create")
-  local box = Box(v, 744, 375)
+  local box = Box(v, 744, 452)
   box:SetPoint("TOPLEFT", 0, 0)
   local t = Text(box, "GameFontNormal", "Crea 'n patto novo")
   t:SetPoint("TOPLEFT", 16, -14)
@@ -1213,7 +1214,7 @@ local function BuildCap()
   v.hours = Text(top, "GameFontHighlightSmall", "", 716)
   v.hours:SetPoint("TOPLEFT", 14, -120)
 
-  local tb = Box(v, 744, 217)
+  local tb = Box(v, 744, 294)
   tb:SetPoint("TOPLEFT", 0, -158)
   v.tableTitle = Text(tb, "GameFontNormal", "Er calendario de li cap")
   v.tableTitle:SetPoint("TOPLEFT", 14, -10)
@@ -1591,7 +1592,7 @@ local function BuildImp()
   }
   for i, c in ipairs(v.checks) do c:SetPoint("TOPLEFT", 12, -26 - (i - 1) * 20) end
 
-  local b4 = Box(v, 744, 69)
+  local b4 = Box(v, 744, 146)
   b4:SetPoint("TOPLEFT", 0, -298)
   v.altText = Text(b4, "GameFontHighlightSmall", "", 470)
   v.altText:SetPoint("TOPLEFT", 12, -12)
@@ -1702,7 +1703,7 @@ local function BuildCapo()
   v.addHint = Text(b1, "GameFontDisableSmall", "Squadra nova (facortativa)", 300)
   v.rowY = rowY
 
-  local b2 = Box(v, 368, 211)
+  local b2 = Box(v, 368, 288)
   b2:SetPoint("TOPLEFT", 0, -164)
   local t2 = Text(b2, "GameFontNormal", "Partenza, regole e annuncio")
   t2:SetPoint("TOPLEFT", 12, -10)
@@ -1764,7 +1765,7 @@ local function BuildCapo()
   v.annNow:SetPoint("TOPLEFT", 36, -180)
   if v.annNow.SetMaxLines then v.annNow:SetMaxLines(2) end
 
-  local b3 = Box(v, 372, 211)
+  local b3 = Box(v, 372, 288)
   b3:SetPoint("TOPLEFT", 372, -164)
   v.memTitle = Text(b3, "GameFontNormal", "Membri")
   v.memTitle:SetPoint("TOPLEFT", 12, -10)
