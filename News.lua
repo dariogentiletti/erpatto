@@ -223,6 +223,24 @@ end
 -- how many in all; it goes by itself after a few seconds (or with its X), and can be dragged like the ding's
 local ripBox
 N.RIP_SECONDS = 8
+-- the top of the action bars at the bottom of the screen (main bar, the two over it, pet and stance bars)
+local BARS = { "MainMenuBar", "MainActionBar", "MultiBarBottomLeft", "MultiBarBottomRight", "PetActionBar", "StanceBar",
+  "StanceBarFrame", "PetActionBarFrame", "PossessBarFrame", "MainMenuBarArtFrame" }
+function N.BarsTop()
+  local h = UIParent.GetHeight and tonumber(UIParent:GetHeight()) or 768
+  local top = 0
+  for _, name in ipairs(BARS) do
+    local b = _G[name]
+    if b and b.IsShown and b.GetTop then
+      local ok, shown = pcall(b.IsVisible or b.IsShown, b)
+      local ok2, t = pcall(b.GetTop, b)
+      t = ok2 and tonumber(t) or nil
+      -- only bars down at the bottom (a bar moved up the screen isn't one to clear)
+      if ok and shown and t and t < h * 0.4 and t > top then top = t end
+    end
+  end
+  return top > 0 and top or 140
+end
 function N.DeathOverlay(rec)
   if not rec or ns.alt or not (ns.db and ns.db.opts.toasts) then return end
   if not ripBox then
@@ -263,15 +281,9 @@ function N.DeathOverlay(rec)
   if C_Timer then
     C_Timer.After(N.RIP_SECONDS + ((g.w and g.w ~= "") and 3 or 0), function() if f.token == token then f:Hide() end end)
   end
-  -- up top in the middle, where a ding goes; under the ding's box if one is on screen now
+  -- in the middle, down low: just over the action bars (the highest one shown)
   f:ClearAllPoints()
-  local ding = _G.ErPattoDing
-  local hud = _G.ErPattoHUD
-  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
-  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
-  if ding and ding.IsShown and ding:IsShown() then f:SetPoint("TOP", ding, "BOTTOM", 0, -6)
-  elseif top and top > h * 0.6 then f:SetPoint("TOP", hud, "BOTTOM", 0, -56)
-  else f:SetPoint("TOP", UIParent, "TOP", 0, -80) end
+  f:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, N.BarsTop() + 16)
   f:Show()
 end
 

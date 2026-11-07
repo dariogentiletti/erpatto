@@ -323,6 +323,7 @@ end
 -- life events
 ----------------------------------------------------------------------
 function J.OnDeath()
+  if U.InBattleground() then return end
   if not U.FirstDeath("Journal") then return end
   local j = J.Get()
   if not j then return end

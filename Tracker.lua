@@ -576,6 +576,7 @@ end
 
 -- deaths
 function T.OnDeath()
+  if U.InBattleground() then return end
   if not U.FirstDeath("Tracker") then return end
   if not Ready() then return end
   -- when and where: two members dying close together is a wipe

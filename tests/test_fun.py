@@ -339,6 +339,7 @@ check(not rb.shown, 'it goes by itself after a few seconds')
 secs(20)
 check(not rb.shown, 'and does not come back when the whole record follows')
 
+
 # ---- the race to each milestone: hours played when reaching level 10
 B.g.P_LEVEL = 10; B.g.FIRE('PLAYER_LEVEL_UP', 10); secs(10)
 mp = A.ns.state.members['Player-1-BBB'].mp
@@ -863,6 +864,16 @@ A.lua.eval('function(ns) local r = ns.MyRecord() r.pts.t = r.pts.t + 7 ns.C.star
 A.ns.Fire('SelfRestored', A.rec())
 secs(100); A.ns.Tombola.Update()
 check(A.ns.Tombola.Balance() == now_bal + 7, 'old book on this PC, newer record back from the friends: its piotte count (%s -> %s)' % (now_bal, A.ns.Tombola.Balance()))
+
+# a battleground: dying there counts nothing and says nothing; out in the world (world PvP too) it counts
+secs(20)
+_dt, _rips = B.stat('dt'), len(list(B.rec().rip.values()))
+B.lua.execute('_IsInInstance = IsInInstance IsInInstance = function() return true, "pvp" end')
+B.g.FIRE('PLAYER_DEAD'); secs(20); B.g.FIRE('PLAYER_DEAD'); secs(5)
+B.lua.execute('IsInInstance = _IsInInstance')
+check(B.stat('dt') == _dt and len(list(B.rec().rip.values())) == _rips and not A.g.ErPattoRip.shown, 'battleground: no death counted, no gravestone, no box (%s -> %s)' % (_dt, B.stat('dt')))
+secs(20); B.g.FIRE('PLAYER_DEAD'); secs(3)
+check(B.stat('dt') == _dt + 1 and A.g.ErPattoRip.shown, 'out in the world it counts again, with the box')
 
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))

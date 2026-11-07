@@ -92,6 +92,14 @@ end
 -- one death, one count: WoW Forever sends PLAYER_DEAD twice for one death of a hunter or a warlock (seen in the
 -- saved data: two gravestones a second apart, the second without the killer);
 -- each part of the addon that hears it asks here, by its own key, and goes on only the first time
+-- a battleground or an arena: dying there is the game, not a death of the patto (world PvP still counts)
+function U.InBattleground()
+  if not IsInInstance then return false end
+  local ok, inside, kind = pcall(IsInInstance)
+  if not ok or U.IsSecret(kind) then return false end
+  return inside == true and (kind == "pvp" or kind == "arena")
+end
+
 local deathAt = {}
 function U.FirstDeath(key)
   local now = GetTime and GetTime() or 0

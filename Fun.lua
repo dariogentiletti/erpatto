@@ -201,6 +201,7 @@ local function Grave(kind, killer)
 end
 
 function F.OnDeath()
+  if U.InBattleground() then return end
   if not U.FirstDeath("Fun") then return end
   if not Ready() then return end
   -- what the screen says now (the target, the fall), then half a second for the game's recap to be there
