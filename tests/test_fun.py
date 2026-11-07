@@ -927,6 +927,16 @@ check(N.ns.Tombola.Balance() == balC - 4, 'he puts 4 on it')
 for x in (A, B): x.g.FIRE('DUEL_FINISHED')
 secs(8)
 check(N.ns.Tombola.Balance() == balC and any("nun c'è stato" in n for n in N.news()), 'turned down: his 4 piotte back at once (%s -> %s)' % (balC, N.ns.Tombola.Balance()))
+# the window to bet: 5 seconds with a bar counting them, then gone; or gone at once when the duel starts
+secs(100); B.g.FIRE('DUEL_REQUESTED', 'Dario'); secs(1)
+cb = N.g.ErPattoScommessa
+check(cb.shown and cb.bar.shown and 'second' in str(cb.bar.text.text), 'the window to bet with its bar: ' + str(cb.bar.text.text))
+secs(5)
+check(not cb.shown, 'five seconds and it goes')
+secs(100); B.g.FIRE('DUEL_REQUESTED', 'Dario'); secs(1)
+check(cb.shown, 'a new duel: the window again')
+B.g.FIRE('DUEL_COUNTDOWN'); secs(1)
+check(not cb.shown, 'the duel starts: the window goes at once')
 for x in (A, B, N): x.lua.eval('function() MAPPOS = nil end')()
 
 # the right-click menu finds the member however the game gives the name (Forever: "Er" and "Nia" apart)

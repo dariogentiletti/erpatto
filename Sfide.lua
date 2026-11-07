@@ -44,6 +44,7 @@ S.TAJA_WINDOW = 7 * DAY
 S.GUFA = 300              -- five minutes
 S.BET_WINDOW = 600        -- a bet on a duel waits ten minutes for the result
 S.BET_RADIUS = 100        -- who can bet: within 100 yards of the duel (they can watch it)
+S.BET_OPEN = 5            -- the window to bet stays 5 seconds (a bar counts them down), and goes when the duel starts
 local SLACK = 60
 
 -- the order is the number in the records: new ones go at the end
@@ -993,6 +994,7 @@ end
 S.Accepted = Accepted
 function S.DuelStarts()
   local me = ns.recordGuid
+  if liveMine and Now() - liveMine.at < 120 then Send({ t = "dgo", a = liveMine.a, b = liveMine.b }) end
   for _, s in ipairs(S.Series(Members())) do
     if s.state == "incorso" and s.cur and (s.cur.to == me or s.cur.from == me) then
       Send({ t = "gok", id = s.cur.id })
@@ -1519,7 +1521,7 @@ function S.ShowBet(a, b, gogna)
   local all = Members()
   if not (all[a] and all[b]) then return end
   if not bet then
-    bet = Dialog("ErPattoScommessa", 320, 150, "Ar Colosseo!")
+    bet = Dialog("ErPattoScommessa", 320, 172, "Ar Colosseo!")
     H.CloseX(bet)
     bet.text = H.Text(bet, "GameFontHighlight", "", 290, "CENTER")
     bet.text:SetPoint("TOP", 0, -32)
@@ -1532,16 +1534,35 @@ function S.ShowBet(a, b, gogna)
     bet.note:SetPoint("TOPLEFT", 122, -78)
     local function pick(i)
       return function()
+        if bet.closesAt and (GetTime and GetTime() or 0) > bet.closesAt + 0.5 then Report(bet, false, "Troppo tardi: er duello è partito.") return end
         local ok, msg = S.Bet(bet.a, bet.b, i == 1 and bet.a or bet.b, bet.stake:GetText())
         if Report(bet, ok, msg) then
           Done(bet, "Hai puntato " .. Piotte(tonumber(bet.stake:GetText()) or 0) .. " su " .. Name(Members(), i == 1 and bet.a or bet.b) .. ".", 3)
         end
       end
     end
-    bet.pa = H.Btn(bet, "", 120, pick(1)) bet.pa:SetPoint("BOTTOMRIGHT", bet, "BOTTOM", -6, 18)
-    bet.pb = H.Btn(bet, "", 120, pick(2)) bet.pb:SetPoint("BOTTOMLEFT", bet, "BOTTOM", 6, 18)
+    bet.pa = H.Btn(bet, "", 120, pick(1)) bet.pa:SetPoint("BOTTOMRIGHT", bet, "BOTTOM", -6, 40)
+    bet.pb = H.Btn(bet, "", 120, pick(2)) bet.pb:SetPoint("BOTTOMLEFT", bet, "BOTTOM", 6, 40)
     bet.msg = H.Text(bet, "GameFontNormal", "", 270, "CENTER")
-    bet.msg:SetPoint("BOTTOM", 0, 24)
+    bet.msg:SetPoint("BOTTOM", 0, 46)
+    -- the seconds left to bet: the game's casting bar, emptying
+    local bar = CreateFrame("StatusBar", nil, bet)
+    bar:SetSize(195, 13)
+    bar:SetPoint("BOTTOM", 0, 18)
+    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    bar:SetStatusBarColor(1, 0.7, 0)
+    bar:SetMinMaxValues(0, S.BET_OPEN)
+    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.5)
+    local border = bar:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border-Small")
+    border:SetSize(256, 64)
+    border:SetPoint("TOP", 0, 25)
+    bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    bar.text:SetPoint("CENTER", 0, 1)
+    bet.bar = bar
+    bet:SetScript("OnUpdate", function(self) S.BetTick() end)
     bet.controls = { bet.pa, bet.pb, bet.label, bet.stake, bet.note }
   end
   Reset(bet)
@@ -1562,7 +1583,31 @@ function S.ShowBet(a, b, gogna)
   bet:Show()
   -- the call to the arena: the auction house bell (never a duel's sound, so nobody thinks he's been called)
   if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.AUCTION_WINDOW_OPEN) or 5274, "Master") end
-  if C_Timer then C_Timer.After(60, function() if bet and bet.shownAt and (GetTime() - bet.shownAt) >= 59 then bet:Hide() end end) end
+  -- five seconds, then it goes (or at once when the duel starts)
+  bet.closesAt = bet.shownAt + S.BET_OPEN
+  bet.bar:Show()
+  S.BetTick()
+  local token = {}
+  bet.openToken = token
+  if C_Timer then C_Timer.After(S.BET_OPEN, function() if bet.openToken == token then S.CloseBet() end end) end
+end
+
+-- the bar: seconds left
+function S.BetTick()
+  if not (bet and bet.closesAt and bet.bar) then return end
+  local left = math.max(0, bet.closesAt - (GetTime and GetTime() or 0))
+  bet.bar:SetValue(left)
+  bet.bar.text:SetText(left > 0 and (math.ceil(left) .. (math.ceil(left) == 1 and " secondo" or " secondi")) or "Se combatte!")
+end
+
+-- time's up, or the duel started: no more bets (a bet just placed still shows its line a moment)
+function S.CloseBet(a, b)
+  if not (bet and bet:IsShown()) then return end
+  if a and b and not ((bet.a == a and bet.b == b) or (bet.a == b and bet.b == a)) then return end
+  bet.openToken = nil
+  bet.closesAt = (GetTime and GetTime() or 0) - 1
+  if bet.msg and bet.msg:IsShown() and bet.token then return end -- "Hai puntato...": it goes by itself
+  bet:Hide()
 end
 
 -- from the menu: throw a duello a la gogna
@@ -2570,6 +2615,9 @@ ns.On("Live", function(from, data)
   elseif data.t == "ans" and type(data.id) == "string" then
     liveAns[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), a = tonumber(data.a) == 1 and 1 or 0, at = Now(), by = from }
     S.Update()
+    return
+  elseif data.t == "dgo" and type(data.a) == "string" and type(data.b) == "string" then
+    S.CloseBet(data.a, data.b)
     return
   elseif data.t == "nodu" and type(data.a) == "string" and type(data.b) == "string" then
     S.RefundBets(data.a, data.b, data.at)
