@@ -1701,7 +1701,12 @@ local function BuildCapo()
       if nm ~= "" and nm ~= t.name then P.RenameTeam(ns.state, ns.me, t.id, nm:sub(1, 24)) end
       local ok, e = P.SetPace(ns.state, ns.me, t.id, h)
       v.err:SetText(ok and "" or (e or "Nun è andata."))
-      if ok then v.ok(t.name .. ": " .. h .. " ore a settimana, da la settimana " .. P.FirstEditableWeek(ns.state) .. ".") end
+      if ok then
+        local st = M.Status(ns.state.settings, t.id, U.Now())
+        local now = math.max(1, st and st.week or 1)
+        if e == now then v.ok(t.name .. ": " .. h .. " ore a settimana da 'sta settimana, mo' cap " .. (st and st.cap or "?") .. ".")
+        else v.ok(t.name .. ": " .. h .. " ore a settimana da la settimana " .. e .. " (quarcuno de la squadra è già sopra: er cap de 'sta settimana resta).") end
+      end
     end, 20)
     row.apply:SetPoint("TOPLEFT", 250, rowY(i) + 1)
     row.info = Text(b1, "GameFontHighlightSmall", "", 370)
@@ -1801,7 +1806,7 @@ local function RefreshCapo(v)
   local state = ns.state
   local s = state.settings
   local from = P.FirstEditableWeek(state)
-  v.fromText:SetText("Er cap de ogni settimana lo calcola l'addon da le ore a settimana. Se le cambi, vale da la settimana " .. from .. " in poi.")
+  v.fromText:SetText("Er cap de ogni settimana lo calcola l'addon da le ore a settimana. Le ore nove valgono da 'sta settimana.")
   for i, row in ipairs(v.pace) do
     local t = s.teams[i]
     local show = t ~= nil

@@ -500,18 +500,45 @@ function P.FirstEditableWeek(state, now)
   return math.max(1, wk + 1)
 end
 
+-- the hours of a squadra: more hours count from this very week (its cap goes up now, and every week after is
+-- worked out again from there); fewer hours too, unless someone of the squadra would find himself over this
+-- week's cap: then from next week. Changed again in the same week, the last one wins.
+-- Returns ok, the week it counts from.
+local function PaceFrom(pace, from, hours, realLevel)
+  local kept = {}
+  for _, r in ipairs(pace or {}) do if r.from < from then kept[#kept + 1] = r end end
+  kept[#kept + 1] = { from = from, hours = hours, level = realLevel }
+  return kept
+end
+
 function P.SetPace(state, me, teamId, hours, realLevel)
-  local from = P.FirstEditableWeek(state)
-  return P.EditSettings(state, me, function(s)
+  local M = ns.M
+  local wk = math.max(1, M.WeekIndex(state.settings, U.Now()))
+  local team = M.TeamById(state.settings, teamId)
+  if not team then return false, "squadra nun trovata" end
+  local from = wk
+  -- would this week's cap go down? then from next week
+  local oldRows = M.TeamRows(state.settings, team)
+  local test = U.Copy(team)
+  test.pace = PaceFrom(team.pace, wk, hours, realLevel)
+  local newRows = M.TeamRows(state.settings, test)
+  local function CapAt(rows, k) local r = rows[math.min(k, #rows)] return r and r.cap or 60 end
+  local newCap = CapAt(newRows, wk)
+  if newCap < CapAt(oldRows, wk) then
+    -- lower, but nobody of the squadra is over it yet (a number typed wrong just now): still this week
+    local top = 0
+    for _, r in pairs(state.members or {}) do
+      if type(r) == "table" and r.team == teamId and type(r.lv) == "number" and r.lv > top then top = r.lv end
+    end
+    if top > newCap then from = wk + 1 end
+  end
+  local ok, e = P.EditSettings(state, me, function(s)
     for _, t in ipairs(s.teams) do
-      if t.id == teamId then
-        local kept = {}
-        for _, r in ipairs(t.pace) do if r.from < from then kept[#kept + 1] = r end end
-        kept[#kept + 1] = { from = from, hours = hours, level = realLevel }
-        t.pace = kept
-      end
+      if t.id == teamId then t.pace = PaceFrom(t.pace, from, hours, realLevel) end
     end
   end)
+  if not ok then return false, e end
+  return true, from
 end
 
 function P.SetCalibration(state, me, h20, h60)

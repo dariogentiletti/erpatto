@@ -193,10 +193,17 @@ ns.On("MemberLeft", function(rec)
   ns.Fire("Refresh")
 end)
 
+-- this week's cap as I last told it: the capo can raise it in the middle of the week
+local knownCap
+local function MyCapNow()
+  local st = ns.MyStatus and ns.MyStatus()
+  return st and st.started and not st.lifted and st.cap or nil
+end
 -- my own admin edits go out right away
 ns.On("SettingsChanged", function(state)
   if state ~= ns.state then return end
-  C.Send("S", state.settings)
+  knownCap = MyCapNow()
+  C.Send("S", state.settings, true)
   T.RefreshSelf("settings")
   ns.Fire("Refresh")
 end)
@@ -215,11 +222,15 @@ local hadSettings
 ns.On("StateChanged", function(state, kind)
   if state ~= ns.state then return end
   if kind == "S" then
+    local cap = MyCapNow()
     if not hadSettings then
       Notify("Dati der patto arrivati: " .. tostring(state.settings.name or "") .. ".")
+    elseif cap and knownCap and cap ~= knownCap then
+      Notify("Er capo ha cambiato er ritmo: er cap de 'sta settimana mo' è |cffffffff" .. cap .. "|r (prima " .. knownCap .. ").")
     else
       Notify("Er capo ha aggiornato er patto (ritmo o squadre): controlla er cap.")
     end
+    knownCap = cap
     hadSettings = true
     T.RefreshSelf("settings")
   end
@@ -241,6 +252,7 @@ function ns.CheckWeek()
   state.lastWeek = wk
   if first or wk < 1 then return end
   local st = ns.MyStatus()
+  knownCap = MyCapNow()
   if st then
     if st.lifted then
       Notify("Settimana " .. wk .. ": er cap è tolto, se va ar 60.")

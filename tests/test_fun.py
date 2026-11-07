@@ -1027,6 +1027,17 @@ s3 = series_with(A, 'Player-1-NNN')
 check(s3 is not None and str(s3.state) in ('rivincita', 'chiusa') and len(list(s3.duels.values())) == 1, 'accepted and fought: the duel counts a la gogna (%s)' % (s3 and s3.state))
 A.g.TARGETNAME = 'Pietro'
 
+# the capo gives the squadra more hours in the middle of the week: the cap goes up now, for him and for Pietro
+st0 = A.ns.MyStatus(); wk0 = st0.week; cap0 = st0.cap
+ok, frm = A.ns.P.SetPace(A.ns.state, A.ns.me, 't1', 60)
+secs(10)
+capA, capB = A.ns.MyStatus().cap, B.ns.MyStatus().cap
+check(ok and frm == wk0 and capA > cap0 and capB == capA, 'more hours mid-week: from this week (%s), cap %s -> %s, Pietro too (%s)' % (frm, cap0, capA, capB))
+check(any("cap de 'sta settimana mo' è" in str(m) and str(capA) in str(m) for m in B.g.CHAT.values()), 'and Pietro is told the new cap')
+ok, frm2 = A.ns.P.SetPace(A.ns.state, A.ns.me, 't1', 70)
+secs(10)
+check(frm2 == wk0 and B.ns.MyStatus().cap >= capA, 'changed again the same week: still this week (%s), cap %s' % (frm2, B.ns.MyStatus().cap))
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

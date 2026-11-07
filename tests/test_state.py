@@ -57,6 +57,42 @@ test = lua.eval(r'''function(ns)
   local after = M.TeamRows(A.settings, A.settings.teams[1])
   add("week2 edit: from", A.settings.teams[1].pace[#A.settings.teams[1].pace].from, "caps w1-2 same", before[1].cap == after[1].cap and before[2].cap == after[2].cap, "w3", before[3].cap, "->", after[3].cap)
   add("start locked", P.SetStart(A, "G-DARIO", start + 3600))
+  -- in the middle of week 1 the capo gives I Cesaroni more hours, again and again: it counts from this week
+  local s2 = start + 20 * 86400
+  local D = P.Create({ name = "Er Patto 2", start = s2, h20 = 25, h60 = 190, guid = "G-DARIO", playerName = "Dario Rossi",
+    teams = { { name = "I Cesaroni", hours = 12 }, { name = "Carabinieri 8", hours = 30 } }, teamIndex = 1 })
+  NOW = s2 + 3 * 86400
+  local function caps(st) local r = M.TeamRows(st.settings, st.settings.teams[1]) return r[1].cap .. "," .. r[2].cap .. "," .. r[3].cap end
+  local c12 = caps(D)
+  local ok1, f1 = P.SetPace(D, "G-DARIO", "t1", 18)
+  local c18 = caps(D)
+  local ok2, f2 = P.SetPace(D, "G-DARIO", "t1", 20)
+  local c20 = caps(D)
+  local ok3, f3 = P.SetPace(D, "G-DARIO", "t1", 30)
+  local c30 = caps(D)
+  local function check(c, label) out[#out + 1] = (c and "OK   " or "FAIL ") .. label end
+  check(f1 == 1 and f2 == 1 and f3 == 1 and c12 ~= c18 and c18 ~= c20 and c20 ~= c30 and #D.settings.teams[1].pace == 1,
+    "more hours in week 1, three times: each counts from week 1, caps redone every time (" .. c12 .. " > " .. c18 .. " > " .. c20 .. " > " .. c30 .. ")")
+  add("more hours now", ok1, f1, ok2, f2, ok3, f3, "caps", c12, c18, c20, c30, "rows", #D.settings.teams[1].pace)
+  -- typed 30 by mistake, nobody that high yet: back to 20 at once
+  local okb, fb = P.SetPace(D, "G-DARIO", "t1", 20)
+  check(fb == 1 and caps(D) == c20 and #D.settings.teams[1].pace == 1, "a number typed wrong, nobody over it: corrected for this week too (" .. caps(D) .. ")")
+  P.SetPace(D, "G-DARIO", "t1", 30)
+  -- fewer hours with someone already at level 20: this week's cap stays, from next week
+  D.members["G-DARIO"].lv = 20
+  local ok4, f4 = P.SetPace(D, "G-DARIO", "t1", 14)
+  local c14 = caps(D)
+  local ok5, f5 = P.SetPace(D, "G-DARIO", "t1", 16)
+  check(f4 == 2 and f5 == 2 and c14:sub(1, 3) == c30:sub(1, 3) and #D.settings.teams[1].pace == 2,
+    "fewer hours, one of them at 20 already: this week's cap stays (" .. c30 .. " -> " .. c14 .. "), from week 2, changed again it replaces the row")
+  add("fewer hours next week", ok4, f4, c14, "then 16", f5, caps(D), "rows", #D.settings.teams[1].pace)
+  -- week 3: more hours count for week 3, weeks 1 and 2 untouched
+  NOW = s2 + 15 * 86400
+  local b3 = caps(D)
+  local ok6, f6 = P.SetPace(D, "G-DARIO", "t1", 40)
+  local a3 = caps(D)
+  check(f6 == 3 and a3:sub(1, 6) == b3:sub(1, 6) and a3 ~= b3, "week 3: more hours from week 3, weeks 1 and 2 as they were (" .. b3 .. " -> " .. a3 .. ")")
+  add("week 3 more", f6, b3, "->", caps(D))
   -- ban
   local C = P.Join(A.code, "G-TROLL", "Troll")
   P.MergeMember(A, wire(C.members["G-TROLL"]), "G-DARIO")
