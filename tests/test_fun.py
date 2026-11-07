@@ -290,6 +290,34 @@ pick.Click(pick)
 sf.yes.Click(sf.yes)
 secs(5)
 check(TB.Balance() == before - 3 and any("t'ha sfottuto" in n and 'morti' in n for n in B.news()), "sfotto paid and delivered with the line chosen: " + str([n for n in B.news() if 'sfottuto' in n][:1]))
+# it lands big (raid warning letters) on his screen, even with the patto's announcements off, and comes back as received
+for c in (A, B):
+    c.lua.execute('RW = {} RaidWarningFrame = {} function RaidNotice_AddMessage(f, t) RW[#RW + 1] = t end')
+def rw(c): return [str(x) for x in c.g.RW.values()]
+B.ns.db.opts.toasts = False
+A.ns.Sfide.OpenSfotti('Player-1-BBB')
+secs(31)
+sf.yes.Click(sf.yes)
+secs(3)
+check(any('te sfotte' in x for x in rw(B)) and len(rw(B)) == 2, 'sfottò: big in the middle of his screen, with the announcements off: ' + str(rw(B)))
+check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'he said he got it: nothing left to send')
+# he's gone (the whisper is lost): it waits, and goes when he's back, once
+clients.remove(B)
+B.g.RW = B.lua.table_from([])
+secs(31)
+A.ns.Sfide.OpenSfotti('Player-1-BBB')
+sf.yes.Click(sf.yes)
+secs(3)
+check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 1 and rw(B) == [], 'offline: nothing arrives, it waits in the outbox')
+secs(200)
+clients.append(B)
+B.ns.C.Hello()
+secs(90)
+check(len([x for x in rw(B) if 'te sfotte' in x]) == 1, 'back: it arrives, once: ' + str(rw(B)))
+check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'and the outbox is empty again')
+before2 = TB.Balance()
+check(before2 == before - 9, 'three sfottò, nine piotte (%s)' % (before - before2))
+B.ns.db.opts.toasts = True
 
 # ---- Casa and Er Bollettino
 A.ns.UI.Show('casa')
@@ -456,6 +484,8 @@ check(peg.shown and peg.pena.text.shown and peg.pena.go.shown, 'er verso: the cl
 peg.pena.go.Click(peg.pena.go)
 check('Scrivi' in str(peg.err.text), 'er verso needs its word')
 sanRow = [r for r in peg.pena.radios.values() if r.v == 1][0]
+# (the sheep comes by a dice every five seconds: kept off here so the check below doesn't hang on a lucky roll)
+sheepEvery = A.ns.Sfide.SHEEP_EVERY; A.ns.Sfide.SHEEP_EVERY = 10**9
 sanRow.Click(sanRow)
 check('fatto' in str(peg.msg.text), 'one click on la pecora gives it: ' + str(peg.msg.text))
 secs(5)
@@ -463,6 +493,7 @@ pw = A.g.ErPattoPena
 check(pw is not None and pw.shown and 'pecora' in str(pw.name.text) and 'mpecorato' in str(pw.text.text), 'Dario is told plainly what his pegno does: ' + str(pw and pw.text.text))
 card = A.g.ErPattoSantino
 check(card is None or not card.shown, 'la pecora is not there all the time')
+A.ns.Sfide.SHEEP_EVERY = sheepEvery
 A.ns.Sfide.SheepNow()
 card = A.g.ErPattoSantino
 check(card is not None and card.shown and str(card.who.text) == "Ricordate che Pietro te ha 'mpecorato", 'when it comes, over Dario: ' + str(card and card.who.text))

@@ -1827,10 +1827,13 @@ function S.OpenSfotti(guid)
       sfo.radios[i] = r
     end
     sfo.yes = H.Btn(sfo, "Sfotti!", 120, function()
-      local ok, msg = TB.Sfotti(sfo.guid, sfo.lines[sfo.pick or 1])
+      local ok, msg, online = TB.Sfotti(sfo.guid, sfo.lines[sfo.pick or 1])
       if Report(sfo, ok, msg) then
         if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
-        Done(sfo, "Sfottuto! A " .. Name(Members(), sfo.guid) .. " je compare: \"" .. msg .. "\"", 4)
+        local who = Name(Members(), sfo.guid)
+        if TB.Testing() then Done(sfo, "Modalità prova: nun parte gnente.", 4)
+        elseif online then Done(sfo, "Sfottuto! A " .. who .. " je compare: \"" .. msg .. "\"", 4)
+        else Done(sfo, who .. " nun è collegato: je compare appena entra.", 4) end
       end
     end)
     sfo.no = H.Btn(sfo, "Lassa stà", 120, function() sfo:Hide() end)

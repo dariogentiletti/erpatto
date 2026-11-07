@@ -670,9 +670,12 @@ local function Handle(body, sender, channel)
     U.Log("Comms", sender, "era stato cacciato: l'hai reinvitato, mo' po' rientrà")
   end
   C.stats.received = C.stats.received + 1
+  local wasOn = seen[from] and Clock() - seen[from] < ONLINE_WINDOW
   seen[from] = Clock()
   firstHeardAt = firstHeardAt or Clock()
   if type(sender) == "string" then nameOf[from] = sender end
+  -- back after a while (or heard for the first time): what was waiting for them goes now (a sfottò)
+  if not wasOn then ns.Fire("PeerOnline", from) end
   if channel == "WHISPER" and type(sender) == "string" and CurrentChannelId() and not chanBlocked then
     whisperPeers[from] = sender
   elseif channel == "CHANNEL" then
@@ -1064,6 +1067,12 @@ end
 function C.IsOnline(guid)
   if guid == me then return true end
   return seen[guid] ~= nil and Clock() - seen[guid] < ONLINE_WINDOW
+end
+
+-- how to reach one member: the name (or Battle.net route) that last wrote from that guid, or the record's name
+function C.RouteOf(guid)
+  if type(guid) ~= "string" then return nil end
+  return nameOf[guid] or (state and state.members[guid] and state.members[guid].name) or nil
 end
 
 function C.LastSeen(guid)

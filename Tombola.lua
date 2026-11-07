@@ -902,10 +902,46 @@ function TB.SfottiFor(guid)
   return out
 end
 
+-- sent straight to him (whispered, or through the group), urgent, and kept until he says he got it: if he's
+-- offline or the whisper gets lost, it goes again as soon as he's heard from (PeerOnline) or every minute while
+-- he's online; after a week it's dropped
+TB.SFOTTO_KEEP = 7 * 86400
+local function Outbox()
+  if not (ns.db and ns.state) then return nil end
+  ns.db.sfoOut = type(ns.db.sfoOut) == "table" and ns.db.sfoOut or {}
+  local l = ns.db.sfoOut[ns.state.code]
+  if type(l) ~= "table" then l = {} ns.db.sfoOut[ns.state.code] = l end
+  local now = U.Now()
+  for i = #l, 1, -1 do
+    local x = l[i]
+    if type(x) ~= "table" or type(x.t) ~= "string" or type(x.x) ~= "string" or now - (tonumber(x.at) or 0) > TB.SFOTTO_KEEP then table.remove(l, i) end
+  end
+  return l
+end
+TB.SfottoOutbox = Outbox
+
+local function Deliver(x)
+  local to = ns.C.RouteOf and ns.C.RouteOf(x.t)
+  if not to then return end
+  x.try = GetTime and GetTime() or 0
+  ns.C.SendTo("F", { t = x.t, x = x.x, i = x.i }, to, true)
+end
+
+-- whatever is still waiting for guid (nil: for everyone online, not tried in the last minute)
+function TB.SfottiPending(guid)
+  local l = Outbox()
+  if not l or #l == 0 then return end
+  local now = GetTime and GetTime() or 0
+  for _, x in ipairs(l) do
+    if (guid and x.t == guid) or (not guid and ns.C.IsOnline(x.t) and now - (x.try or 0) >= 60) then Deliver(x) end
+  end
+end
+
 local lastSfotto = 0
 function TB.Sfotti(guid, text)
   if not (ns.state and guid) or ns.alt then return false end
   if guid == ns.recordGuid then return false, "Nun te poi sfotte da solo." end
+  if not ns.state.members[guid] then return false, "Nun sta ner patto." end
   if type(text) == "number" then text = TB.SFOTTI[text] end
   text = type(text) == "string" and text:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
   if not text or text == "" then return false, "Scegli che je dici." end
@@ -913,30 +949,65 @@ function TB.Sfotti(guid, text)
   if now - lastSfotto < 30 then return false, "Aspetta 'n attimo prima de sfotte de novo." end
   if TB.Balance() < TB.SFOTTO then return false, "Te servono " .. TB.Piotte(TB.SFOTTO) .. "." end
   lastSfotto = now
+  local online = ns.C.IsOnline(guid)
   if not TB.Testing() then
     local b = Book()
     b.spent = b.spent + TB.SFOTTO
     b.sfo = type(b.sfo) == "table" and b.sfo or {}
     table.insert(b.sfo, 1, { at = U.Now(), o = guid })
     while #b.sfo > 30 do table.remove(b.sfo) end
-    ns.C.Send("F", { t = guid, x = text })
+    local l = Outbox()
+    local x = { i = tostring(ns.recordGuid) .. ":" .. U.Now() .. ":" .. math.random(1000, 9999), t = guid, x = text, at = U.Now() }
+    if l then l[#l + 1] = x end
+    U.Log("Tombola", "sfottò a", ns.C.RouteOf(guid) or guid, online and "(collegato)" or "(nun collegato: aspetta)")
+    Deliver(x)
     TB.Update()
   end
-  return true, text
+  return true, text, online
+end
+
+-- written big in the middle of his screen (raid warning letters), a line in the chat and in the news: it's for
+-- him alone and he paid nothing, so it shows even with the patto's announcements off
+local function ShowSfotto(name, text)
+  if ns.alt then return end
+  if RaidNotice_AddMessage and RaidWarningFrame then
+    pcall(RaidNotice_AddMessage, RaidWarningFrame, name .. " te sfotte:", { r = 1, g = 0.5, b = 0.2 })
+    pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 1, b = 1 })
+  end
+  local f = DEFAULT_CHAT_FRAME
+  if f and f.AddMessage then f:AddMessage("|cffffd100[Er Patto]|r |cffff8033" .. name .. " te sfotte:|r |cffffffff" .. text .. "|r") end
+  if PlaySound and ns.db and ns.db.opts.toastSound then
+    pcall(PlaySound, SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959, "Master")
+  end
+  if ns.News then ns.News.Add("|cffffd100" .. name .. "|r t'ha sfottuto: " .. text) end
 end
 
 ns.On("Sfotto", function(from, data)
   if type(data) ~= "table" or data.t ~= ns.recordGuid then return end
+  -- he got it: off my list
+  if data.k == "ok" then
+    local l = Outbox()
+    if l then for i = #l, 1, -1 do if l[i].i == data.i then table.remove(l, i) end end end
+    return
+  end
   local text = type(data.x) == "string" and data.x:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
   if not text then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
   if not text or text == "" then return end
-  local who = ns.state and ns.state.members[from]
-  local name = who and U.Short(who.name) or "Quarcuno"
-  if ns.News then
-    ns.News.Banner(name .. " te sfotte:", text, { 1, 0.5, 0.2 }, "evento")
-    ns.News.Add("|cffffd100" .. name .. "|r t'ha sfottuto: " .. text)
+  -- tell him it arrived (also when it's a copy sent again: the first answer may have got lost)
+  local id = type(data.i) == "string" and data.i:sub(1, 80) or nil
+  if id and ns.C.RouteOf(from) then ns.C.SendTo("F", { k = "ok", i = id, t = from }, ns.C.RouteOf(from), true) end
+  if id and ns.db then
+    ns.db.sfoIn = type(ns.db.sfoIn) == "table" and ns.db.sfoIn or {}
+    if ns.db.sfoIn[id] then return end
+    ns.db.sfoIn[id] = U.Now()
+    -- the ones older than the time a sfottò is kept can go
+    for k, at in pairs(ns.db.sfoIn) do if U.Now() - (tonumber(at) or 0) > TB.SFOTTO_KEEP + 86400 then ns.db.sfoIn[k] = nil end end
   end
+  local who = ns.state and ns.state.members[from]
+  ShowSfotto(who and U.Short(who.name) or "Quarcuno", text)
 end)
+
+ns.On("PeerOnline", function(guid) if ns.state then TB.SfottiPending(guid) end end)
 
 -- a square swapped by the capo: everybody is told once
 local function SwapsSeen(state)
@@ -972,5 +1043,6 @@ ns.On("Login", function()
   if C_Timer then
     C_Timer.After(15, TB.Update)
     C_Timer.NewTicker(120, TB.Update)
+    C_Timer.NewTicker(30, function() if ns.state and not ns.alt then pcall(TB.SfottiPending) end end)
   end
 end)
