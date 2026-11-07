@@ -1213,7 +1213,8 @@ end
 function S.Graves()
   local out = {}
   for guid, m in pairs(Members()) do
-    for _, g in ipairs(m.rip or {}) do out[#out + 1] = { guid = guid, m = m, g = g } end
+    -- (a battleground death isn't a death of the patto: not shown, whoever's addon still has it)
+    for _, g in ipairs(m.rip or {}) do if not U.IsBattlegroundZone(g.z) then out[#out + 1] = { guid = guid, m = m, g = g } end end
   end
   table.sort(out, function(a, b) return a.g.at > b.g.at end)
   return out

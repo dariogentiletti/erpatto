@@ -428,9 +428,60 @@ function F.FixDoubleDeaths()
   return n
 end
 
+-- the deaths in a battleground from before 1.0.8 (they counted then): once per character they go, from the count,
+-- the gravestones and the diary; where it was is in the stone and in the diary (the zone, the kind of instance)
+function F.FixBattlegroundDeaths()
+  if not (Ready() and ns.db) then return 0 end
+  ns.db.fixed = type(ns.db.fixed) == "table" and ns.db.fixed or {}
+  local key = "bgdeaths:" .. tostring(ns.recordGuid)
+  if ns.db.fixed[key] then return 0 end
+  ns.db.fixed[key] = true
+  local rec = ns.MyRecord()
+  local j = Journal()
+  local gone, silly = {}, 0
+  local function InBG(d) return d.inst == "pvp" or d.inst == "arena" or U.IsBattlegroundZone(d.z) end
+  if j and type(j.deaths) == "table" then
+    local keep = {}
+    for _, d in ipairs(j.deaths) do if InBG(d) then gone[#gone + 1] = d.at else keep[#keep + 1] = d end end
+    j.deaths = keep
+  end
+  if type(rec.rip) == "table" then
+    local keep = {}
+    for _, g in ipairs(rec.rip) do
+      if U.IsBattlegroundZone(g.z) then
+        if F.SILLY[g.k] then silly = silly + 1 end
+        -- one the diary didn't have (played on another PC): it goes from the count too
+        local known = false
+        for _, at in ipairs(gone) do if type(g.at) == "number" and math.abs(at - g.at) <= 3 then known = true end end
+        if not known then gone[#gone + 1] = g.at end
+      else keep[#keep + 1] = g end
+    end
+    rec.rip = keep
+  end
+  if type(rec.lr) == "table" and U.IsBattlegroundZone(rec.lr.z) then rec.lr = rec.rip[1] end
+  local n = #gone
+  local t = rec.stats and rec.stats.t
+  if t and n > 0 then
+    t.dt = math.max(0, (t.dt or 0) - n)
+    if silly > 0 then t.em = math.max(0, (t.em or 0) - silly) end
+    if P.HasSettings(ns.state) and type(rec.stats.w) == "table" then
+      for _, at in ipairs(gone) do
+        local w = type(at) == "number" and rec.stats.w[M.WeekIndex(ns.state.settings, at)]
+        if type(w) == "table" and (w.dt or 0) > 0 then w.dt = w.dt - 1 end
+      end
+    end
+  end
+  if n > 0 then
+    rec.up = math.max(U.Now(), (rec.up or 0) + 1)
+    U.Log("Fun", "morti in battleground tolte:", n)
+    ns.Fire("SelfChanged", ns.state, "fun")
+  end
+  return n
+end
+
 ns.On("J_Flight", function() Bump("fl") end)
 ns.On("Login", function()
-  if C_Timer then C_Timer.After(15, function() pcall(F.FixDoubleDeaths) end) end
+  if C_Timer then C_Timer.After(15, function() pcall(F.FixDoubleDeaths) pcall(F.FixBattlegroundDeaths) end) end
   if C_Timer then
     -- a look at IsFalling every 0.15 seconds: one call to the game, nothing else
     C_Timer.NewTicker(0.15, F.WatchFall)

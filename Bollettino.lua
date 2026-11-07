@@ -154,7 +154,7 @@ function B.Data(wk, testing)
     deaths = deaths + W(m, wk, "dt")
     mine[m.guid] = {}
     for _, g in ipairs(m.rip or {}) do
-      if (g.at or 0) >= from and (g.at or 0) < to then
+      if (g.at or 0) >= from and (g.at or 0) < to and not U.IsBattlegroundZone(g.z) then
         table.insert(mine[m.guid], g)
         if g.by and g.k ~= "pvp" and not DEATH[g.k] then byKiller[g.by] = (byKiller[g.by] or 0) + 1 end
       end

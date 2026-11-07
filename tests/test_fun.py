@@ -874,6 +874,25 @@ B.lua.execute('IsInInstance = _IsInInstance')
 check(B.stat('dt') == _dt and len(list(B.rec().rip.values())) == _rips and not A.g.ErPattoRip.shown, 'battleground: no death counted, no gravestone, no box (%s -> %s)' % (_dt, B.stat('dt')))
 secs(20); B.g.FIRE('PLAYER_DEAD'); secs(3)
 check(B.stat('dt') == _dt + 1 and A.g.ErPattoRip.shown, 'out in the world it counts again, with the box')
+# the battleground deaths from before (counted then): they go once, from the count, the gravestones, the diary
+B.lua.eval('''function(ns)
+  local now = GetServerTime()
+  local r = ns.MyRecord()
+  table.insert(r.rip, 1, { at = now - 50, k = "pvp", by = "Horde Guy", z = "Warsong Gulch", lv = 19 })
+  table.insert(r.rip, 2, { at = now - 80, k = "pvp", by = "Horde Guy", z = "Warsong Gulch", lv = 19 })
+  r.stats.t.dt = r.stats.t.dt + 2
+  local j = ns.J.Get()
+  table.insert(j.deaths, { at = now - 80, z = "Warsong Gulch", inst = "pvp" })
+  table.insert(j.deaths, { at = now - 50, z = "Warsong Gulch", inst = "pvp" })
+  ns.db.fixed = ns.db.fixed or {}
+  ns.db.fixed["bgdeaths:" .. ns.recordGuid] = nil
+end''')(B.ns)
+_dt2 = B.stat('dt')
+n = B.ns.Fun.FixBattlegroundDeaths()
+check(n == 2 and B.stat('dt') == _dt2 - 2 and not any(str(g.z) == 'Warsong Gulch' for g in B.rec().rip.values()) and not any(str(d.z) == 'Warsong Gulch' for d in B.ns.J.Get().deaths.values()),
+      'battleground deaths from before: gone from the count, the gravestones and the diary (%s, %s -> %s)' % (n, _dt2, B.stat('dt')))
+check(B.ns.Fun.FixBattlegroundDeaths() == 0, 'and only once')
+check(not any(str(x.g.z) == 'Warsong Gulch' for x in A.ns.Sfide.Graves().values()), 'and the Cimitero shows none, whoever still has them')
 
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))

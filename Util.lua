@@ -93,11 +93,18 @@ end
 -- saved data: two gravestones a second apart, the second without the killer);
 -- each part of the addon that hears it asks here, by its own key, and goes on only the first time
 -- a battleground or an arena: dying there is the game, not a death of the patto (world PvP still counts)
+-- the battlegrounds by name, as the English client writes them (the zone of a gravestone says where it was)
+U.BATTLEGROUNDS = { ["Warsong Gulch"] = true, ["Arathi Basin"] = true, ["Alterac Valley"] = true, ["Eye of the Storm"] = true,
+  ["Strand of the Ancients"] = true, ["Isle of Conquest"] = true, ["Twin Peaks"] = true, ["The Battle for Gilneas"] = true,
+  ["Silvershard Mines"] = true, ["Temple of Kotmogu"] = true, ["Deepwind Gorge"] = true, ["Seething Shore"] = true }
+function U.IsBattlegroundZone(z) return type(z) == "string" and U.BATTLEGROUNDS[z] == true end
 function U.InBattleground()
-  if not IsInInstance then return false end
-  local ok, inside, kind = pcall(IsInInstance)
-  if not ok or U.IsSecret(kind) then return false end
-  return inside == true and (kind == "pvp" or kind == "arena")
+  if IsInInstance then
+    local ok, inside, kind = pcall(IsInInstance)
+    if ok and not U.IsSecret(kind) and inside == true and (kind == "pvp" or kind == "arena") then return true end
+  end
+  local z = GetRealZoneText and GetRealZoneText()
+  return not U.IsSecret(z) and U.IsBattlegroundZone(z)
 end
 
 local deathAt = {}
