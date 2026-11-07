@@ -382,6 +382,8 @@ local function SameDeath(a, b) return type(a.at) == "number" and type(b.at) == "
 function F.FixDoubleDeaths()
   if not (Ready() and ns.db) then return 0 end
   ns.db.fixed = type(ns.db.fixed) == "table" and ns.db.fixed or {}
+  -- (not while my record is provisional: it may be replaced by a newer one from the friends)
+  if ns.MyRecord().fresh then return 0 end
   local key = "deaths2:" .. tostring(ns.recordGuid)
   if ns.db.fixed[key] then return 0 end
   ns.db.fixed[key] = true
@@ -433,6 +435,8 @@ end
 function F.FixBattlegroundDeaths()
   if not (Ready() and ns.db) then return 0 end
   ns.db.fixed = type(ns.db.fixed) == "table" and ns.db.fixed or {}
+  -- (not while my record is provisional: it may be replaced by a newer one from the friends)
+  if ns.MyRecord().fresh then return 0 end
   local key = "bgdeaths:" .. tostring(ns.recordGuid)
   if ns.db.fixed[key] then return 0 end
   ns.db.fixed[key] = true
@@ -479,9 +483,55 @@ function F.FixBattlegroundDeaths()
   return n
 end
 
+-- the weeks behind the totals (before 1.0.9 an old life given back added to the totals, not to the week): once per
+-- character, in the first week of the patto (week 0 and 1 are all there is, so the gap is this week's), what the
+-- totals have more than the weeks goes to this week; the rari of this week also by their list (they have a date).
+-- Not the counts that come from the game's own statistics (fish, flights, hearthstones), not the deaths.
+local NOT_WEEKLY = { fi = true, fl = true, hs = true, em = true, dt = true }
+function F.FixWeekGaps()
+  if not (Ready() and ns.db and P.HasSettings(ns.state)) then return 0 end
+  ns.db.fixed = type(ns.db.fixed) == "table" and ns.db.fixed or {}
+  -- (not while my record is provisional: it may be replaced by a newer one from the friends)
+  if ns.MyRecord().fresh then return 0 end
+  local key = "weeks:" .. tostring(ns.recordGuid)
+  if ns.db.fixed[key] then return 0 end
+  ns.db.fixed[key] = true
+  local rec = ns.MyRecord()
+  if not (rec.stats and rec.stats.t) then return 0 end
+  rec.stats.w = type(rec.stats.w) == "table" and rec.stats.w or {}
+  local wk = M.WeekIndex(ns.state.settings, U.Now())
+  if wk < 1 then return 0 end
+  local w = rec.stats.w[wk] or {}
+  rec.stats.w[wk] = w
+  local added = 0
+  if wk == 1 then
+    local w0 = rec.stats.w[0] or {}
+    for _, k in ipairs(P.STAT_KEYS) do
+      if not NOT_WEEKLY[k] then
+        local gap = (rec.stats.t[k] or 0) - (w0[k] or 0) - (w[k] or 0)
+        if gap > 0 then w[k] = (w[k] or 0) + gap added = added + 1 end
+      end
+    end
+  end
+  -- the rari by their dates
+  local from = ns.state.settings.start + (wk - 1) * M.WEEK
+  local n = 0
+  for _, x in ipairs(rec.rl or {}) do if type(x.at) == "number" and x.at >= from then n = n + 1 end end
+  if n > (w.rk or 0) then w.rk = n added = added + 1 end
+  if added > 0 then
+    rec.up = math.max(U.Now(), (rec.up or 0) + 1)
+    U.Log("Fun", "settimana rimessa in pari cor totale:", added, "voci")
+    ns.Fire("SelfChanged", ns.state, "fun")
+  end
+  return added
+end
+
 ns.On("J_Flight", function() Bump("fl") end)
 ns.On("Login", function()
-  if C_Timer then C_Timer.After(15, function() pcall(F.FixDoubleDeaths) pcall(F.FixBattlegroundDeaths) end) end
+  if C_Timer then
+    local function fixes() pcall(F.FixDoubleDeaths) pcall(F.FixBattlegroundDeaths) pcall(F.FixWeekGaps) end
+    C_Timer.After(15, fixes) C_Timer.After(120, fixes) C_Timer.After(300, fixes)
+  end
   if C_Timer then
     -- a look at IsFalling every 0.15 seconds: one call to the game, nothing else
     C_Timer.NewTicker(0.15, F.WatchFall)

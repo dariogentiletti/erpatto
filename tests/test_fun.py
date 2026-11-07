@@ -894,6 +894,19 @@ check(n == 2 and B.stat('dt') == _dt2 - 2 and not any(str(g.z) == 'Warsong Gulch
 check(B.ns.Fun.FixBattlegroundDeaths() == 0, 'and only once')
 check(not any(str(x.g.z) == 'Warsong Gulch' for x in A.ns.Sfide.Graves().values()), 'and the Cimitero shows none, whoever still has them')
 
+# the week behind the totals (an old life given back before 1.0.9 went to the totals only): the tombola counts again
+wk = A.ns.M.WeekIndex(A.ns.state.settings, int(T[0]))
+A.lua.eval('''function(ns, wk)
+  local r = ns.MyRecord()
+  r.stats.t.rk = (r.stats.t.rk or 0) + 2
+  r.rl = { { at = GetServerTime() - 60, n = "Brokespear", z = "Durotar" }, { at = GetServerTime() - 3600, n = "Swiftmane", z = "Durotar" } }
+  ns.db.fixed = ns.db.fixed or {}
+  ns.db.fixed["weeks:" .. ns.recordGuid] = nil
+end''')(A.ns, wk)
+_wrk = (A.rec().stats.w[wk].rk if A.rec().stats.w[wk] else 0) or 0
+A.ns.Fun.FixWeekGaps()
+check((A.rec().stats.w[wk].rk or 0) >= max(2, _wrk), 'two rari of this week the tombola had missed: counted in the week now (%s -> %s, week %s)' % (_wrk, A.rec().stats.w[wk].rk, wk))
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

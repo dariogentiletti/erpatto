@@ -199,6 +199,17 @@ local function CleanStats(t)
 end
 P.STAT_KEYS = STAT_KEYS
 
+-- what an old life gave to each week (P.Absorb), the last three weeks
+local function CleanWeeksTaken(t)
+  if type(t) ~= "table" then return nil end
+  local out, n = {}, 0
+  for wk, v in pairs(t) do
+    if n >= 3 then break end
+    if type(wk) == "number" and wk >= 0 and wk <= 260 and type(v) == "table" then out[math.floor(wk)] = CleanStats(v) n = n + 1 end
+  end
+  return next(out) and out or nil
+end
+
 function P.CleanMember(r)
   if type(r) ~= "table" then return nil end
   local c = {
@@ -208,7 +219,7 @@ function P.CleanMember(r)
     il = Num(r.il, 0, 2000), race = Str(r.race, 20), rid = Num(r.rid, 1, 200), sex = Num(r.sex, 1, 3),
     eq = type(r.eq) == "string" and #r.eq <= 600 and r.eq:match("^[%d%./%-]*$") and r.eq or nil,
     stats = { t = CleanStats(r.stats and r.stats.t), w = {} }, h2h = {}, alts = {},
-    ti = Str(r.ti, 24), fresh = r.fresh == true or nil, abt = type(r.abt) == "table" and CleanStats(r.abt) or nil, lp = Num(r.lp, 0, 1e9),
+    ti = Str(r.ti, 24), fresh = r.fresh == true or nil, abt = type(r.abt) == "table" and CleanStats(r.abt) or nil, abw = CleanWeeksTaken(r.abw), lp = Num(r.lp, 0, 1e9),
     dl = type(r.dl) == "table" and Num(r.dl.lv, 1, 100) and { lv = Num(r.dl.lv, 1, 100), s = Num(r.dl.s, 0, 1e8), at = Num(r.dl.at, 0, 4e9) } or nil,
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
     nkl = {},
@@ -660,9 +671,12 @@ end
 P.MAX_PREV = 20
 P.PREV_DAYS = 60
 local function Total(rec, k) return rec and rec.stats and rec.stats.t and rec.stats.t[k] or 0 end
+-- deaths can go down (the doubles, the battlegrounds taken out): they never make a copy an "old life"
+local DOWN = { dt = true, em = true }
+P.STAT_DOWN = DOWN
 function P.Behind(now, old)
   if type(now) ~= "table" or type(old) ~= "table" then return false end
-  for _, k in ipairs(STAT_KEYS) do if Total(old, k) > Total(now, k) then return true end end
+  for _, k in ipairs(STAT_KEYS) do if not DOWN[k] and Total(old, k) > Total(now, k) then return true end end
   return false
 end
 
@@ -694,7 +708,7 @@ local LIVE
 function P.HasMore(mine, old, born)
   if P.Behind(mine, old) then return true end
   if not (type(born) == "number" and (old.up or 0) <= born and type(mine.abt) == "table") then return false end
-  for _, k in ipairs(STAT_KEYS) do if Total(old, k) > (mine.abt[k] or 0) then return true end end
+  for _, k in ipairs(STAT_KEYS) do if not DOWN[k] and Total(old, k) > (mine.abt[k] or 0) then return true end end
   return false
 end
 
@@ -706,7 +720,9 @@ function P.Absorb(mine, old, born)
   local took = type(mine.abt) == "table" and mine.abt or {}
   for _, k in ipairs(STAT_KEYS) do
     local o = Total(old, k)
-    if apart then
+    if DOWN[k] then
+      -- (deaths: never added from another copy, they're only ever taken out)
+    elseif apart then
       local had = took[k] or 0
       if o > had then t[k] = (t[k] or 0) + (o - had) took[k] = o end
     elseif o > (t[k] or 0) then
@@ -714,10 +730,32 @@ function P.Absorb(mine, old, born)
     end
   end
   if apart then mine.abt = took end
+  -- the weeks too (the tombola, the schedina and the sfide count the week): the same way, week by week
+  mine.stats.w = type(mine.stats.w) == "table" and mine.stats.w or {}
+  local tookW = type(mine.abw) == "table" and mine.abw or {}
+  for wk, ow in pairs(type(old.stats) == "table" and type(old.stats.w) == "table" and old.stats.w or {}) do
+    if type(wk) == "number" and type(ow) == "table" then
+      local w = mine.stats.w[wk] or {}
+      mine.stats.w[wk] = w
+      local tw = tookW[wk] or {}
+      for _, k in ipairs(STAT_KEYS) do
+        local o = type(ow[k]) == "number" and ow[k] or 0
+        if DOWN[k] then
+        elseif apart then
+          local had = tw[k] or 0
+          if o > had then w[k] = (w[k] or 0) + (o - had) tw[k] = o end
+        elseif o > (w[k] or 0) then
+          w[k] = o
+        end
+      end
+      if apart then tookW[wk] = tw end
+    end
+  end
+  if apart then mine.abw = tookW end
   local live = {}
   for _, k in ipairs(LIVE) do live[k] = true end
   for k, v in pairs(old) do
-    if not live[k] and k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" and k ~= "abt" then
+    if not live[k] and k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" and k ~= "abt" and k ~= "abw" then
       local m = mine[k]
       if m == nil or (type(m) == "table" and next(m) == nil) then mine[k] = U.Copy(v) end
     end

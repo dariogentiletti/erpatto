@@ -270,7 +270,9 @@ print('errori 17:', {k: errs(c) for k, c in (('E', E), ('K', K))})
 # kept his record aside, and give it back
 def setstat(c, guid, **kw):
     rec = c.state.members[guid]
-    for k, v in kw.items(): rec.stats.t[k] = v
+    wk = c.ns.M.WeekIndex(c.state.settings, int(T[0]))
+    if rec.stats.w[wk] is None: rec.stats.w[wk] = c.lua.table()
+    for k, v in kw.items(): rec.stats.t[k] = v; rec.stats.w[wk][k] = v
     rec.up = rec.up + 5
     c.ns.C.Send('M', rec)
 setstat(K, 'G-CORT', rk=1, q=12, nk=1); secs(20)
@@ -297,6 +299,8 @@ fails(not mine.fresh and (mine.stats.t.rk or 0) == 0, 'the old record is gone ev
 K.ns.T.Bump('q', 3) if K.ns.T and K.ns.T.Ready() else setstat(K, 'G-CORT', q=3); secs(10)
 H.login(); secs(400)
 mine = K.state.members['G-CORT']
+wkK = K.ns.M.WeekIndex(K.state.settings, int(T[0]))
+fails((mine.stats.w[wkK].rk or 0) >= 1 if mine.stats.w[wkK] else False, 'and the week has them too (the tombola counts them): %s' % (mine.stats.w[wkK] and mine.stats.w[wkK].rk))
 fails(mine.stats.t.rk == 1 and mine.stats.t.q == 15 and mine.stats.t.nk == 1,
       'Er Mutanda comes in with his old record: his rari, quests and famous kills are his again, added to what he did meanwhile (12 + 3 quest): %s %s %s' % (mine.stats.t.rk, mine.stats.t.q, mine.stats.t.nk))
 # the same old copy again (from another friend, or a second hello): nothing counted twice
