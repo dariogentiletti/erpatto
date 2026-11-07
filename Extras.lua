@@ -223,7 +223,7 @@ X.INFO = {
   ["botteghino:sfide"] = { "Sfide", "Sfidi 'n amico a chi fa de più (quest, sordi, pesci...) o a chi arriva prima ar livello, fino a la fine de la settimana. Chi vince se pija la posta.",
     "Taja: piotte su la testa de quarcuno, se le pija chi lo batte a duello.",
     "Gufata (tasto destro su 'n amico): scommetti che more entro 5 minuti. Si more vinci mezza posta, si campa se la pija lui.",
-    "Duelli: quanno due der patto se menano, chi sta ne la stessa zona pò puntà su uno: chi indovina raddoppia.",
+    "Duelli: quanno due der patto se menano, chi sta lì vicino (a 'n centinaio de metri, che lo vede) pò puntà su uno: chi indovina raddoppia. Si er duello nun se fa, la puntata torna.",
     "Sfotti (tasto destro su 'n amico): pe' 3 piotte je scrivi grosso sur su' schermo 'na frase su li numeri sua." },
   ["botteghino:conti"] = { "Scontrini", "Ogni piotta che hai messo e preso, riga pe' riga. Scegli 'n amico pe' vede li sua.",
     "Se parte co' 20 piotte. La paghetta pe' fa' gruppo: 1 piotta l'ora in gruppo co' quarcuno der patto, +1 pe' ognuno der patto che te sta proprio vicino (giocate insieme), fino a 5 l'ora." },

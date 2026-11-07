@@ -43,6 +43,7 @@ S.SHORT, S.LONG = 1, 7    -- days a la gogna
 S.TAJA_WINDOW = 7 * DAY
 S.GUFA = 300              -- five minutes
 S.BET_WINDOW = 600        -- a bet on a duel waits ten minutes for the result
+S.BET_RADIUS = 100        -- who can bet: within 100 yards of the duel (they can watch it)
 local SLACK = 60
 
 -- the order is the number in the records: new ones go at the end
@@ -857,14 +858,74 @@ end
 -- duels live: everyone in the same zone can bet on one of the two
 ----------------------------------------------------------------------
 local liveSeen = {}
--- tell the patto a duel between a and b is starting (gogna: it's a duello a la gogna)
+local liveMine -- the last duel I announced: if it never happens (turned down), the bets on it are given back
+-- tell the patto a duel between a and b is starting (gogna: it's a duello a la gogna), and where: only who's close
+-- enough to watch it gets the window to bet
 function S.Live(a, b, gogna)
   local key = (a < b) and (a .. b) or (b .. a)
   local now = GetTime and GetTime() or 0
   if liveSeen[key] and now - liveSeen[key] < 90 then return end
   liveSeen[key] = now
   local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
-  Send({ t = "live", a = a, b = b, z = z, g = gogna and 1 or nil })
+  local i, x, y = U.WorldPos()
+  liveMine = { a = a, b = b, at = Now() }
+  Send({ t = "live", a = a, b = b, z = z, g = gogna and 1 or nil, pi = i, px = x and math.floor(x), py = y and math.floor(y), at = Now() })
+end
+
+-- am I close enough to the duel announced in `data` to watch it?
+function S.NearDuel(data)
+  local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+  if not (data.z and z == data.z) then return false end
+  local i, x, y = U.WorldPos()
+  local px, py, pi = tonumber(data.px), tonumber(data.py), tonumber(data.pi)
+  if i and px and py and pi then
+    if i ~= pi then return false end
+    return math.sqrt((x - px) ^ 2 + (y - py) ^ 2) <= S.BET_RADIUS
+  end
+  -- no position (an older version, or the client won't say): one of the two on my screen (target, a nameplate,
+  -- my group within range), else not
+  local all = Members()
+  for _, g in ipairs({ data.a, data.b }) do
+    local unit = all[g] and UnitFor(all[g].name)
+    if unit then
+      if unit:find("^nameplate") or unit == "target" or unit == "mouseover" then return true end
+      if UnitInRange then
+        local ok, inRange = pcall(UnitInRange, unit)
+        if ok and inRange == true then return true end
+      end
+    end
+  end
+  return false
+end
+
+-- after the duel window closes: no duel between the two (turned down, or never started)? the bets go back
+function S.CheckTurnedDown()
+  local l = liveMine
+  if not l or Now() - l.at > 120 then return end
+  if FirstDuel(Members(), l.a, l.b, l.at - 5) then liveMine = nil return end
+  liveMine = nil
+  Send({ t = "nodu", a = l.a, b = l.b, at = l.at })
+  S.RefundBets(l.a, l.b, l.at)
+end
+
+-- my bets on a duel between a and b announced at `at` that never happened: the stake back
+function S.RefundBets(a, b, at)
+  local st = Store()
+  if not st then return 0 end
+  local n = 0
+  for id, bt in pairs(st.bets) do
+    local pair = (bt.a == a and bt.b == b) or (bt.a == b and bt.b == a)
+    local open = not st.book[id] or st.book[id].got == nil
+    if pair and open and (bt.at or 0) >= (tonumber(at) or 0) - 60 then
+      Got(id, bt.s, "sb", bt.pick)
+      n = n + bt.s
+    end
+  end
+  if n > 0 then
+    if ns.News then ns.News.Add("Er duello nun c'è stato: te so' tornate " .. Piotte(n) .. ".") end
+    if ns.Tombola then ns.Tombola.Update() end
+  end
+  return n
 end
 
 function S.Bet(a, b, pick, stake)
@@ -2512,9 +2573,11 @@ ns.On("Live", function(from, data)
     liveAns[data.id:sub(1, 40)] = { id = data.id:sub(1, 40), a = tonumber(data.a) == 1 and 1 or 0, at = Now(), by = from }
     S.Update()
     return
+  elseif data.t == "nodu" and type(data.a) == "string" and type(data.b) == "string" then
+    S.RefundBets(data.a, data.b, data.at)
+    return
   elseif data.t == "live" and data.a ~= me and data.b ~= me and not ns.alt then
-    local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
-    if data.z and z == data.z and all[data.a] and all[data.b] then
+    if all[data.a] and all[data.b] and S.NearDuel(data) then
       S.ShowBet(data.a, data.b, data.g == 1)
     elseif all[data.a] and all[data.b] and ns.News then
       ns.News.Add(GOLD .. Short(all[data.a]) .. "|r e " .. GOLD .. Short(all[data.b]) .. "|r se stanno a menà" .. (data.g == 1 and " a la gogna" or "") .. (data.z and (" a " .. tostring(data.z)) or "") .. ".")
@@ -2577,7 +2640,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
   elseif event == "DUEL_COUNTDOWN" then pcall(S.DuelStarts)
   elseif event == "DUEL_FINISHED" then
     -- after a real duel the result is in by then; if not, the request was turned down
-    if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) end) end
+    if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) pcall(S.CheckTurnedDown) end) end
   end
 end)
 for _, e in ipairs({ "DUEL_REQUESTED", "DUEL_FINISHED", "DUEL_COUNTDOWN" }) do pcall(frame.RegisterEvent, frame, e) end

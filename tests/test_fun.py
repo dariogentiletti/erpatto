@@ -907,6 +907,28 @@ _wrk = (A.rec().stats.w[wk].rk if A.rec().stats.w[wk] else 0) or 0
 A.ns.Fun.FixWeekGaps()
 check((A.rec().stats.w[wk].rk or 0) >= max(2, _wrk), 'two rari of this week the tombola had missed: counted in the week now (%s -> %s, week %s)' % (_wrk, A.rec().stats.w[wk].rk, wk))
 
+# ---- Ar Colosseo: only who can watch the duel bets (100 yards), and a duel turned down gives the bets back
+secs(120)
+for x, pos in ((A, (100, 100)), (B, (102, 100)), (N, (900, 100))):
+    x.lua.eval('function(x, y) MAPPOS = { x = x, y = y } end')(*pos)
+cb = N.g.ErPattoScommessa
+if cb is not None: cb.Hide(cb)
+B.g.FIRE('DUEL_REQUESTED', 'Dario'); secs(3)
+cb = N.g.ErPattoScommessa
+check(cb is None or not cb.shown, 'Nando 800 yards away in the same zone: no window to bet')
+N.lua.eval('function() MAPPOS = { x = 160, y = 100 } end')()
+B.ns.Sfide.Live('Player-1-AAA', 'Player-1-BBB')  # (the same duel, told again: once in 90 seconds)
+secs(100); B.g.FIRE('DUEL_REQUESTED', 'Dario'); secs(3)
+cb = N.g.ErPattoScommessa
+check(cb is not None and cb.shown, 'Nando 60 yards from the duel: the window to bet')
+balC = N.ns.Tombola.Balance()
+cb.stake.SetText(cb.stake, '4'); cb.pa.Click(cb.pa); secs(1)
+check(N.ns.Tombola.Balance() == balC - 4, 'he puts 4 on it')
+for x in (A, B): x.g.FIRE('DUEL_FINISHED')
+secs(8)
+check(N.ns.Tombola.Balance() == balC and any("nun c'è stato" in n for n in N.news()), 'turned down: his 4 piotte back at once (%s -> %s)' % (balC, N.ns.Tombola.Balance()))
+for x in (A, B, N): x.lua.eval('function() MAPPOS = nil end')()
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

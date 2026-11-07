@@ -107,6 +107,21 @@ function U.InBattleground()
   return not U.IsSecret(z) and U.IsBattlegroundZone(z)
 end
 
+-- where I stand, in yards on the continent's map (nil inside instances or when the client won't say)
+function U.WorldPos()
+  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition and C_Map.GetWorldPosFromMapPos) then return nil end
+  local ok, map = pcall(C_Map.GetBestMapForUnit, "player")
+  if not ok or type(map) ~= "number" then return nil end
+  local ok2, pos = pcall(C_Map.GetPlayerMapPosition, map, "player")
+  if not ok2 or not pos then return nil end
+  local ok3, inst, world = pcall(C_Map.GetWorldPosFromMapPos, map, pos)
+  if not ok3 or not world then return nil end
+  local x, y = world.x, world.y
+  if world.GetXY then x, y = world:GetXY() end
+  if U.IsSecret(x) or U.IsSecret(y) or type(x) ~= "number" or type(y) ~= "number" or type(inst) ~= "number" then return nil end
+  return inst, x, y
+end
+
 local deathAt = {}
 function U.FirstDeath(key)
   local now = GetTime and GetTime() or 0
