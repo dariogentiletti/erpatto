@@ -37,7 +37,8 @@ local METRICS = {
   { key = "dg", title = "Dungeon" },
   { key = "g", title = "Sordi fatti", text = function(m, md) return R().Money(H.StatOf(m, "g", md), true) end },
   { key = "rk", title = "Rari ammazzati" },
-  { key = "hk", title = "Uccisioni PvP" },
+  { key = "hw", title = "Uccisioni pe' strada" },
+  { key = "hb", title = "Uccisioni in BG" },
   { key = "hn", title = "Onore", text = function(m, md) return U.Thousands(H.StatOf(m, "hn", md)) end },
   { key = "il", title = "Livello oggetti", value = ItemLevelOf, text = function(m) local v = ItemLevelOf(m) return v > 0 and OneDecimal(v) or "-" end, fixed = true, noCard = true },
   { key = "dw", title = "Duelli vinti", text = function(m, md) return H.StatOf(m, "dw", md) .. "-" .. H.StatOf(m, "dl", md) end,
@@ -618,7 +619,7 @@ local function RefreshDiary(v, list)
   local period = mode == "w" and "'Sta settimana" or "Da sempre"
   SetLines(f.time.lines, {
     { period .. ": " .. Hours(H.StatOf(rec, "pt", mode)) .. " de gioco, " .. deaths(H.StatOf(rec, "dt", mode)) },
-    { "PvP: " .. H.StatOf(rec, "hk", mode) .. " uccisioni, " .. U.Thousands(H.StatOf(rec, "hn", mode)) .. " onore" },
+    { "PvP: " .. H.StatOf(rec, "hw", mode) .. " uccisioni pe' strada, " .. H.StatOf(rec, "hb", mode) .. " in BG, " .. U.Thousands(H.StatOf(rec, "hn", mode)) .. " onore" },
     { "" },
   })
 

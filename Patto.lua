@@ -171,9 +171,10 @@ end
 -- dt deaths, pt seconds played, rk rares killed, hk honorable kills, hn honor gained,
 -- fi fish caught, he herbs, mi ore and stone, sk leather, lb blue items looted, le epic items looted,
 -- em silly deaths (falling, drowning, a much lower mob), nk famous mobs and bosses killed, tr yards travelled,
--- fl flights taken, hs hearthstones used, gp seconds played in a group with someone of the patto
+-- fl flights taken, hs hearthstones used, gp seconds played in a group with someone of the patto,
+-- hw honorable kills out in the world ("pe' strada"), hb honorable kills in battlegrounds and arenas (hk: all of them)
 local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn",
-  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp" }
+  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp", "hw", "hb" }
 local STAT_MAX = { g = 1e11, pt = 1e8, hn = 1e8, tr = 1e9, gp = 1e8 }
 
 -- { [string] = count }, at most `max` entries

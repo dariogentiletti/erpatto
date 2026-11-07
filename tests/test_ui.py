@@ -345,6 +345,19 @@ A.g.PVP_HONOR = 100; A.g.FIRE('CURRENCY_DISPLAY_UPDATE')
 A.g.PVP_HONOR = 150; A.g.FIRE('CURRENCY_DISPLAY_UPDATE')
 st_ = A.ns.MyRecord().stats.t
 check(st_.hk == 8 and st_.hn == 470, 'PvP: 8 kills and 470 honor gained since login, spending ignored (hk=%s hn=%s)' % (st_.hk, st_.hn))
+hw0 = st_.hw
+check(hw0 is not None and hw0 >= 3 and (st_.hb or 0) == 0, 'those were out in the world: pe\' strada (%s)' % st_.hw)
+# a battleground: its kills go apart; and the kills made just before leaving count where they were made
+A.lua.execute('_IsInInstance = IsInInstance IsInInstance = function() return true, "pvp" end')
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_HK = 12; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_HK = 14
+A.lua.execute('IsInInstance = _IsInInstance')
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_HK = 15; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+st_ = A.ns.MyRecord().stats.t
+check(st_.hb == 6 and st_.hw == hw0 + 1 and st_.hk == 15, 'battleground kills apart (6 in BG, 1 more pe\' strada, 15 in all): hb=%s hw=%s hk=%s' % (st_.hb, st_.hw, st_.hk))
+check(A.ns.Titles.BY_ID.legionario is not None and A.ns.Titles.BY_ID.attaccabrighe.value(A.ns.MyRecord(), None) == hw0 + 1, 'A Legionario for the BG kills, A Attaccabrighe for the ones pe\' strada')
 # ---- title menu closes when you click elsewhere or change tab
 A.ns.UI.Show('pg')
 tb2 = A.ns.UI._views.pg.titleBtn; tb2.Click(tb2)
@@ -469,7 +482,7 @@ pv.totBtn.Click(pv.totBtn)
 # clicking a member on a card opens the comparison
 row = [r for r in pv.rank.cards[3].rows.values() if r.shown and r.guid != A.g.P_GUID][0]
 row.Click(row)
-check(pv.vs.shown and A.has('contro') and A.has('Duelli tra voi') and A.has('Morti') and A.has('Uccisioni PvP') and A.has('Onore') and not A.has('arrivato prima'), 'comparison page: side by side incl. PvP, no milestone notes')
+check(pv.vs.shown and A.has('contro') and A.has('Duelli tra voi') and A.has('Morti') and A.has("Uccisioni pe' strada") and A.has('Uccisioni in BG') and A.has('Onore') and not A.has('arrivato prima'), 'comparison page: side by side incl. PvP, no milestone notes')
 A.g.FIRE('QUEST_TURNED_IN', 176, 100, 0)
 secs(16)  # (a second death needs time after the first: the game's double PLAYER_DEAD counts once)
 A.g.FIRE('PLAYER_DEAD')

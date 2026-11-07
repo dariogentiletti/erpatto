@@ -749,12 +749,15 @@ local function RefreshStats(v, rec, list)
   local bs = Standing(list, rec, function(m) return H.StatOf(m, "bw", mode) end)
   Stat(v, "bg", ColorVs(bw .. "-" .. bl, bw, bs.avg), { "Campi de battaja " .. modeText .. ": " .. bw .. " vinte, " .. bl .. " perse",
     bs.best > 0 and (bs.rank .. "º su " .. bs.n .. " pe' vittorie.") or "Ancora nessuna BG ner patto." })
-  -- world PvP: honorable kills, honor in the tooltip
-  local hks = Standing(list, rec, function(m) return H.StatOf(m, "hk", mode) end)
+  -- PvP: the kills out in the world ("pe' strada") and in battlegrounds apart; honor in the tooltip
+  local hw, hb = H.StatOf(rec, "hw", mode), H.StatOf(rec, "hb", mode)
+  local hws = Standing(list, rec, function(m) return H.StatOf(m, "hw", mode) end)
+  local hbs = Standing(list, rec, function(m) return H.StatOf(m, "hb", mode) end)
   local hn = H.StatOf(rec, "hn", mode)
-  Stat(v, "hk", ColorVs(tostring(hks.mine), hks.mine, hks.avg), { "Uccisioni onorevoli " .. modeText .. ": " .. hks.mine,
-    "Onore guadagnato: " .. U.Thousands(hn) .. ".",
-    hks.best > 0 and (hks.rank .. "º su " .. hks.n .. " ner patto.") or "Ancora nessuno ner patto." })
+  Stat(v, "hk", ColorVs(hw .. " / " .. hb, hw, hws.avg), { "Uccisioni onorevoli " .. modeText .. ": " .. hw .. " pe' strada / " .. hb .. " in BG",
+    hws.best > 0 and ("Pe' strada: " .. hws.rank .. "º su " .. hws.n .. " ner patto.") or "Pe' strada: ancora nessuno ner patto.",
+    hbs.best > 0 and ("In BG: " .. hbs.rank .. "º su " .. hbs.n .. " ner patto.") or "In BG: ancora nessuno ner patto.",
+    "Onore guadagnato: " .. U.Thousands(hn) .. "." })
 
   -- resistance column: ranks
   local function badge(key, sd, label)

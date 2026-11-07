@@ -499,10 +499,20 @@ function T.CheckPvP()
   ns.db.pvp = ns.db.pvp or {}
   local last = ns.db.pvp[myGuid] or {}
   ns.db.pvp[myGuid] = last
+  -- where the kills were made: in a battleground or out in the world. Read when the game says a kill was made
+  -- (and every minute); if the place changed since the last look, the kills were made where I was before
+  local bg = U.InBattleground()
   if hk then
-    if last.hk and hk > last.hk then Bump("hk", hk - last.hk) end
+    if last.hk and hk > last.hk then
+      local n = hk - last.hk
+      local wasBG = last.bg
+      if wasBG == nil then wasBG = bg end
+      Bump("hk", n)
+      Bump(wasBG and "hb" or "hw", n)
+    end
     last.hk = hk
   end
+  last.bg = bg
   if honor then
     if last.hn and honor > last.hn then Bump("hn", honor - last.hn) end
     last.hn = honor -- spending honor lowers it: only gains count
