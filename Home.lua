@@ -91,7 +91,7 @@ local function Build()
   c:SetPoint("TOPLEFT", 0, -184)
   v.newsTitle = Title(c, "Notizie")
   v.news = {}
-  for i = 1, 9 do
+  for i = 1, 13 do
     local r = CreateFrame("Frame", nil, c)
     r:SetSize(344, 16)
     r:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 17)
@@ -111,7 +111,7 @@ local function Build()
   d:SetPoint("TOPLEFT", 376, -184)
   v.weekTitle = Title(d, "'Sta settimana")
   v.week = {}
-  for i = 1, 6 do
+  for i = 1, 9 do
     local l = H.Text(d, "GameFontHighlightSmall", "", 344)
     l:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 17)
     if l.SetWordWrap then l:SetWordWrap(false) end
@@ -119,12 +119,12 @@ local function Build()
   end
   -- my piotte of the week: from the tombola, and from all the rest (schedina, sfide, taje, gufate...)
   v.tomb = H.Text(d, "GameFontHighlightSmall", "", 344)
-  v.tomb:SetPoint("TOPLEFT", 12, -134)
+  v.tomb:SetPoint("TOPLEFT", 12, -191)
   -- the piotte for the hours played in a group with the patto: they're not winnings, so apart from er resto
   v.paga = H.Text(d, "GameFontHighlightSmall", "", 170, "RIGHT")
-  v.paga:SetPoint("TOPRIGHT", -12, -134)
+  v.paga:SetPoint("TOPRIGHT", -12, -191)
   v.rest = H.Text(d, "GameFontHighlightSmall", "", 344)
-  v.rest:SetPoint("TOPLEFT", 12, -149)
+  v.rest:SetPoint("TOPLEFT", 12, -206)
   -- (no Botteghino button: it's the tab right under)
   v.bullBtn = H.Btn(d, "Bollettino", 84, function() Home.ShowBulletin(true) end, 20)
   v.bullBtn:SetPoint("BOTTOMLEFT", 12, 10)
@@ -240,6 +240,12 @@ local function Refresh(v)
     add("Più fortunato", m, m and (W(m, wk, "lb") .. " blu, " .. W(m, wk, "le") .. " epici") or "")
     m, val = Leader(list, function(x) return W(x, wk, "dt") end)
     add("Più morti", m, tostring(val))
+    m, val = Leader(list, function(x) return W(x, wk, "rk") end)
+    add("Più rari", m, tostring(val))
+    m, val = Leader(list, function(x) return W(x, wk, "dg") end)
+    add("Più dungeon", m, tostring(val))
+    m, val = Leader(list, function(x) return W(x, wk, "hw") end)
+    add("Più ammazzati pe' strada", m, tostring(val))
   end
   if #lines == 0 then lines[1] = GREY .. (wk >= 1 and "Ancora gnente 'sta settimana." or "Se comincia quanno parte er patto.") .. "|r" end
   for i, l in ipairs(v.week) do l:SetText(lines[i] or "") end

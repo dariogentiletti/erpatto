@@ -1428,7 +1428,7 @@ end
 local function GruppiColumn(v, i, w)
   local col = v.cols[i]
   if col then return col end
-  col = Box(v, w, 311)
+  col = Box(v, w, 386)
   col.title = Text(col, "GameFontNormal", "", w - 20, "CENTER")
   col.title:SetPoint("TOP", 0, -10)
   col.info = Text(col, "GameFontHighlightSmall", "", w - 20, "CENTER")
@@ -1446,6 +1446,13 @@ local function GruppiColumn(v, i, w)
   col.mine:SetPoint("TOP", col.info, "BOTTOM", 0, -10)
   col.rows = {}
   col.more = Text(col, "GameFontDisableSmall", "", w - 20, "CENTER")
+  -- who the "e artri N" are: in the tooltip, each with level and how far from the cap
+  col.moreHit = CreateFrame("Frame", nil, col)
+  col.moreHit:SetPoint("BOTTOM", 0, 4)
+  col.moreHit:SetSize(w - 20, 18)
+  col.moreHit:EnableMouse(true)
+  col.moreHit:SetScript("OnEnter", function(self) if self.lines then Tip(self, self.lines) end end)
+  col.moreHit:SetScript("OnLeave", HideTip)
   v.cols[i] = col
   return col
 end
@@ -1498,13 +1505,14 @@ local function RefreshGruppi(v)
     col.mine:SetShown(isMine and true or false)
     col.btn:SetShown(o.id ~= nil and not isMine and not ns.alt)
     for _, r in ipairs(col.rows) do r:Hide() end
-    local maxRows = 8
+    -- as many as the column holds (11 in the window of now); the rest in the tooltip of "e artri"
+    local maxRows = math.max(1, math.floor((col:GetHeight() - 80 - 24) / 24))
     for k, m in ipairs(list) do
       if k > maxRows then break end
       local r = col.rows[k] or MemberRow(col, w - 20)
       col.rows[k] = r
       r:ClearAllPoints()
-      r:SetPoint("TOPLEFT", 10, -80 - (k - 1) * 26)
+      r:SetPoint("TOPLEFT", 10, -80 - (k - 1) * 24)
       r.rec = m
       local you = m.guid == ns.recordGuid
       r.name:SetText(Colored(m) .. (you and " |cffffd100(tu)|r" or ""))
@@ -1524,6 +1532,16 @@ local function RefreshGruppi(v)
     col.more:ClearAllPoints()
     col.more:SetPoint("BOTTOM", 0, 8)
     col.more:SetText(#list > maxRows and ("... e artri " .. (#list - maxRows)) or (#list == 0 and "Ancora nessuno" or ""))
+    local rest = nil
+    if #list > maxRows then
+      rest = { o.name .. ": l'artri" }
+      for k = maxRows + 1, #list do
+        local m = list[k]
+        rest[#rest + 1] = Colored(m) .. "  |cffffffff" .. tostring(m.lv or "?") .. "|r" .. (st and ("  " .. StateText(m.lv, st.cap)) or "")
+      end
+    end
+    col.moreHit.lines = rest
+    col.moreHit:SetShown(rest ~= nil)
   end
   -- switches
   local lines = {}

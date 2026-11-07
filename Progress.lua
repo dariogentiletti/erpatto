@@ -99,7 +99,7 @@ end
 ----------------------------------------------------------------------
 -- a short member list (Diario and Confronto)
 ----------------------------------------------------------------------
-local ROWS = 18
+local ROWS = 22
 
 local function MemberList(parent, onClick)
   local box = H.Box(parent, 190, 424)
@@ -476,13 +476,13 @@ local function BuildDiary(v)
   f.miles:SetPoint("TOPLEFT", x0, -100)
   f.miles.lines = Lines(f.miles, 6, 10, -26, colW - 20, 15)
 
-  f.prof = Section(f, colW, 121, "Professioni")
+  f.prof = Section(f, colW, 198, "Professioni")
   f.prof:SetPoint("TOPLEFT", x0, -226)
   f.prof.lines = Lines(f.prof, 6, 10, -26, colW - 20, 15)
 
   -- column B: quests (scrolling, grouped by zone), then dungeons and rares
   local x1 = x0 + colW + 8
-  f.quest = Section(f, colW, 136, "Quest")
+  f.quest = Section(f, colW, 213, "Quest")
   f.quest:SetPoint("TOPLEFT", x1, 0)
   f.quest.sub = H.Text(f.quest, "GameFontHighlightSmall", "", colW - 20)
   f.quest.sub:SetPoint("TOPLEFT", 10, -26)
@@ -497,7 +497,7 @@ local function BuildDiary(v)
 
   -- titles: the one shown (hover: how it's won), how many (hover: which), and the button to all of them
   f.titles = Section(f, colW, 60, "Titoli")
-  f.titles:SetPoint("TOPLEFT", x1, -140)
+  f.titles:SetPoint("TOPLEFT", x1, -217)
   f.titles.main = H.Text(f.titles, "GameFontHighlight", "", 170)
   f.titles.main:SetPoint("TOPLEFT", 10, -26)
   if f.titles.main.SetWordWrap then f.titles.main:SetWordWrap(false) end
@@ -517,7 +517,7 @@ local function BuildDiary(v)
   f.titles.countBtn:SetScript("OnLeave", H.HideTip)
 
   f.dung = Section(f, colW, 143, "Dungeon")
-  f.dung:SetPoint("TOPLEFT", x1, -204)
+  f.dung:SetPoint("TOPLEFT", x1, -281)
   f.dung.lines = Lines(f.dung, 7, 10, -26, 126, 15)
   f.dung.rareTitle = H.Text(f.dung, "GameFontNormal", "Rari", 120)
   f.dung.rareTitle:SetPoint("TOPLEFT", 140, -8)
@@ -847,7 +847,7 @@ local function BuildCimitero(v)
   box:SetPoint("TOPLEFT")
   local t = H.Text(box, "GameFontNormal", "Cimitero", 200) t:SetPoint("TOPLEFT", 12, -10)
   f.graves = {}
-  for i = 1, 10 do
+  for i = 1, 12 do
     local y = -30 - (i - 1) * 31
     local r = {}
     r.top = H.Text(box, "GameFontHighlightSmall", "", 380) r.top:SetPoint("TOPLEFT", 14, y)

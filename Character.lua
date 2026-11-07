@@ -10,7 +10,7 @@ local mode = "t"     -- "t" since always, "w" this week
 local shownRec, shownList -- the pane on screen, for the item tooltips
 local viewGuid       -- whose pane is shown; nil = mine
 local page = 1
-local PER_PAGE = 19
+local PER_PAGE = 23
 
 local ART = "Interface\\PaperDollInfoFrame\\"
 local GREEN, RED, WHITE = "|cff20ff20", "|cffff2020", "|cffffffff"

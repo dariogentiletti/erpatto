@@ -96,7 +96,7 @@ local function BuildTombola(v)
   v.raceTitle = H.Text(side, "GameFontNormal", "A che stanno", 200)
   v.raceTitle:SetPoint("TOPLEFT", 12, -10)
   v.race = {}
-  for i = 1, 16 do
+  for i = 1, 20 do
     local y = -30 - (i - 1) * 17
     local r = {}
     r.name = H.Text(side, "GameFontHighlightSmall", "", 150)
@@ -266,7 +266,7 @@ local function BuildRicchi(v)
     end
   end
   v.rich = {}
-  for i = 1, 16 do
+  for i = 1, 20 do
     local y = -30 - (i - 1) * 19
     local r = {}
     r.pos = H.Text(p, "GameFontHighlightSmall", "", 30, "RIGHT") r.pos:SetPoint("TOPLEFT", 14, y)
@@ -283,7 +283,7 @@ local function BuildRicchi(v)
 end
 
 -- Li scontrini: every piotta in and out of a member (me by default), newest first
-local CONTI_ROWS = 15
+local CONTI_ROWS = 19
 local contiOf -- the guid shown (nil: me)
 local function BuildConti(v)
   local p = H.Box(v, 744, 424)

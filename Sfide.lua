@@ -2955,7 +2955,7 @@ function S.BuildPage(v)
   p.put:SetPoint("TOPRIGHT", -12, -34)
 
   -- taje and gufate going on
-  local d = H.Box(p, 360, 114)
+  local d = H.Box(p, 360, 191)
   d:SetPoint("TOPLEFT", 0, -261)
   local td = H.Text(d, "GameFontNormal", "Taje e gufate", 240) td:SetPoint("TOPLEFT", 12, -12)
   -- all of them, the open ones first, with a vanilla scroll when they don't fit
@@ -2980,7 +2980,7 @@ function S.BuildPage(v)
   p.testAsk = H.Btn(c, "Prova: duello", 84, function() S.TestAsk() end, 18)
   p.testAsk:SetPoint("RIGHT", p.testPegno, "LEFT", -2, 0)
   p.rows = {}
-  for i = 1, 10 do
+  for i = 1, 12 do
     local y = -34 - (i - 1) * 31
     local r = {}
     r.top = H.Text(c, "GameFontHighlightSmall", "", 230) r.top:SetPoint("TOPLEFT", 14, y)
