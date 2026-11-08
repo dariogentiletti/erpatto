@@ -228,7 +228,7 @@ X.INFO = {
     "Se parte co' 20 piotte. La paghetta pe' fa' gruppo: 1 piotta l'ora in gruppo co' quarcuno der patto, +1 pe' ognuno der patto che te sta proprio vicino (giocate insieme), fino a 5 l'ora." },
   ["botteghino:ricchi"] = { "Li compari", "Tutti, dar più ricco. Scegli uno e a destra c'hai tutto quello che je pòi fà co' le piotte tue, e quello che c'ha in ballo.",
     "Sfotti: pe' 3 piotte 'na frase su li numeri sua, scritta grossa sur su' schermo.",
-    "Er faccione: pe' 10, 20 o 30 piotte 'na faccia der patto je copre lo schermo pe' 10, 15 o 20 secondi, co' la musica. Si nun è collegato, je arriva appena entra.",
+    "Er faccione: pe' 10, 20 o 30 piotte 'na faccia der patto je copre lo schermo pe' 10, 15 o 20 secondi, co' la musica. Si nun è collegato, je arriva appena entra. Si sta a duellà, er faccione torna a chi l'ha mannato: 30 secondi, a tutto volume.",
     "Schedine: quante n'ha vinte su quante n'ha giocate. Resa: quanto j'hanno fruttato le piotte puntate; dice chi è bravo davero." },
   imp = { "Impostazioni", "Er codice pe' fa' entrà l'amichi, l'inviti e l'opzioni.",
     "Dai er codice all'amichi: chi lo mette entra, e l'addon trova er patto da solo fra l'amichi Battle.net, la lista amici, er gruppo e la gilda. Co' \"Invita\" (o tasto destro sur ritratto) nun serve manco er codice." },

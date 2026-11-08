@@ -348,6 +348,25 @@ check(fc.shown and 'Gina' in str(fc.cap.text), 'the first one lasts 10 seconds, 
 secs(16)
 check(not fc.shown, 'after both: gone')
 book = A.g.ErPattoDB.points[code]; book.spent = book.spent - 10; A.lua.eval("function(b) table.remove(b.fc, 1) end")(book)
+# a faccione to someone in a duel goes back: 30 seconds on who sent it, loud, with the reason
+secs(31)
+B.g.FIRE('DUEL_COUNTDOWN', 3)
+nB = len(list(B.g.SOUNDS.values()))
+A.ns.Sfide.OpenFaccione('Player-1-BBB')
+fd.yes.Click(fd.yes)
+secs(2)
+fa = A.g.ErPattoFaccione
+check(not B.g.ErPattoFaccione.shown and fa is not None and fa.shown and 'FURBETTO' in str(fa.cap.text) and 'Pietro' in str(fa.cap.text),
+      'faccione in a duel: Pietro sees nothing, Dario gets it back: ' + str(fa and fa.cap.text))
+check(any('corona30forte' in str(x) for x in A.g.SOUNDS.values()) and not any('corona' in str(x) for x in list(B.g.SOUNDS.values())[nB:]), 'with the loud 30 seconds, on Dario only')
+check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'and nothing left to send')
+secs(28)
+check(fa.shown, 'still there after 28 seconds')
+secs(4)
+check(not fa.shown, 'gone after 30')
+B.g.FIRE('DUEL_FINISHED')
+secs(5)
+book = A.g.ErPattoDB.points[code]; book.spent = book.spent - 10; A.lua.eval("function(b) table.remove(b.fc, 1) end")(book)
 # the odds ar Colosseo: 10-0 and five levels up with better gear against 0-10
 oddsA = A.lua.eval('''function(ns)
   local all = { a = { guid = "a", name = "Forte", lv = 25, il = 30, stats = { t = { dw = 10, dl = 0 } }, eq = "2/1.1.3.30/2.2.3.30/3.3.3.30/4.4.4.30" },

@@ -1018,18 +1018,33 @@ function TB.Faccione(guid, tier)
   return true, t, online
 end
 
+-- er faccione in a duel: it goes back to who sent it, 30 seconds, as loud as the game goes (the master volume
+-- up to full for the time, and a clip five times louder), with the reason written on it
+TB.FURBO = { s = 30, loud = true }
+local function Spec(tier) if tier == "furbo" then return TB.FURBO end return TB.FACCIONE[tonumber(tier) or 0] end
+
 -- on my screen: one at a time (the next waits for the one showing)
 local face
 local faceQueue = {}
 local function FaceNext()
   local n = table.remove(faceQueue, 1)
-  if n then ShowFaccione(n[1], n[2], n[3]) end
+  if n then ShowFaccione(n[1], n[2], n[3], n[4]) end
 end
-ShowFaccione = function(name, tier, img)
-  local t = TB.FACCIONE[tonumber(tier) or 0]
+local function CVar(name)
+  local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+  if not get then return nil end
+  local ok, v = pcall(get, name)
+  return ok and v or nil
+end
+local function SetVar(name, v)
+  local set = (C_CVar and C_CVar.SetCVar) or SetCVar
+  if set and v ~= nil then pcall(set, name, v) end
+end
+ShowFaccione = function(name, tier, img, caption)
+  local t = Spec(tier)
   if not t or not UIParent then return end
   img = math.max(1, math.min(TB.FACCIONI, math.floor(tonumber(img) or 1)))
-  if face and face:IsShown() then faceQueue[#faceQueue + 1] = { name, tier, img } return end
+  if face and face:IsShown() then faceQueue[#faceQueue + 1] = { name, tier, img, caption } return end
   local media = "Interface\\AddOns\\" .. ADDON .. "\\Media\\faccioni\\"
   if not face then
     face = CreateFrame("Frame", "ErPattoFaccione", UIParent)
@@ -1041,8 +1056,8 @@ ShowFaccione = function(name, tier, img)
     face.tex:SetAllPoints()
     face.cap = face:CreateFontString(nil, "OVERLAY")
     face.cap:SetFont("Fonts\\FRIZQT__.TTF", 26, "THICKOUTLINE")
-    face.cap:SetTextColor(1, 0.82, 0)
     face.cap:SetPoint("TOP", face, "TOP", 0, -24)
+    face.cap:SetJustifyH("CENTER")
     -- a quick fade in and out
     face:SetScript("OnUpdate", function(self, el)
       self.t = (self.t or 0) + (el or 0)
@@ -1058,10 +1073,20 @@ ShowFaccione = function(name, tier, img)
   face:ClearAllPoints()
   face:SetPoint("CENTER", UIParent, "CENTER", 0, math.floor(h * 0.03))
   face.tex:SetTexture(media .. string.format("f%02d.tga", img))
-  face.cap:SetText(name .. " t'ha mannato er faccione!")
+  face.cap:SetWidth(math.floor(w * 0.80))
+  if t.loud then face.cap:SetTextColor(1, 0.25, 0.25) else face.cap:SetTextColor(1, 0.82, 0) end
+  face.cap:SetText(caption or (name .. " t'ha mannato er faccione!"))
   face.t, face.dur = 0, t.s
   face:SetAlpha(0)
   face:Show()
+  -- loud: the game's volume up to full for the time (and the sound on), put back after
+  local saved
+  if t.loud then
+    saved = { all = CVar("Sound_EnableAllSound"), sfx = CVar("Sound_EnableSFX"), master = CVar("Sound_MasterVolume") }
+    SetVar("Sound_EnableAllSound", "1")
+    SetVar("Sound_EnableSFX", "1")
+    SetVar("Sound_MasterVolume", "1")
+  end
   local token = {}
   face.token = token
   local function Done()
@@ -1070,16 +1095,28 @@ ShowFaccione = function(name, tier, img)
     face:Hide()
     if face.sound and StopSound then pcall(StopSound, face.sound, 300) end
     face.sound = nil
+    if saved then
+      SetVar("Sound_MasterVolume", saved.master)
+      SetVar("Sound_EnableSFX", saved.sfx)
+      SetVar("Sound_EnableAllSound", saved.all)
+    end
     FaceNext()
   end
   if C_Timer and C_Timer.After then C_Timer.After(t.s, Done) end
   face.sound = nil
   if PlaySoundFile then
-    local ok, willPlay, handle = pcall(PlaySoundFile, media .. "corona" .. t.s .. ".ogg", "Master")
+    local file = t.loud and "corona30forte.ogg" or ("corona" .. t.s .. ".ogg")
+    local ok, willPlay, handle = pcall(PlaySoundFile, media .. file, "Master")
     if ok and willPlay then face.sound = handle end
   end
 end
 TB.ShowFaccione = function(...) return ShowFaccione(...) end
+-- the furbetto: tried to ruin someone's duel with a faccione
+function TB.Furbetto(name, img)
+  ShowFaccione(name, "furbo", tonumber(img) or math.random(TB.FACCIONI),
+    "FURBETTO! " .. name .. " stava a duellà e j'hai mannato er faccione pe' rovinaje er duello.\nMo' te lo becchi tu: 30 secondi, a tutto volume.")
+  if ns.News then ns.News.Add("Hai provato a rovinà er duello de |cffffd100" .. name .. "|r co' 'n faccione: t'è tornato indietro.") end
+end
 
 -- written big in the middle of his screen (raid warning letters), a line in the chat and in the news: it's for
 -- him alone and he paid nothing, so it shows even with the patto's announcements off
@@ -1105,6 +1142,20 @@ ns.On("Sfotto", function(from, data)
     if l then for i = #l, 1, -1 do if l[i].i == data.i then table.remove(l, i) end end end
     return
   end
+  -- my faccione reached him in a duel: it comes back on me (once)
+  if data.k == "rb" then
+    local id = type(data.i) == "string" and data.i:sub(1, 80) or nil
+    if not id or ns.alt then return end
+    ns.db.sfoIn = type(ns.db.sfoIn) == "table" and ns.db.sfoIn or {}
+    if ns.db.sfoIn["rb:" .. id] then return end
+    ns.db.sfoIn["rb:" .. id] = U.Now()
+    local l = Outbox()
+    if l then for i = #l, 1, -1 do if l[i].i == id then table.remove(l, i) end end end
+    local who = ns.state and ns.state.members[from]
+    local name = who and U.Short(who.name) or "quarcuno"
+    TB.Furbetto(name, data.im)
+    return
+  end
   local tier = tonumber(data.f)
   local text = type(data.x) == "string" and data.x:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
   if not text and not tier then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
@@ -1123,6 +1174,14 @@ ns.On("Sfotto", function(from, data)
   local name = who and U.Short(who.name) or "Quarcuno"
   if tier and TB.FACCIONE[tier] then
     if ns.alt then return end
+    -- I'm in a duel: it goes back to him, and he gets the furbetto's one
+    if ns.Sfide and ns.Sfide.InDuel and ns.Sfide.InDuel() then
+      if id and ns.C.RouteOf(from) then ns.C.SendTo("F", { k = "rb", i = id, t = from, im = data.im }, ns.C.RouteOf(from), true) end
+      local f = DEFAULT_CHAT_FRAME
+      if f and f.AddMessage then f:AddMessage("|cffffd100[Er Patto]|r |cffff8033" .. name .. " t'ha provato a mannà er faccione mentre duellavi:|r |cffffffffj'è tornato indietro.|r") end
+      if ns.News then ns.News.Add("|cffffd100" .. name .. "|r t'ha provato a mannà er faccione in duello: j'è tornato indietro, 30 secondi.") end
+      return
+    end
     ShowFaccione(name, tier, data.im)
     if ns.News then ns.News.Add("|cffffd100" .. name .. "|r t'ha mannato er faccione (" .. TB.FACCIONE[tier].s .. " secondi).") end
     return

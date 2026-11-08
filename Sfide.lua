@@ -2012,13 +2012,13 @@ function S.OpenFaccione(guid)
   local TB = ns.Tombola
   if not (TB and all[guid]) or guid == ns.recordGuid then return end
   if not fac then
-    fac = Dialog("ErPattoFaccioneScegli", 360, 176, "Er faccione")
-    fac.text = H.Text(fac, "GameFontHighlight", "", 320, "CENTER")
+    fac = Dialog("ErPattoFaccioneScegli", 360, 190, "Er faccione")
+    fac.text = H.Text(fac, "GameFontHighlight", "", 340, "CENTER")
     fac.text:SetPoint("TOP", 0, -32)
     fac.radios = {}
     for i = 1, #TB.FACCIONE do
       local r = H.Radio(fac, "", function() fac.pick = i for k, x in ipairs(fac.radios) do x:SetSelected(k == i) end end)
-      r:SetPoint("TOPLEFT", 90, -58 - (i - 1) * 22)
+      r:SetPoint("TOPLEFT", 90, -72 - (i - 1) * 22)
       r:SetSize(220, 16)
       fac.radios[i] = r
     end
@@ -2042,7 +2042,7 @@ function S.OpenFaccione(guid)
   Reset(fac)
   fac.guid, fac.pick = guid, 1
   fac.title:SetText("Er faccione a " .. Short(all[guid]))
-  fac.text:SetText("'Na faccia der patto je copre lo schermo, co' la musica.")
+  fac.text:SetText("'Na faccia der patto je copre lo schermo, co' la musica.\nSi sta a duellà, torna a te: 30 secondi a tutto volume.")
   for i, r in ipairs(fac.radios) do
     local t = TB.FACCIONE[i]
     r.text:SetText(t.s .. " secondi, " .. Piotte(t.p))
@@ -2931,11 +2931,17 @@ local function OnDuelRequested(name)
   end
 end
 
+-- am I in a duel now (from the countdown to the end; ten minutes at most)?
+local duelOn
+function S.InDuel()
+  return duelOn ~= nil and (GetTime and GetTime() or 0) - duelOn < 600
+end
 local frame = CreateFrame("Frame")
 frame:SetScript("OnEvent", function(_, event, ...)
   if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
-  elseif event == "DUEL_COUNTDOWN" then pcall(S.DuelStarts)
+  elseif event == "DUEL_COUNTDOWN" then duelOn = GetTime and GetTime() or 0 pcall(S.DuelStarts)
   elseif event == "DUEL_FINISHED" then
+    duelOn = nil
     -- after a real duel the result is in by then; if not, the request was turned down
     if C_Timer then C_Timer.After(4, function() pcall(S.Update) pcall(TurnedDown) pcall(S.CheckTurnedDown) end) end
   end

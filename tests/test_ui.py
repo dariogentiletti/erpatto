@@ -222,10 +222,10 @@ pgv = A.ns.UI._views.pg
 L = A.lua
 check(A.g.ErPattoFrame.selTab[5].shown and A.g.ErPattoFrame.title.shown, 'Personaggio stays inside the window (same border, same tabs)')
 pt = L.eval('function(v) local p = v.model.points[1] return p[1] .. "," .. tostring(p[2]) .. "," .. tostring(p[3]) .. "," .. v.model.w .. "x" .. v.model.h end')(pgv)
-check(pt == 'TOPLEFT,51,-52,278x180', 'model between the slot columns: ' + pt)
+check(pt == 'TOPLEFT,51,-52,278x230', 'model between the slot columns, as tall as they are: ' + pt)
 head = L.eval('function(v) for _, b in ipairs(v.slots) do if b.slotName == "HeadSlot" then local p = b.points[1] return p[2] .. "," .. p[3] end end end')(pgv)
 mh = L.eval('function(v) for _, b in ipairs(v.slots) do if b.slotName == "MainHandSlot" then local p = b.points[1] return p[2] .. "," .. p[3] end end end')(pgv)
-check(head == '8,-52' and mh.endswith(',-325'), 'slot columns and weapon row inside the box (%s / %s)' % (head, mh))
+check(head == '8,-52' and mh.endswith(',-388'), 'slot columns and weapon row spread over the box (%s / %s)' % (head, mh))
 check(A.has('Livello:') and A.has('Cap:') and A.has('Quest:') and A.has('Sordi:') and A.has('Duelli:'), 'adventure stats in the vanilla stat boxes')
 check(A.has('Membri') and any('Pietro' in t for t in A.texts()), 'member picker lists Pietro')
 PgTab = lambda: [b for b in A.ns.UI._tabs.values() if str(b.key) == 'pg'][0]
@@ -500,7 +500,7 @@ check(A.has('Titoli') and 'A Sor Capo' in str(tl.main.text) and 'A Sor Capo' in 
 pv.tabTitles.Click(pv.tabTitles)
 cols = pv.titles.cols
 check(pv.titles.shown and A.has('Li primi der patto') and A.has('Traguardi') and A.has('Mestieri') and A.has('A Pescivendolo') and not A.has('Come se vince'), 'titles page: one box per kind, who holds it')
-row = [r for r in cols[2].rows.values() if r.shown and str(r.t.id) == 'sorcapo'][0]
+row = [r for r in cols[3].rows.values() if r.shown and str(r.t.id) == 'sorcapo'][0]
 row.GetScript(row, 'OnEnter')(row)
 check(any('Er capo der patto' in str(x) for x in A.g.TT.values()), 'hovering a title: how it is won and all who hold it')
 pv.tabDiary.Click(pv.tabDiary)

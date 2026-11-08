@@ -1557,7 +1557,7 @@ end
 ----------------------------------------------------------------------
 local function BuildImp()
   local v = NewView("imp")
-  local b1 = Box(v, 744, 110)
+  local b1 = Box(v, 744, 124)
   b1:SetPoint("TOPLEFT", 0, 0)
   v.pattoName = Text(b1, "GameFontNormal", "", 480)
   v.pattoName:SetPoint("TOPLEFT", 12, -10)
@@ -1595,7 +1595,7 @@ local function BuildImp()
   v.diag:SetPoint("TOPRIGHT", -12, -66)
 
   local b3 = Box(v, 744, 172)
-  b3:SetPoint("TOPLEFT", 0, -118)
+  b3:SetPoint("TOPLEFT", 0, -132)
   local ot = Text(b3, "GameFontNormal", "Opzioni")
   ot:SetPoint("TOPLEFT", 12, -10)
   local o = function() return ns.db.opts end
@@ -1610,8 +1610,8 @@ local function BuildImp()
   }
   for i, c in ipairs(v.checks) do c:SetPoint("TOPLEFT", 12, -26 - (i - 1) * 20) end
 
-  local b4 = Box(v, 744, 146)
-  b4:SetPoint("TOPLEFT", 0, -298)
+  local b4 = Box(v, 744, 140)
+  b4:SetPoint("TOPLEFT", 0, -312)
   v.altText = Text(b4, "GameFontHighlightSmall", "", 470)
   v.altText:SetPoint("TOPLEFT", 12, -12)
   v.altText:SetJustifyV("TOP")
@@ -1619,6 +1619,12 @@ local function BuildImp()
     if ns.alt and ns.state then ns.JoinPatto(ns.state.code) end
   end)
   v.altBtn:SetPoint("TOPRIGHT", -12, -12)
+  -- the addon's version of everyone: who has to update
+  v.verTitle = Text(b4, "GameFontNormal", "Versioni de l'addon", 300)
+  v.verTitle:SetPoint("TOPLEFT", 12, -34)
+  v.vers = Text(b4, "GameFontHighlightSmall", "", 480)
+  v.vers:SetPoint("TOPLEFT", 12, -52)
+  v.vers:SetJustifyV("TOP")
   v.leaveErr = Text(b4, "GameFontRedSmall", "", 470)
   v.leaveErr:SetPoint("BOTTOMLEFT", 12, 12)
   v.leave = ConfirmBtn(b4, "Esci dar patto", 170, function()
@@ -1661,6 +1667,27 @@ local function RefreshImp(v)
     v.altText:SetText("Personaggio: " .. tostring(ns.myName))
     v.altBtn:Hide()
   end
+  -- who's behind with the addon (the version each record carries)
+  local function Parts(x) local t = {} for n in tostring(x or ""):gmatch("%d+") do t[#t + 1] = tonumber(n) end return t end
+  local function Older(a, b)
+    local x, y = Parts(a), Parts(b)
+    for i = 1, math.max(#x, #y) do
+      if (x[i] or 0) ~= (y[i] or 0) then return (x[i] or 0) < (y[i] or 0) end
+    end
+    return false
+  end
+  local newest = ns.VERSION
+  for _, m in pairs(state.members) do if m.ver and Older(newest, m.ver) then newest = m.ver end end
+  local old, unknown = {}, {}
+  for _, m in pairs(state.members) do
+    if not m.ver then unknown[#unknown + 1] = U.Short(m.name)
+    elseif Older(m.ver, newest) then old[#old + 1] = U.Short(m.name) .. " |cff9d9d9d(" .. m.ver .. ")|r" end
+  end
+  table.sort(old) table.sort(unknown)
+  local lines = { "L'urtima: |cffffffff" .. tostring(newest) .. "|r" .. (Older(ns.VERSION, newest) and "  |cffff4040(tu c'hai la " .. tostring(ns.VERSION) .. ": aggiorna)|r" or "  (tu ce l'hai)") }
+  lines[#lines + 1] = #old > 0 and ("|cffff8033Da aggiorna':|r " .. table.concat(old, ", ")) or "|cff20ff20Tutti aggiornati.|r"
+  if #unknown > 0 then lines[#lines + 1] = "|cff9d9d9dNun se sa:|r " .. table.concat(unknown, ", ") end
+  v.vers:SetText(table.concat(lines, "\n"))
 end
 
 ----------------------------------------------------------------------

@@ -63,10 +63,10 @@ local function BuildTombola(v)
   v.cells = {}
   for i = 1, 9 do
     local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
-    local c = H.Box(p, 154, 92)
-    c:SetPoint("TOPLEFT", 10 + col * 158, -34 - row * 96)
+    local c = H.Box(p, 154, 116)
+    c:SetPoint("TOPLEFT", 10 + col * 158, -34 - row * 120)
     c.text = H.Text(c, "GameFontNormal", "", 130, "CENTER")
-    c.text:SetPoint("TOP", 0, -18)
+    c.text:SetPoint("TOP", 0, -24)
     c.prog = H.Text(c, "GameFontHighlightSmall", "", 130, "CENTER")
     c.prog:SetPoint("BOTTOM", 0, 16)
     c.check = c:CreateTexture(nil, "OVERLAY")
@@ -176,7 +176,7 @@ local function BuildSchedina(v)
     if H.VanillaScroll then H.VanillaScroll(scroll) end
     scroll:SetPoint("TOPLEFT", 8, -56)
     scroll:SetPoint("TOPRIGHT", -28, -56)
-    scroll:SetHeight(146)
+    scroll:SetHeight(210)
     local body = CreateFrame("Frame", nil, scroll)
     body:SetSize(208, 10)
     scroll:SetScrollChild(body)
@@ -214,13 +214,13 @@ local function BuildSchedina(v)
     end
     -- your bet
     r.mineLine = H.Text(box, "GameFontHighlight", "", 224)
-    r.mineLine:SetPoint("TOPLEFT", 12, -210)
+    r.mineLine:SetPoint("TOPLEFT", 12, -274)
     if r.mineLine.SetWordWrap then r.mineLine:SetWordWrap(false) end
     r.winLine = H.Text(box, "GameFontNormal", "", 224)
-    r.winLine:SetPoint("TOPLEFT", 12, -228)
+    r.winLine:SetPoint("TOPLEFT", 12, -292)
     -- what the last click did, right where you clicked
     r.err = H.Text(box, "GameFontRedSmall", "", 224)
-    r.err:SetPoint("TOPLEFT", 12, -246)
+    r.err:SetPoint("TOPLEFT", 12, -310)
     if r.err.SetWordWrap then r.err:SetWordWrap(false) end
     local function Place()
       local guid = sel[q.key]
@@ -344,11 +344,12 @@ local function BuildRicchi(v)
   end
   -- what's going on with him: taje, gufate, sfide, and the duels between you
   local oh = H.Text(a, "GameFontNormal", "Co' lui", 200) oh:SetPoint("TOPLEFT", 14, -268)
+  -- one under the other; a long one goes on two lines instead of being cut
   v.onHim = {}
   for i = 1, 8 do
     local t = H.Text(a, "GameFontHighlightSmall", "", 240)
-    t:SetPoint("TOPLEFT", 14, -288 - (i - 1) * 15)
-    if t.SetWordWrap then t:SetWordWrap(false) end
+    if i == 1 then t:SetPoint("TOPLEFT", 14, -288) else t:SetPoint("TOPLEFT", v.onHim[i - 1], "BOTTOMLEFT", 0, -3) end
+    if t.SetWordWrap then t:SetWordWrap(true) end
     v.onHim[i] = t
   end
 end
@@ -542,7 +543,7 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
       return tostring(a.name) < tostring(b.name)
     end)
     r.body:SetHeight(math.max(10, math.min(#order, SCH_ROWS) * 16))
-    if UI.FitScroll then UI.FitScroll(r.scroll, math.min(#order, SCH_ROWS) * 16, 146) end
+    if UI.FitScroll then UI.FitScroll(r.scroll, math.min(#order, SCH_ROWS) * 16, 210) end
     for k, b in ipairs(r.rows) do
       local m = order[k]
       if m then
@@ -591,13 +592,13 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
   end
 end
 
--- what's going on between me and guid, and on him: one line each
+-- what's going on with guid (taje and gufate on him, his sfide, the gogna), said from his side: one line each
 local function OnHim(guid, byGuid)
   local out = {}
   local S = ns.Sfide
   if not S then return out end
   local all = S.Members()
-  local function Who(g) return g == ns.recordGuid and "Tu" or Short(all[g]) end
+  local function Who(g) return g == ns.recordGuid and "te" or Short(all[g]) end
   for _, t in ipairs(S.Taje()) do
     if t.on == guid and S.TajaState(t, all) == "aperta" then out[#out + 1] = "Taja de " .. Who(t.by) .. ": " .. TB.Piotte(t.s) end
   end
@@ -607,7 +608,8 @@ local function OnHim(guid, byGuid)
   for _, c in ipairs(S.All()) do
     local st = S.State(c, all)
     if (c.from == guid or c.to == guid) and (st == "aspetta" or st == "incorso") then
-      out[#out + 1] = "Sfida " .. Who(c.from) .. " contro " .. Who(c.to) .. ": " .. TB.Piotte(c.s)
+      local other = c.from == guid and c.to or c.from
+      out[#out + 1] = "Sfida co' " .. Who(other) .. ": " .. TB.Piotte(c.s) .. (st == "aspetta" and (GREY .. " (aspetta)|r") or "")
     end
   end
   local g = S.AtGogna(guid)
@@ -679,7 +681,7 @@ local function RefreshRicchi(v, wk, list)
   end
   local lines = OnHim(m.guid, byGuid)
   if #lines == 0 then lines[1] = GREY .. "Gnente in ballo.|r" end
-  for i, x in ipairs(v.onHim) do x:SetText(lines[i] or "") end
+  for i, x in ipairs(v.onHim) do x:SetText(lines[i] or "") x:SetShown(lines[i] ~= nil) end
 end
 
 local function Refresh(v)

@@ -45,6 +45,8 @@ local METRICS = {
     tie = function(a, b, md) return H.StatOf(a, "dl", md) < H.StatOf(b, "dl", md) end },
   { key = "bw", title = "BG vinte", text = function(m, md) return H.StatOf(m, "bw", md) .. "-" .. H.StatOf(m, "bl", md) end,
     tie = function(a, b, md) return H.StatOf(a, "bl", md) < H.StatOf(b, "bl", md) end },
+  { key = "gp", title = "Ore in compagnia", value = function(m, md) return H.StatOf(m, "gp", md) end, text = function(m, md) return Hours(H.StatOf(m, "gp", md)) end,
+    tip = "Ore giocate in gruppo co' quarcuno der patto (quelle che fanno la paghetta)." },
 }
 local DEATHS = { key = "dt", title = "Morti", low = true }
 
@@ -165,9 +167,9 @@ end
 ----------------------------------------------------------------------
 -- Classifiche
 ----------------------------------------------------------------------
--- three rows of five cards, each with the first four (and where I stand, if lower)
-local CARD_W, CARD_H, CARD_ROWS = 142, 136, 4
-
+-- the cards fill the page: five across when they come in fives (two rows: taller cards, more names in each),
+-- four across otherwise (three rows of four); each card shows as many of the first as it holds, and where I
+-- stand if lower
 local function BuildCards(v, metrics, field)
   local f = CreateFrame("Frame", nil, v)
   f:SetPoint("TOPLEFT", 0, -28)
@@ -176,22 +178,28 @@ local function BuildCards(v, metrics, field)
   f.cards = {}
   local cardMetrics = {}
   for _, metric in ipairs(metrics or METRICS) do if not metric.noCard then cardMetrics[#cardMetrics + 1] = metric end end
+  local n = #cardMetrics
+  local cols = (n % 5 == 0 or n > 12) and 5 or 4
+  local rowsN = math.max(1, math.ceil(n / cols))
+  local cw = math.floor((744 - (cols - 1) * 8) / cols)
+  local ch = math.floor((424 - (rowsN - 1) * 8) / rowsN)
+  local lines = math.max(3, math.floor((ch - 26 - 22) / 22))
   for i, metric in ipairs(cardMetrics) do
-    local col, row = (i - 1) % 5, math.floor((i - 1) / 5)
-    local card = H.Box(f, CARD_W, CARD_H)
-    card:SetPoint("TOPLEFT", col * (CARD_W + 8), -row * (CARD_H + 8))
+    local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
+    local card = H.Box(f, cw, ch)
+    card:SetPoint("TOPLEFT", col * (cw + 8), -row * (ch + 8))
     card.metric = metric
-    card.title = H.Text(card, "GameFontNormalSmall", metric.title, 126)
+    card.title = H.Text(card, "GameFontNormalSmall", metric.title, cw - 16)
     card.title:SetPoint("TOPLEFT", 10, -9)
     card.rows = {}
-    for k = 1, CARD_ROWS do
+    for k = 1, lines do
       local r = CreateFrame("Button", nil, card)
-      r:SetSize(128, 22)
+      r:SetSize(cw - 14, 22)
       r:SetPoint("TOPLEFT", 8, -26 - (k - 1) * 22)
       r:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
       r.pos = H.Text(r, "GameFontNormalSmall", "", 24)
       r.pos:SetPoint("TOPLEFT", 2, -2)
-      r.name = H.Text(r, "GameFontHighlightSmall", "", 64)
+      r.name = H.Text(r, "GameFontHighlightSmall", "", cw - 78)
       r.name:SetPoint("TOPLEFT", 26, -2)
       if r.name.SetWordWrap then r.name:SetWordWrap(false) end
       r.value = H.Text(r, "GameFontHighlightSmall", "", 44, "RIGHT")
@@ -199,7 +207,7 @@ local function BuildCards(v, metrics, field)
       r.bar = CreateFrame("StatusBar", nil, r)
       r.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
       r.bar:SetMinMaxValues(0, 1)
-      r.bar:SetSize(100, 3)
+      r.bar:SetSize(cw - 42, 3)
       r.bar:SetPoint("TOPLEFT", 26, -16)
       local bg = r.bar:CreateTexture(nil, "BACKGROUND")
       bg:SetAllPoints()
@@ -213,13 +221,13 @@ local function BuildCards(v, metrics, field)
       end)
       card.rows[k] = r
     end
-    card.me = H.Text(card, "GameFontNormalSmall", "", 126)
+    card.me = H.Text(card, "GameFontNormalSmall", "", cw - 16)
     card.me:SetPoint("BOTTOMLEFT", 10, 8)
     if metric.tip then
       -- what the card measures, on the title
       local hot = CreateFrame("Frame", nil, card)
       hot:SetPoint("TOPLEFT", 4, -4)
-      hot:SetSize(134, 20)
+      hot:SetSize(cw - 8, 20)
       hot:EnableMouse(true)
       hot:SetScript("OnEnter", function(self) H.Tip(self, { metric.title, metric.tip }) end)
       hot:SetScript("OnLeave", H.HideTip)
@@ -277,7 +285,7 @@ local function RefreshCards(v, list, field)
     end
     if not anyone then
       card.me:SetText(GREY .. "Ancora gnente pe' nessuno.|r")
-    elseif myPos and myPos > CARD_ROWS and me then
+    elseif myPos and myPos > #card.rows and me then
       card.me:SetText("Tu: " .. Ordinal(myPos) .. " su " .. #sorted .. ", " .. TextOf(metric, me))
     else
       card.me:SetText("")
@@ -343,9 +351,10 @@ local ADV = {
 ----------------------------------------------------------------------
 -- Titoli: every title, who holds it, how it's won
 ----------------------------------------------------------------------
-local GROUPS = { { "primi", "Li primi der patto", 0, 0, 494, 270, 2 }, { "traguardi", "Traguardi", 0, -276, 494, 148, 2 },
-  { "mestieri", "Mestieri", 500, 0, 244, 424, 1 } }
-local TSTEP = 15
+-- li primi in one tall column on the left; mestieri and traguardi one under the other on the right
+local GROUPS = { { "primi", "Li primi der patto", 0, 0, 494, 424, 1 }, { "mestieri", "Mestieri", 500, 0, 244, 214, 1 },
+  { "traguardi", "Traguardi", 500, -220, 244, 204, 1 } }
+local TSTEP = 14
 
 -- the titles as the Diario: a box per kind, a line per title (name, who holds it); the tooltip has how it's won
 -- and everyone who holds it
@@ -743,8 +752,11 @@ local function BuildVs(v)
   local vsText = H.Text(box, "GameFontNormal", "contro", 60, "CENTER")
   vsText:SetPoint("TOP", box, "TOPLEFT", mid, -14)
   f.rows = {}
+  -- the rows fill the box down to the line, the duels between the two under it
+  local step = math.min(22, math.floor(300 / #VS))
+  local lineY = -40 - #VS * step - 4
   for i, metric in ipairs(VS) do
-    local y = -40 - (i - 1) * 18
+    local y = -40 - (i - 1) * step
     local r = {}
     r.label = H.Text(box, "GameFontNormalSmall", metric.title, 100, "CENTER")
     r.label:SetPoint("TOP", box, "TOPLEFT", mid, y)
@@ -766,18 +778,18 @@ local function BuildVs(v)
   local line = box:CreateTexture(nil, "ARTWORK")
   line:SetColorTexture(1, 0.82, 0, 0.35)
   line:SetHeight(1)
-  line:SetPoint("TOPLEFT", 14, -264)
-  line:SetPoint("TOPRIGHT", -14, -264)
+  line:SetPoint("TOPLEFT", 14, lineY)
+  line:SetPoint("TOPRIGHT", -14, lineY)
   f.h2hTitle = H.Text(box, "GameFontNormal", "Duelli tra voi", 160)
   f.h2hTitle:ClearAllPoints()
-  f.h2hTitle:SetPoint("TOP", box, "TOPLEFT", 273, -274)
+  f.h2hTitle:SetPoint("TOP", box, "TOPLEFT", 273, lineY - 12)
   f.h2hTitle:SetJustifyH("CENTER")
   f.h2h = H.Text(box, "GameFontNormalLarge", "", 160)
   f.h2h:ClearAllPoints()
   f.h2h:SetPoint("TOP", f.h2hTitle, "BOTTOM", 0, -6)
   f.h2h:SetJustifyH("CENTER")
   f.notes = H.Text(box, "GameFontHighlightSmall", "", 340)
-  f.notes:SetPoint("TOPLEFT", 190, -268)
+  f.notes:SetPoint("TOPLEFT", 190, lineY - 6)
   f.notes:SetJustifyV("TOP")
   f.empty = H.Text(box, "GameFontHighlight", "Scegli 'n membro a sinistra pe' confrontatte co' lui.", 400, "CENTER")
   f.empty:SetPoint("CENTER")

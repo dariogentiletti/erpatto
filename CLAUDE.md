@@ -36,8 +36,8 @@ Never:
   user gave, as ogg at seven speeds in Media/karaoke, and the two duel clips the user gave, as frame sheets
   plus ogg in Media/duello, with the "di più" of a rivincita; the Giampaolato's voices in Media/giampy; the
   burattino's music in Media/pupo; the ding clip (Giampy at the disco, frame sheets plus ogg) in Media/livello;
-  the patto's faces for er faccione (the photos the user gave, f01..f19) and Corona cut to 10/15/20 seconds in
-  Media/faccioni)
+  the patto's faces for er faccione (the photos the user gave, f01..f19) and Corona cut to 10/15/20 seconds, plus
+  the furbetto's 30 seconds five times louder, in Media/faccioni)
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)
 - Large/Huge fonts for headings (only the cap number may be GameFontNormalLarge)
 - card grids with big empty boxes, modern scroll bars, emblems or logos

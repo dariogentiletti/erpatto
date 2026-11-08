@@ -335,6 +335,10 @@ local BADGES = {
   { key = "dg", icon = "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01", label = "Dungeon" },
   { key = "g", icon = "Interface\\Icons\\INV_Misc_Coin_01", label = "Sordi fatti" },
   { key = "duel", icon = "Interface\\Icons\\Ability_Warrior_Challange", label = "Duelli ner patto" },
+  { key = "rk", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01", label = "Rari" },
+  { key = "pt", icon = "Interface\\Icons\\Spell_Nature_TimeStop", label = "Ore giocate" },
+  { key = "hw", icon = "Interface\\Icons\\Ability_DualWield", label = "Pe' strada" },
+  { key = "hb", icon = "Interface\\Icons\\INV_BannerPVP_01", label = "In BG" },
 }
 
 ----------------------------------------------------------------------
@@ -366,7 +370,7 @@ local function BuildDoll(v)
   -- model between the two slot columns, rotate buttons in its corner, drag to turn
   local model = CreateFrame("DressUpModel", nil, doll)
   model:SetFrameLevel(base + 2)
-  model:SetSize(278, 180)
+  model:SetSize(278, 230)
   model:SetPoint("TOPLEFT", 51, -52)
   model.rotation = 0
   v.model = model
@@ -417,7 +421,7 @@ local function BuildDoll(v)
     for _, name in ipairs(names) do
       local b = SlotButton(slotFrame, name, v)
       if b then
-        if prev then b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -2) else b:SetPoint("TOPLEFT", x, -52) end
+        if prev then b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -11) else b:SetPoint("TOPLEFT", x, -52) end
         prev = b
         v.slots[#v.slots + 1] = b
       end
@@ -433,7 +437,7 @@ local function BuildDoll(v)
   local ammoId = SlotInfo("AmmoSlot")
   local rowW = #weapons * 37 + (#weapons - 1) * 5 + (ammoId and 42 or 0)
   local x0 = 51 + math.floor((278 - rowW) / 2)
-  for i, b in ipairs(weapons) do b:SetPoint("TOPLEFT", x0 + (i - 1) * 42, -325) end
+  for i, b in ipairs(weapons) do b:SetPoint("TOPLEFT", x0 + (i - 1) * 42, -388) end
   if ammoId and #weapons > 0 then
     local a = CreateFrame("Button", nil, slotFrame)
     a:SetSize(27, 27)
@@ -473,7 +477,7 @@ local function BuildDoll(v)
   local attr = CreateFrame("Frame", nil, doll)
   attr:SetFrameLevel(base + 2)
   attr:SetSize(230, 85)
-  attr:SetPoint("TOPLEFT", 75, -236)
+  attr:SetPoint("TOPLEFT", 75, -290)
   StatBackground(attr, 0, 0, 53)
   local meleeBottom = StatBackground(attr, 115, 0, 12)
   local rangedTop = attr:CreateTexture(nil, "BACKGROUND")
@@ -510,13 +514,13 @@ local function BuildDoll(v)
   for i, b in ipairs(BADGES) do
     local fb = CreateFrame("Frame", nil, ranks)
     fb:SetSize(132, 34)
-    fb:SetPoint("TOPLEFT", 9, -44 - (i - 1) * 40)
+    fb:SetPoint("TOPLEFT", 9, -44 - (i - 1) * 44)
     local icon = fb:CreateTexture(nil, "ARTWORK")
     icon:SetTexture(b.icon)
     icon:SetSize(30, 30)
     icon:SetPoint("LEFT")
     icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    fb.label = H.Text(fb, "GameFontNormalSmall", b.label, 60)
+    fb.label = H.Text(fb, "GameFontNormalSmall", b.label, 78)
     fb.label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     fb.text = H.Text(fb, "GameFontHighlight", "", 40, "RIGHT")
     fb.text:SetPoint("RIGHT", -2, 0)
@@ -773,6 +777,10 @@ local function RefreshStats(v, rec, list)
   badge("dg", Standing(list, rec, function(m) return H.StatOf(m, "dg", mode) end), "Dungeon")
   badge("g", Standing(list, rec, function(m) return H.StatOf(m, "g", mode) end), "Sordi fatti")
   badge("duel", ds, "Duelli ner patto")
+  badge("rk", Standing(list, rec, function(m) return H.StatOf(m, "rk", mode) end), "Rari")
+  badge("pt", Standing(list, rec, function(m) return H.StatOf(m, "pt", mode) end), "Ore giocate")
+  badge("hw", Standing(list, rec, function(m) return H.StatOf(m, "hw", mode) end), "Uccisioni pe' strada")
+  badge("hb", Standing(list, rec, function(m) return H.StatOf(m, "hb", mode) end), "Uccisioni in BG")
 end
 
 local function RefreshSide(v, rec, list)
