@@ -791,6 +791,8 @@ T.Canon = function(name) return state and Canon(name) or name end
 local function Duel(winner, loser)
   if not Ready() then return end
   winner, loser = Canon(winner), Canon(loser)
+  -- every duel the game tells me about (mine, or one I'm watching): the bets on it are paid at once
+  ns.Fire("SeenDuel", winner, loser)
   local rec = state.members[me]
   rec.h2h = rec.h2h or {}
   local function h(name)

@@ -1044,7 +1044,7 @@ end
 -- 190 -> "1.9", 105 -> "1.05", 1250 -> "12.5"
 function S.QuotaText(q)
   q = tonumber(q) or 200
-  local s = string.format(q >= 1000 and "%.1f" or "%.2f", q / 100):gsub("%.?0+$", "")
+  local s = string.format(q >= 1000 and "%.1f" or "%.2f", q / 100):gsub("%.?0+$", ""):gsub("%.", ",")
   return s
 end
 -- what a bet pays when it's right (a bet from before the odds: double)
@@ -1064,6 +1064,92 @@ function S.OddsLines(pick, other, all)
   lines[#lines + 1] = "Robba: " .. g(x.ilA, x.bA, x.eA)
   lines[#lines + 1] = "contro " .. g(x.ilB, x.bB, x.eB)
   return lines
+end
+
+-- a duel just ended (the game's message on my screen, or the records): my bets on it are paid now, and the
+-- summary comes up in the middle of the screen with a sound (coins when I won, the failed note when I lost)
+local function NameIn(all, guid) return Short(all[guid]) end
+function S.SettleBets(w, l)
+  local st = Store()
+  if not (st and w and l) then return end
+  local all = Members()
+  local res = { stake = 0, got = 0, picks = {}, w = w, l = l }
+  for id, b in pairs(st.bets) do
+    local pair = (b.a == w and b.b == l) or (b.a == l and b.b == w)
+    if pair and (not st.book[id] or st.book[id].got == nil) and Now() - (b.at or 0) <= S.BET_WINDOW + 60 then
+      local won = b.pick == w
+      local pays = won and BetPays(b) or 0
+      Got(id, pays, "sb", b.pick)
+      res.stake, res.got = res.stake + b.s, res.got + pays
+      res.picks[#res.picks + 1] = { s = b.s, q = b.q, pick = b.pick, won = won }
+      if ns.News then ns.News.Add(won and ("Hai vinto " .. Piotte(pays) .. " puntando su " .. GOLD .. NameIn(all, b.pick) .. "|r" .. (b.q and (" a " .. S.QuotaText(b.q)) or "") .. ".")
+        or ("Hai perso " .. Piotte(b.s) .. " puntando su " .. NameIn(all, b.pick) .. ".")) end
+    end
+  end
+  if #res.picks == 0 then return end
+  if ns.Tombola then ns.Tombola.Update() end
+  S.CloseBet(w, l)
+  pcall(S.ShowBetResult, res)
+end
+ns.On("SeenDuel", function(winner, loser)
+  if not ns.state or ns.alt then return end
+  local w, l = S.MemberByName(winner), S.MemberByName(loser)
+  if w and l and w ~= l then S.SettleBets(w, l) end
+end)
+
+-- the summary of my bets on a duel that just ended
+local betRes
+function S.ShowBetResult(res)
+  local all = Members()
+  if not betRes then
+    local f = CreateFrame("Frame", "ErPattoPuntata", UIParent, "BackdropTemplate")
+    f:SetSize(330, 118)
+    f:SetFrameStrata("DIALOG")
+    f:EnableMouse(true)
+    H.Chrome(f)
+    f.head = H.DialogHeader(f, "Ar Colosseo", 200)
+    local x = H.CloseX(f)
+    if x and x.SetScript then x:SetScript("OnClick", function() f:Hide() end) end
+    f.title = H.Text(f, "GameFontNormal", "", 300, "CENTER")
+    f.title:SetPoint("TOP", 0, -26)
+    f.duel = H.Text(f, "GameFontHighlightSmall", "", 300, "CENTER")
+    f.duel:SetPoint("TOP", f.title, "BOTTOM", 0, -6)
+    f.bet = H.Text(f, "GameFontHighlightSmall", "", 300, "CENTER")
+    f.bet:SetPoint("TOP", f.duel, "BOTTOM", 0, -4)
+    f.net = H.Text(f, "GameFontNormal", "", 300, "CENTER")
+    f.net:SetPoint("TOP", f.bet, "BOTTOM", 0, -8)
+    betRes = f
+  end
+  local f = betRes
+  local net = res.got - res.stake
+  local won = res.got > 0
+  if won then f.title:SetText("|cff20ff20Complimenti, hai vinto!|r") else f.title:SetText("|cffff4040Hai perso, pazienza.|r") end
+  f.duel:SetText(GOLD .. NameIn(all, res.w) .. "|r ha battuto " .. NameIn(all, res.l) .. ".")
+  local b = res.picks[1]
+  if #res.picks == 1 then
+    f.bet:SetText("Avevi puntato " .. Piotte(b.s) .. " su " .. NameIn(all, b.pick) .. (b.q and (" a " .. S.QuotaText(b.q)) or " (pagava er doppio)") .. ".")
+  else
+    f.bet:SetText("Avevi puntato " .. Piotte(res.stake) .. " in " .. #res.picks .. " puntate.")
+  end
+  if won then
+    f.net:SetText("|cff20ff20" .. (net >= 0 and "+" or "") .. net .. "|r " .. (ns.Tombola and ns.Tombola.Coin(14) or "") ..
+      "|cff9d9d9d  (te ne tornano " .. res.got .. ")|r")
+  else
+    f.net:SetText("|cffff4040-" .. res.stake .. "|r " .. (ns.Tombola and ns.Tombola.Coin(14) or ""))
+  end
+  if ns.News and ns.News.PlaceTop then ns.News.PlaceTop(f, 90) end
+  f:Show()
+  local token = {}
+  f.token = token
+  if C_Timer then C_Timer.After(8, function() if f.token == token then f:Hide() end end) end
+  if PlaySound then
+    if won then
+      pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120, "Master")
+      if C_Timer then C_Timer.After(0.25, function() pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_QUEST_LIST_COMPLETE) or 878, "Master") end) end
+    else
+      pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_QUEST_FAILED) or 847, "Master")
+    end
+  end
 end
 
 function S.Bet(a, b, pick, stake)
@@ -1324,15 +1410,12 @@ function S.Update()
       end)
     end
   end
-  -- my bets on duels
+  -- my bets on duels (when the game's message didn't tell me first: from the records)
   for id, b in pairs(st.bets) do
     if not st.book[id] or st.book[id].got == nil then
       local d = FirstDuel(all, b.a, b.b, b.at)
       if d and d.at <= b.at + S.BET_WINDOW then
-        local won = d.w == b.pick
-        Got(id, won and BetPays(b) or 0, "sb", b.pick)
-        if News then News.Add(won and ("Hai vinto " .. Piotte(BetPays(b)) .. " puntando su " .. GOLD .. Name(all, b.pick) .. "|r" .. (b.q and (" a " .. S.QuotaText(b.q)) or "") .. ".")
-          or ("Hai perso " .. Piotte(b.s) .. " puntando su " .. Name(all, b.pick) .. ".")) end
+        S.SettleBets(d.w, d.l)
       elseif Now() > b.at + S.BET_WINDOW then
         Got(id, b.s, "sb", b.pick)
       end
@@ -1442,7 +1525,7 @@ local function Dialog(name, w, h, title, gogna)
   d:SetMovable(true)
   d:RegisterForDrag("LeftButton")
   d:SetScript("OnDragStart", d.StartMoving)
-  d:SetScript("OnDragStop", d.StopMovingOrSizing)
+  d:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() if self.SetUserPlaced then pcall(self.SetUserPlaced, self, false) end end)
   H.Chrome(d)
   d.title = H.DialogHeader(d, title, 160)
   d.err = H.Text(d, "GameFontRedSmall", "", w - 40, "CENTER")
@@ -1737,14 +1820,8 @@ function S.ShowBet(a, b, gogna)
   bet.stake:SetText("5")
   bet.Quotes()
   bet.shownAt = GetTime and GetTime() or 0
-  -- on top, centred: under the cap bar when the bar is up there (as the clip after a duel)
-  bet:ClearAllPoints()
-  if bet.SetUserPlaced then pcall(bet.SetUserPlaced, bet, false) end
-  local hud = _G.ErPattoHUD
-  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
-  local hh = UIParent.GetHeight and UIParent:GetHeight() or 768
-  if top and top > hh * 0.6 then bet:SetPoint("TOP", hud, "BOTTOM", 0, -56)
-  else bet:SetPoint("TOP", UIParent, "TOP", 0, -90) end
+  -- on top, in the middle of the screen (as the clip after a duel)
+  if ns.News and ns.News.PlaceTop then ns.News.PlaceTop(bet, 90) end
   bet:Show()
   -- the call to the arena: the auction house bell (never a duel's sound, so nobody thinks he's been called)
   if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.AUCTION_WINDOW_OPEN) or 5274, "Master") end
@@ -1826,7 +1903,6 @@ function S.DuelClip(won, otherName, w, l)
   if not clip then
     clip = CreateFrame("Frame", "ErPattoDuelloFinito", UIParent)
     clip:SetSize(320, 250)
-    clip:SetPoint("CENTER", UIParent, "CENTER", -340, 60)
     clip:SetFrameStrata("DIALOG")
     clip:SetMovable(true)
     clip.screen = clip:CreateTexture(nil, "ARTWORK")
@@ -1837,7 +1913,7 @@ function S.DuelClip(won, otherName, w, l)
     clip.box:SetPoint("TOP", clip.screen, "BOTTOM", 0, -4)
     clip.box:EnableMouse(true) clip.box:RegisterForDrag("LeftButton")
     clip.box:SetScript("OnDragStart", function() clip:StartMoving() end)
-    clip.box:SetScript("OnDragStop", function() clip:StopMovingOrSizing() end)
+    clip.box:SetScript("OnDragStop", function() clip:StopMovingOrSizing() if clip.SetUserPlaced then pcall(clip.SetUserPlaced, clip, false) end end)
     H.Chrome(clip.box)
     local x = H.CloseX(clip.box)
     if x and x.SetScript then x:SetScript("OnClick", function() clip:Hide() end) end
@@ -1869,13 +1945,8 @@ function S.DuelClip(won, otherName, w, l)
   clip.title:SetText(won and "Hai vinto!" or "Hai perso!")
   if won then clip.title:SetTextColor(0.1, 1, 0.1) else clip.title:SetTextColor(1, 0.1, 0.1) end
   clip.record:SetText("Tu " .. GOLD .. (w or 0) .. "|r - " .. GOLD .. (l or 0) .. "|r " .. tostring(otherName))
-  -- on top, in the middle: under the cap bar when the bar is up there
-  clip:ClearAllPoints()
-  local hud = _G.ErPattoHUD
-  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
-  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
-  if top and top > h * 0.6 then clip:SetPoint("TOP", hud, "BOTTOM", 0, -56)
-  else clip:SetPoint("TOP", UIParent, "TOP", 0, -80) end
+  -- on top, in the middle of the screen
+  if ns.News and ns.News.PlaceTop then ns.News.PlaceTop(clip) end
   clip:Show()
   if PlaySoundFile then
     local ok, willPlay, handle = pcall(PlaySoundFile, H.MEDIA .. "duello\\" .. c.sound, "Master")

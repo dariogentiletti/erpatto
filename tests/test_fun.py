@@ -524,8 +524,23 @@ qD = C.ns.Sfide.Quota(bet.a, bet.b)
 check('paga' in str(bet.qa.text) and C.ns.Sfide.QuotaText(qD) in str(bet.qa.text), 'the odds over Dario\'s name: ' + str(bet.qa.text) + ' / ' + str(bet.qb.text))
 bet.pa.Click(bet.pa)
 balC = C.ns.Tombola.Balance()
-duel(A, B)
-check(C.ns.Tombola.Balance() == balC + 3 * qD // 100, 'Gina bet 3 on Dario and got it back at his odds (%s): %s' % (C.ns.Sfide.QuotaText(qD), C.ns.Tombola.Balance() - balC))
+# the duel: Gina watching sees the game's message too, and is paid at once, with the summary in the middle
+for x in (A, B): x.g.FIRE('DUEL_COUNTDOWN')
+secs(2)
+T[0] += 60
+for x in (A, B, C): x.g.NOWV = T[0]
+nsC = len(list(C.g.SOUNDS.values()))
+for x in (A, B, C): x.ns.T.OnSystemMessage('%s has defeated %s in a duel' % (NAMES[A], NAMES[B]))
+step(1)
+pr = C.g.ErPattoPuntata
+check(C.ns.Tombola.Balance() == balC + 3 * qD // 100, 'Gina bet 3 on Dario and got it back at his odds (%s) at once: %s' % (C.ns.Sfide.QuotaText(qD), C.ns.Tombola.Balance() - balC))
+check(pr is not None and pr.shown and 'vinto' in str(pr.title.text) and 'Dario' in str(pr.duel.text) and C.ns.Sfide.QuotaText(qD) in str(pr.bet.text) and '3 piotte' in str(pr.bet.text),
+      'the summary: ' + ' | '.join(str(t.text) for t in (pr.title, pr.duel, pr.bet, pr.net)) if pr else 'no summary')
+check(any(x in (120, 878) for x in list(C.g.SOUNDS.values())[nsC:]), 'with the coins')
+pts = pr.points[1]
+check(str(pts[1]) == 'TOP' and str(pts[3]) == 'TOP' and pts[4] == 0, 'in the middle of the screen: ' + str(list(pts.values())))
+secs(10)
+check(C.ns.Tombola.Balance() == balC + 3 * qD // 100, 'and paid once, not again when the records come')
 off = B.g.ErPattoRivincita
 check(off is not None and off.shown and str(off.yes.text) == 'Rivincita!' and one_at_a_time(B), 'Pietro lost: offered la rivincita, alone on his screen')
 check(shown(A, 'ErPattoAvviso') and 'Hai vinto' in str(A.g.ErPattoAvviso.title.text) and one_at_a_time(A), 'Dario is told he won, nothing to click')

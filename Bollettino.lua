@@ -457,7 +457,7 @@ local function Build()
   bull:SetMovable(true)
   bull:RegisterForDrag("LeftButton")
   bull:SetScript("OnDragStart", bull.StartMoving)
-  bull:SetScript("OnDragStop", bull.StopMovingOrSizing)
+  bull:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() if self.SetUserPlaced then pcall(self.SetUserPlaced, self, false) end end)
   H.Chrome(bull)
   if bull.SetBackdropColor then bull:SetBackdropColor(0, 0, 0, 0) end
   bull.title = H.DialogHeader(bull, "", 300)
@@ -839,6 +839,9 @@ function B.Show(wk, testing)
   -- tall: on a small screen (or a big interface scale) it shrinks to fit
   local h = UIParent and UIParent.GetHeight and tonumber(UIParent:GetHeight()) or 0
   if h > 0 and bull.SetScale then bull:SetScale(math.min(1, (h - 16) / HEIGHT)) end
+  -- always in the middle (a drag lasts until it closes)
+  bull:ClearAllPoints()
+  bull:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
   bull:Show()
 end
 

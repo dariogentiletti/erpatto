@@ -152,6 +152,29 @@ end
 -- the ding clip: whoever of the patto levels, everyone gets six seconds of Giampy at the disco (frame sheets +
 -- the music, as the duel clips), with who and to what level, and the time played the level took
 ----------------------------------------------------------------------
+-- the overlays (ding, duel, bets, the Colosseo): on top, always in the middle of the screen. Under the cap bar
+-- when the bar sits up there, taking only its height: a bar dragged to one side never pulls them off the centre
+local function Num(x) return type(x) == "number" and x or nil end
+function N.PlaceTop(f, fallback)
+  if not (f and UIParent) then return end
+  f:ClearAllPoints()
+  if f.SetUserPlaced then pcall(f.SetUserPlaced, f, false) end
+  local h = UIParent.GetHeight and Num(UIParent:GetHeight()) or 0
+  if h <= 0 then h = 768 end
+  local y = -(fallback or 80)
+  local hud = _G.ErPattoHUD
+  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and Num(hud:GetTop())
+  local bottom = hud and hud.GetBottom and Num(hud:GetBottom())
+  if top and bottom then
+    local hs = hud.GetEffectiveScale and Num(hud:GetEffectiveScale()) or 1
+    local us = UIParent.GetEffectiveScale and Num(UIParent:GetEffectiveScale()) or 1
+    local r = (hs > 0 and us > 0) and hs / us or 1
+    if top * r > h * 0.6 then y = bottom * r - h - 56 end
+  end
+  local s = f.GetScale and Num(f:GetScale()) or 1
+  f:SetPoint("TOP", UIParent, "TOP", 0, y / ((s and s > 0) and s or 1))
+end
+
 N.DING = { sheets = 3, frames = 72, fps = 12, sound = "ding.ogg" }
 local dingClip
 function N.DingClip(rec)
@@ -170,7 +193,7 @@ function N.DingClip(rec)
     f.box:SetPoint("TOP", f.screen, "BOTTOM", 0, -4)
     f.box:EnableMouse(true) f.box:RegisterForDrag("LeftButton")
     f.box:SetScript("OnDragStart", function() f:StartMoving() end)
-    f.box:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
+    f.box:SetScript("OnDragStop", function() f:StopMovingOrSizing() if f.SetUserPlaced then pcall(f.SetUserPlaced, f, false) end end)
     H.Chrome(f.box)
     local x = H.CloseX(f.box)
     if x and x.SetScript then x:SetScript("OnClick", function() f:Hide() end) end
@@ -205,13 +228,8 @@ function N.DingClip(rec)
   f.title:SetText((you and "Sei salito" or (Hex(rec) .. " è salito")) .. " ar livello |cffffffff" .. rec.lv .. "|r!")
   local took = type(rec.dl) == "table" and rec.dl.lv == rec.lv and rec.dl.s
   f.sub:SetText(took and ("In " .. U.Until(took) .. " de gioco") or "")
-  -- on top, in the middle: under the cap bar when it's up there (where the duel clip goes too)
-  f:ClearAllPoints()
-  local hud = _G.ErPattoHUD
-  local top = hud and hud.IsShown and hud:IsShown() and hud.GetTop and hud:GetTop()
-  local h = UIParent.GetHeight and UIParent:GetHeight() or 768
-  if top and top > h * 0.6 then f:SetPoint("TOP", hud, "BOTTOM", 0, -56)
-  else f:SetPoint("TOP", UIParent, "TOP", 0, -80) end
+  -- on top, in the middle of the screen (where the duel clip goes too)
+  N.PlaceTop(f)
   f:Show()
   if PlaySoundFile and not (ns.db.opts.sound == false) then
     local ok, _, handle = pcall(PlaySoundFile, H.MEDIA .. "livello\\" .. c.sound, "Master")
@@ -250,7 +268,7 @@ function N.DeathOverlay(rec)
     f:SetMovable(true)
     f:EnableMouse(true) f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() if self.SetUserPlaced then pcall(self.SetUserPlaced, self, false) end end)
     H.Chrome(f)
     local x = H.CloseX(f)
     if x and x.SetScript then x:SetScript("OnClick", function() f:Hide() end) end
