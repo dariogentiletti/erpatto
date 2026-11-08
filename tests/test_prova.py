@@ -13,7 +13,7 @@ TB = A.ns.Tombola
 check(TB.Testing() is False and TB.Card() is not None and TB.Week() == 1 and TB.CanVote(), 'before the start: week 1 card to look at, schedina open')
 A.ns.db.opts.testMode = True
 check(TB.Testing() is True and TB.Week() == 1 and TB.Card() is not None, 'test mode: week 1 card before the start')
-A.ns.UI.Toggle(); A.ns.UI.Show('botteghino')
+A.ns.UI.Toggle(); A.ns.Botteghino.Show('tombola')
 bv = A.ns.UI._views.botteghino
 check(A.has('(prova') and A.has('Schedina') and A.has('Casella = +1, terno = +2, tombola = +10'), 'Botteghino in test mode, the legend under the card')
 # what I do now counts: a duel lost, two quests

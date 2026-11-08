@@ -193,11 +193,12 @@ check(len(set(groups)) == 9, 'never two squares on the same thing: ' + ','.join(
 sc = A.ns.Tombola.Score(A.rec())
 A.ns.Tombola.Update()
 check(A.rec().pts and A.rec().pts.t == 20 + sc.points, 'my piotte shared: 20 + %s' % sc.points)
-A.ns.UI.Show('botteghino')
+A.ns.Botteghino.Show('tombola')
 check(A.has('Settimana 1') and A.has('terno = +2') and A.has('A che stanno') and A.has('piotte'), 'Botteghino, Tombola page: card, payouts, everybody on the card, purse')
 check(not A.has('se gioca a piotte'), 'no explanation under the header')
 A.ns.Botteghino.Show('ricchi')
-check(A.has('Li ricchi') and A.has('Piotte') and not A.has('Sfotti'), 'Li ricchi page, no sfottò button there')
+check(A.has('Li compari') and A.has('Piotte') and A.has('Che je fai?') and A.has('Sfotti') and A.has('Er faccione') and A.has('Gufata') and A.has('Taja') and A.has('Pietro'),
+      'Li compari: everybody by piotte, and for the one clicked what to do to him')
 A.ns.Botteghino.Show('schedina')
 check(A.has('Chi sale più livelli?') and A.has('Quota') and A.has('Piotte'), 'Schedina page: the three questions with odds')
 
@@ -328,6 +329,34 @@ secs(200)
 check(len([x for x in rw(B) if 'te sfotte' in x]) == 1 and len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'older version: sent once, then off the list: ' + str(rw(B)))
 A.ns.C.AcksSfotto = acks
 book = A.g.ErPattoDB.points[code]; book.spent = book.spent - 3; A.lua.eval("function(b) table.remove(b.sfo, 1) end")(book)   # (the piotte of this one back, for the gufate below)
+# er faccione: 10 piotte, 10 seconds of a face over Pietro's screen with Corona; the second one waits for the first
+secs(31)
+bal0 = TB.Balance()
+A.ns.Sfide.OpenFaccione('Player-1-BBB')
+fd = A.g.ErPattoFaccioneScegli
+check(fd.shown and 'Pietro' in str(fd.title.text) and '10 secondi' in str(fd.radios[1].text.text) and '30 piotte' in str(fd.radios[3].text.text), 'the faccione window: three lengths and prices')
+fd.yes.Click(fd.yes)
+secs(2)
+fc = B.g.ErPattoFaccione
+check(TB.Balance() == bal0 - 10 and fc is not None and fc.shown and 'faccioni' in str(fc.tex.tex) and 'Dario' in str(fc.cap.text), 'faccione: paid 10, on Pietro\'s screen: ' + str(fc and fc.tex.tex))
+check(fc.w > 0.8 * 1024 and fc.h >= 0.79 * 768, 'over most of the screen (%s x %s)' % (fc.w, fc.h))
+check(any('corona10' in str(x) for x in B.g.SOUNDS.values()), 'with ten seconds of Corona')
+check(any(x.k == 'fc' and 'Faccione a Pietro' in str(TB.LedgerText(x)) for x in TB.Ledger().values()), 'and in the scontrini')
+B.ns.Tombola.ShowFaccione('Gina', 2, 3)
+secs(9)
+check(fc.shown and 'Gina' in str(fc.cap.text), 'the first one lasts 10 seconds, then the one waiting: ' + str(fc.cap.text))
+secs(16)
+check(not fc.shown, 'after both: gone')
+book = A.g.ErPattoDB.points[code]; book.spent = book.spent - 10; A.lua.eval("function(b) table.remove(b.fc, 1) end")(book)
+# the odds ar Colosseo: 10-0 and five levels up with better gear against 0-10
+oddsA = A.lua.eval('''function(ns)
+  local all = { a = { guid = "a", name = "Forte", lv = 25, il = 30, stats = { t = { dw = 10, dl = 0 } }, eq = "2/1.1.3.30/2.2.3.30/3.3.3.30/4.4.4.30" },
+                b = { guid = "b", name = "Debole", lv = 20, il = 18, stats = { t = { dw = 0, dl = 10 } } },
+                c = { guid = "c", name = "Pari1", lv = 20, stats = { t = {} } }, d = { guid = "d", name = "Pari2", lv = 20, stats = { t = {} } } }
+  local S = ns.Sfide
+  return S.Quota("a", "b", all), S.Quota("b", "a", all), S.Quota("c", "d", all), S.Chance("a", "b", all)
+end''')(A.ns)
+check(oddsA[0] <= 110 and oddsA[1] >= 1500 and oddsA[2] == 190, 'odds: 10-0, 5 levels and gear up pays %s, the other %s; even ones 1.9 (%s)' % (oddsA[0], oddsA[1], oddsA[2]))
 B.ns.db.opts.toasts = True
 
 # ---- Casa and Er Bollettino
@@ -337,6 +366,14 @@ check(A.has('Prossimo cap') or A.has('Cap '), 'Casa shows the cap')
 A.ns.Home.ShowBulletin(True)
 bull = A.g.ErPattoBulletin
 check(bull.shown and 'settimana 1' in str(bull.title.text) and A.has('Li titoli de la settimana') and A.has('Le piotte') and A.has('Li ricchi') and A.has('Pietro'), 'Er Bollettino of week 1: ' + str(bull.title.text))
+btxt = lambda rows: ' | '.join(str(l.text) for l in rows.values())
+check(A.has('Li primati') and A.has('Er PvP') and A.has('Ar Botteghino'), 'the bulletin has li primati, er PvP and ar Botteghino')
+check('ammazzati pe' in btxt(bull.pvp) or 'Gnente PvP' in btxt(bull.pvp), 'er PvP: pe\' strada and in BG apart: ' + btxt(bull.pvp))
+check(any('Più ore giocate' in str(r.label.text) for r in bull.prim.values()), 'li primati: ' + ' | '.join(str(r.label.text) + ' ' + str(r.who.text) for r in bull.prim.values()))
+# the week of the sfottò and the faccione (week 2): who mocked, who got mocked
+d2 = A.ns.Bollettino.Data(2)
+check(d2.shop.mocker is not None and str(d2.shop.mocker.name) == 'Dario' and str(d2.shop.mocked.name) == 'Pietro' and d2.shop.mockerN >= 2,
+      'ar Botteghino of week 2: Dario mocked Pietro (%s sfottò)' % d2.shop.mockerN)
 
 # ---- invite: a player with no patto gets a window and joins in one click
 C = Client('Player-1-CCC', 'Gina'); clients.append(C)
@@ -464,10 +501,12 @@ check(first(busy) is False and 'ballo' in str(second(busy)), 'Gina can\'t throw 
 bet = C.g.ErPattoScommessa
 check(bet is not None and bet.shown and 'Colosseo' in str(bet.title.text), 'Gina, in the same zone, can bet')
 bet.stake.SetText(bet.stake, '3')
+qD = C.ns.Sfide.Quota(bet.a, bet.b)
+check('paga' in str(bet.qa.text) and C.ns.Sfide.QuotaText(qD) in str(bet.qa.text), 'the odds over Dario\'s name: ' + str(bet.qa.text) + ' / ' + str(bet.qb.text))
 bet.pa.Click(bet.pa)
 balC = C.ns.Tombola.Balance()
 duel(A, B)
-check(C.ns.Tombola.Balance() == balC + 6, 'Gina bet 3 on Dario and doubled')
+check(C.ns.Tombola.Balance() == balC + 3 * qD // 100, 'Gina bet 3 on Dario and got it back at his odds (%s): %s' % (C.ns.Sfide.QuotaText(qD), C.ns.Tombola.Balance() - balC))
 off = B.g.ErPattoRivincita
 check(off is not None and off.shown and str(off.yes.text) == 'Rivincita!' and one_at_a_time(B), 'Pietro lost: offered la rivincita, alone on his screen')
 check(shown(A, 'ErPattoAvviso') and 'Hai vinto' in str(A.g.ErPattoAvviso.title.text) and one_at_a_time(A), 'Dario is told he won, nothing to click')

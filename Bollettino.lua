@@ -1,8 +1,9 @@
 -- Er Patto: Er Bollettino, the week told like a paper. It opens by itself at the first login after the weekly
 -- reset (and from the Baretto). One big vanilla window: the headline, then la settimana tua (your card, your
 -- schedina, the rest of your piotte), then the boxes:
--- li titoli de la settimana, li ricchi (piotte), li sordi (gold made in the week), er cimitero, er Colosseo,
--- le mejo tombole, la schedina.
+-- li titoli de la settimana, li ricchi (piotte), li sordi (gold made in the week), er cimitero, er Colosseo (duels,
+-- gogne, records), le mejo tombole, li primati (quest, rari, dungeon, ore), er PvP (pe' strada and in BG apart),
+-- ar Botteghino (the Colosseo bets, sfottò, faccioni), la schedina. It shrinks to fit a small screen.
 -- Cost: everything is counted once, when the window opens (a few loops over the members and their last ten
 -- graves); nothing runs while it's open. The titles are remembered once a week (who held what when the week
 -- began), a small table per week.
@@ -210,7 +211,78 @@ function B.Data(wk, testing)
   end
   local bully, bullyN = Leader(list, function(x) return W(x, wk, "dw") end)
   local bag, bagN = Leader(list, function(x) return W(x, wk, "dl") end)
-  d.arena = { gogne = gogne, fought = fought, bully = bully, bullyN = bullyN, bag = bag, bagN = bagN }
+  local duels = 0
+  for _, m in ipairs(list) do duels = duels + W(m, wk, "dw") end
+  -- er mejo a duello: the best record of the week, with at least three duels
+  local best, bestR
+  for _, m in ipairs(list) do
+    local w, l = W(m, wk, "dw"), W(m, wk, "dl")
+    if w + l >= 3 then
+      local r = (w + 1) / (w + l + 2)
+      if not bestR or r > bestR or (r == bestR and w > W(best, wk, "dw")) then best, bestR = m, r end
+    end
+  end
+  d.arena = { gogne = gogne, fought = fought, bully = bully, bullyN = bullyN, bully2 = bully and W(bully, wk, "dl") or 0,
+    bag = bag, bagN = bagN, bag2 = bag and W(bag, wk, "dw") or 0, duels = duels,
+    best = best ~= bully and best or nil, bestW = best and W(best, wk, "dw") or 0, bestL = best and W(best, wk, "dl") or 0 }
+
+  -- li primati de la settimana
+  local prim = {}
+  local function lead(label, key, fmt)
+    local m, n = Leader(list, function(x) return W(x, wk, key) end)
+    if m then prim[#prim + 1] = { label = label, m = m, v = fmt and fmt(n) or tostring(n) } end
+  end
+  lead("Più quest", "q")
+  lead("Più rari", "rk")
+  lead("Più dungeon", "dg")
+  lead("Più ore giocate", "pt", function(n) return U.Hours(n / 3600) end)
+  lead("Più ore in compagnia", "gp", function(n) return U.Hours(n / 3600) end)
+  lead("Più mostri famosi", "nk")
+  d.prim = prim
+
+  -- er PvP: pe' strada and in BG apart, and who got killed by players out in the world
+  local pvp = { hw = 0, hb = 0, bw = 0, bl = 0 }
+  for _, m in ipairs(list) do
+    pvp.hw = pvp.hw + W(m, wk, "hw") pvp.hb = pvp.hb + W(m, wk, "hb")
+    pvp.bw = pvp.bw + W(m, wk, "bw") pvp.bl = pvp.bl + W(m, wk, "bl")
+  end
+  pvp.street, pvp.streetN = Leader(list, function(x) return W(x, wk, "hw") end)
+  pvp.legion, pvp.legionN = Leader(list, function(x) return W(x, wk, "hb") end)
+  pvp.bgw, pvp.bgwN = Leader(list, function(x) return W(x, wk, "bw") end)
+  pvp.victim, pvp.victimN = Leader(list, function(x)
+    local n = 0
+    for _, g in ipairs(mine[x.guid]) do if g.k == "pvp" then n = n + 1 end end
+    return n
+  end)
+  d.pvp = pvp
+
+  -- ar Botteghino, oltre tombola e schedina: the Colosseo, the sfottò and the faccioni (from the lines each one
+  -- shares of his scontrini)
+  local net, sfoBy, sfoOn, fcBy, fcOn = {}, {}, {}, {}, {}
+  for _, m in ipairs(list) do
+    local lines = ns.Tombola and ns.Tombola.LedgerOf(m) or {}
+    for _, x in ipairs(lines) do
+      if (x.at or 0) >= from and (x.at or 0) < to then
+        if x.k == "sb" and x.g ~= nil then net[m.guid] = (net[m.guid] or 0) + (x.g or 0) - (x.s or 0) end
+        if x.k == "fo" and x.o then
+          sfoBy[m.guid] = (sfoBy[m.guid] or 0) + 1
+          sfoOn[x.o] = (sfoOn[x.o] or 0) + 1
+        end
+        if x.k == "fc" and x.o then
+          fcBy[m.guid] = (fcBy[m.guid] or 0) + 1
+          fcOn[x.o] = (fcOn[x.o] or 0) + 1
+        end
+      end
+    end
+  end
+  local shop = {}
+  shop.bestBet, shop.bestBetN = Leader(list, function(x) return net[x.guid] or 0 end)
+  shop.worstBet, shop.worstBetN = Leader(list, function(x) return -(net[x.guid] or 0) end)
+  shop.mocker, shop.mockerN = Leader(list, function(x) return sfoBy[x.guid] or 0 end)
+  shop.mocked, shop.mockedN = Leader(list, function(x) return sfoOn[x.guid] or 0 end)
+  shop.facer, shop.facerN = Leader(list, function(x) return fcBy[x.guid] or 0 end)
+  shop.faced, shop.facedN = Leader(list, function(x) return fcOn[x.guid] or 0 end)
+  d.shop = shop
 
   -- la schedina
   local qs = {}
@@ -263,6 +335,10 @@ function B.Data(wk, testing)
   local fast, fastN = Leader(list, function(x) return W(x, wk, "ding") end)
   if fast then story(40 + fastN, "Ability_Rogue_Sprint", Short(fast) .. " è salito de più: +" .. Plural(fastN, "livello", "livelli"),
     fast.lv and ("Mo' è livello " .. fast.lv .. ".") or nil) end
+  if pvp.street and pvp.streetN >= 5 then story(35 + pvp.streetN, "Ability_DualWield", Short(pvp.street) .. " ha fatto 'na strage pe' strada: " .. pvp.streetN .. " ammazzati",
+    pvp.legion and (Short(pvp.legion) .. " invece in BG: " .. pvp.legionN .. ".") or nil) end
+  if shop.bestBet and shop.bestBetN >= 20 then story(45 + shop.bestBetN, "Ability_Warrior_Challange", Short(shop.bestBet) .. " ha sbancato er Colosseo: +" .. shop.bestBetN .. " piotte",
+    "Puntando sui duelli giusti.") end
   table.sort(stories, function(a, b) return a.score > b.score end)
   d.head = stories[1]
 
@@ -276,6 +352,8 @@ function B.Data(wk, testing)
     parts[#parts + 1] = "+" .. Plural(W(me, wk, "ding"), "livello", "livelli")
     parts[#parts + 1] = (ns.Money and ns.Money(W(me, wk, "g"), true) or "0") .. " fatti"
     parts[#parts + 1] = Plural(W(me, wk, "dt"), "morte", "morti")
+    if W(me, wk, "dw") + W(me, wk, "dl") > 0 then parts[#parts + 1] = "duelli " .. W(me, wk, "dw") .. "-" .. W(me, wk, "dl") end
+    if W(me, wk, "hw") + W(me, wk, "hb") > 0 then parts[#parts + 1] = W(me, wk, "hw") .. " ammazzati pe' strada, " .. W(me, wk, "hb") .. " in BG" end
     d.you = table.concat(parts, ", ")
     -- la tombola mia, la schedina mia, and every other piotta of the week (sfide, taje, gufate, Colosseo, sfottò)
     local TB = ns.Tombola
@@ -287,8 +365,8 @@ function B.Data(wk, testing)
         local pick = v and v[x.q.key] and byGuid[v[x.q.key]]
         my.bets[#my.bets + 1] = { text = x.q.text, pick = pick, stake = x.mine, got = x.got, nobody = x.nobody, right = pick and x.winners[pick.guid] }
       end
-      local KIND = { sf = "Sfide", tj = "Taje", tjw = "Taje", gu = "Gufate", gut = "Gufate", sb = "Ar Colosseo", fo = "Sfottò" }
-      local ORDER = { "Sfide", "Taje", "Gufate", "Ar Colosseo", "Sfottò" }
+      local KIND = { sf = "Sfide", tj = "Taje", tjw = "Taje", gu = "Gufate", gut = "Gufate", sb = "Ar Colosseo", fo = "Sfottò", fc = "Faccioni" }
+      local ORDER = { "Sfide", "Taje", "Gufate", "Ar Colosseo", "Sfottò", "Faccioni" }
       local sum, open = {}, {}
       for _, x in ipairs(TB.Ledger()) do
         local k = KIND[x.k]
@@ -310,7 +388,7 @@ end
 local bull
 local COL, GAP, LEFT = 306, 8, 20
 local WIDTH = LEFT * 2 + COL * 3 + GAP * 2
-local HEIGHT = 690
+local HEIGHT = 792
 
 local function Title(box, text)
   local t = H.Text(box, "GameFontNormal", text, 260)
@@ -520,9 +598,36 @@ local function Build()
   bull.tombLine:SetPoint("TOPLEFT", 14, -104)
   if bull.tombLine.SetWordWrap then bull.tombLine:SetWordWrap(false) end
 
-  -- row 3: la schedina, all across
+  -- row 3: li primati, er PvP, ar Botteghino (Colosseo, sfottò, faccioni)
+  local y3 = -508
+  local pr = H.Box(bull, COL, h2)
+  pr:SetPoint("TOPLEFT", x[1], y3)
+  Title(pr, "Li primati")
+  Corner(pr, "INV_Misc_Book_09")
+  bull.prim = {}
+  for i = 1, 6 do
+    local r = {}
+    local y = -30 - (i - 1) * 15
+    r.label = H.Text(pr, "GameFontNormalSmall", "", 130) r.label:SetPoint("TOPLEFT", 14, y)
+    r.who = H.Text(pr, "GameFontHighlightSmall", "", 100) r.who:SetPoint("TOPLEFT", 146, y)
+    if r.who.SetWordWrap then r.who:SetWordWrap(false) end
+    r.val = H.Text(pr, "GameFontHighlightSmall", "", 60, "RIGHT") r.val:SetPoint("TOPRIGHT", -14, y)
+    bull.prim[i] = r
+  end
+  local pv = H.Box(bull, COL, h2)
+  pv:SetPoint("TOPLEFT", x[2], y3)
+  Title(pv, "Er PvP")
+  Corner(pv, "Ability_DualWield")
+  bull.pvp = Lines(pv, 6)
+  local bo = H.Box(bull, COL, h2)
+  bo:SetPoint("TOPLEFT", x[3], y3)
+  Title(bo, "Ar Botteghino")
+  Corner(bo, "INV_Misc_Bag_10_Red")
+  bull.shop = Lines(bo, 6)
+
+  -- row 4: la schedina, all across
   local sc = H.Box(bull, WIDTH - 2 * LEFT, 104)
-  sc:SetPoint("TOPLEFT", LEFT, -510)
+  sc:SetPoint("TOPLEFT", LEFT, -646)
   Title(sc, "La schedina")
   Corner(sc, "INV_Misc_Note_06")
   bull.bets = Lines(sc, 4, (WIDTH - 2 * LEFT) / 2 - 24)
@@ -653,9 +758,42 @@ local function Fill(d, testing)
   else
     al[#al + 1] = GREY .. "Nessun duello a la gogna 'sta settimana.|r"
   end
-  if a.bully then al[#al + 1] = "Er bullo: " .. Colored(a.bully) .. " " .. GREY .. Plural(a.bullyN, "duello vinto", "duelli vinti") .. " (tutti)|r" end
-  if a.bag then al[#al + 1] = "Er sacco da boxe: " .. Colored(a.bag) .. " " .. GREY .. Plural(a.bagN, "duello perso", "duelli persi") .. "|r" end
+  if a.bully then al[#al + 1] = "Er bullo: " .. Colored(a.bully) .. " " .. GREY .. Plural(a.bullyN, "duello vinto", "duelli vinti") .. " (" .. a.bullyN .. "-" .. a.bully2 .. ")|r" end
+  if a.best then al[#al + 1] = "Er mejo a duello: " .. Colored(a.best) .. " " .. GREY .. a.bestW .. "-" .. a.bestL .. "|r" end
+  if a.bag then al[#al + 1] = "Er sacco da boxe: " .. Colored(a.bag) .. " " .. GREY .. Plural(a.bagN, "duello perso", "duelli persi") .. " (" .. a.bag2 .. "-" .. a.bagN .. ")|r" end
+  if a.duels > 0 and #al < 6 then al[#al + 1] = GREY .. "Duelli in tutto 'sta settimana: " .. a.duels .. "|r" end
   for i, l in ipairs(bull.arena) do l:SetText(al[i] or "") end
+
+  -- li primati
+  for i, r in ipairs(bull.prim) do
+    local x = d.prim[i]
+    if x then r.label:SetText(x.label) r.who:SetText(Colored(x.m)) r.val:SetText(WHITE .. x.v .. "|r")
+    else r.label:SetText(i == 1 and (GREY .. "Nessuno ha fatto gnente.|r") or "") r.who:SetText("") r.val:SetText("") end
+  end
+
+  -- er PvP: pe' strada and in BG apart
+  local pv, pl = d.pvp, {}
+  if pv.hw + pv.hb + pv.bw + pv.bl == 0 and not pv.victim then pl[1] = GREY .. "Gnente PvP 'sta settimana.|r"
+  else
+    pl[#pl + 1] = "Ammazzati pe' strada: " .. WHITE .. pv.hw .. "|r, in BG: " .. WHITE .. pv.hb .. "|r"
+    if pv.street then pl[#pl + 1] = "Er più attaccabrighe: " .. Colored(pv.street) .. " " .. GREY .. pv.streetN .. " pe' strada|r" end
+    if pv.legion then pl[#pl + 1] = "Er legionario: " .. Colored(pv.legion) .. " " .. GREY .. pv.legionN .. " in BG|r" end
+    if pv.bw + pv.bl > 0 then pl[#pl + 1] = "BG: " .. GREEN .. pv.bw .. " vinte|r, " .. RED .. pv.bl .. " perse|r" end
+    if pv.bgw then pl[#pl + 1] = "Er più vincente in BG: " .. Colored(pv.bgw) .. " " .. GREY .. Plural(pv.bgwN, "vinta", "vinte") .. "|r" end
+    if pv.victim then pl[#pl + 1] = "Er più ammazzato pe' strada: " .. Colored(pv.victim) .. " " .. GREY .. Plural(pv.victimN, "vorta", "vorte") .. "|r" end
+  end
+  for i, l in ipairs(bull.pvp) do l:SetText(pl[i] or "") end
+
+  -- ar Botteghino: the Colosseo, the sfottò, the faccioni
+  local sh, sl = d.shop, {}
+  if sh.bestBet then sl[#sl + 1] = "Er mago der Colosseo: " .. Colored(sh.bestBet) .. " " .. GREEN .. "+" .. sh.bestBetN .. "|r " .. Coin() end
+  if sh.worstBet then sl[#sl + 1] = "Er pollo der Colosseo: " .. Colored(sh.worstBet) .. " " .. RED .. "-" .. sh.worstBetN .. "|r " .. Coin() end
+  if sh.mocker then sl[#sl + 1] = "Er più sfottente: " .. Colored(sh.mocker) .. " " .. GREY .. Plural(sh.mockerN, "sfottò", "sfottò") .. "|r" end
+  if sh.mocked then sl[#sl + 1] = "Er più sfottuto: " .. Colored(sh.mocked) .. " " .. GREY .. Plural(sh.mockedN, "vorta", "vorte") .. "|r" end
+  if sh.facer then sl[#sl + 1] = "Er più faccia tosta: " .. Colored(sh.facer) .. " " .. GREY .. Plural(sh.facerN, "faccione", "faccioni") .. " mannati|r" end
+  if sh.faced then sl[#sl + 1] = "Er più accecato: " .. Colored(sh.faced) .. " " .. GREY .. Plural(sh.facedN, "faccione", "faccioni") .. "|r" end
+  if #sl == 0 then sl[1] = GREY .. "Gnente puntate, sfottò o faccioni.|r" end
+  for i, l in ipairs(bull.shop) do l:SetText(sl[i] or "") end
 
   -- le mejo tombole
   for c, k in ipairs(bull.cards) do
@@ -698,6 +836,9 @@ end
 function B.Show(wk, testing)
   if not bull then Build() end
   Fill(B.Data(wk, testing), testing)
+  -- tall: on a small screen (or a big interface scale) it shrinks to fit
+  local h = UIParent and UIParent.GetHeight and tonumber(UIParent:GetHeight()) or 0
+  if h > 0 and bull.SetScale then bull:SetScale(math.min(1, (h - 16) / HEIGHT)) end
   bull:Show()
 end
 

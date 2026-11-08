@@ -1,8 +1,11 @@
--- Er Patto: the "Botteghino" tab, the betting shop of the patto (logic in Tombola.lua). Three pages:
+-- Er Patto: the "Botteghino" tab, everything with piotte (logic in Tombola.lua and Sfide.lua). The pages:
+--   Li compari everybody by piotte; click one and what you can do to him with yours (sfottò, faccione, gufata,
+--              taja, sfida) and what's going on with him
 --   Tombola    this week's card, and how far everybody is on it
 --   Schedina   three questions side by side: every member with the piotte on them and the odds; click one, write
 --              the stake, Punta. Your bet stays marked with what it pays
---   Li ricchi  everybody's piotte, with the button to send a sfottò
+--   Sfide      le sfide, le taje e le gufate
+--   Scontrini  every piotta in and out
 -- Top right: your piotte. And the window that closes a week (a vanilla dialog box) instead of lines in the chat.
 local ADDON, ns = ...
 local U, M, P, C, T, UI = ns.U, ns.M, ns.P, ns.C, ns.T, ns.UI
@@ -11,7 +14,7 @@ local TB = ns.Tombola
 
 local GREY = "|cff9d9d9d"
 local GOLD = "|cffffd100"
-local page = "tombola"
+local page = "ricchi"
 local sel = {} -- the member clicked in each question, before Punta
 local function Short(m) return U.Short(m and m.name) end
 -- errors and confirmations in the page, under the purse, never in the chat
@@ -246,20 +249,43 @@ local function BuildSchedina(v)
   end
 end
 
+-- Li compari: everybody, richest first, with what each has done with his piotte; click one and on the right
+-- everything you can do to him with yours (sfottò, faccione, gufata, taja, sfida) and what's going on with him
+local selGuid -- the one clicked (nil: the first that isn't me)
+local ACTIONS = {
+  { key = "sfotti", label = "Sfotti", cost = function() return TB.Piotte(TB.SFOTTO) end,
+    tip = { "Sfotti", "'Na frase su li numeri sua, scritta grossa sur su' schermo." }, go = function(g) ns.Sfide.OpenSfotti(g) end },
+  { key = "faccione", label = "Er faccione", cost = function() return TB.FACCIONE[1].p .. "-" .. TB.FACCIONE[#TB.FACCIONE].p .. " piotte" end,
+    tip = { "Er faccione", "'Na faccia der patto je copre lo schermo pe' 10, 15 o 20 secondi, co' la musica. Vede solo le barre sue." },
+    go = function(g) ns.Sfide.OpenFaccione(g) end },
+  { key = "gufa", label = "Gufata", cost = function() return "la posta tua" end,
+    tip = { "Gufata", "Je gufi la morte pe' 5 minuti: si more vinci mezza posta in più, si campa la posta è sua." },
+    go = function(g) ns.Sfide.OpenGufa(g) end },
+  { key = "taja", label = "Taja", cost = function() return "la posta tua" end,
+    tip = { "Taja", "Piotte su la testa sua: chi lo batte a duello pe' primo se le pija." }, go = function(g) ns.Sfide.OpenTaja(g) end },
+  { key = "sfida", label = "Sfida", cost = function() return "la posta tua" end,
+    tip = { "Sfida", "Chi fa de più (quest, sordi, pesci...) o chi arriva prima ar livello, fino a fine settimana: er vincitore se pija tutto." },
+    go = function(g) ns.Sfide.Prefill(g) end },
+}
 local function BuildRicchi(v)
-  local p = H.Box(v, 744, 424)
-  p:SetPoint("TOPLEFT", 0, -28)
+  local p = CreateFrame("Frame", nil, v)
+  p:SetAllPoints()
   v.ricchi = p
-  local cols = { { "", 30, 14 }, { "Chi", 200, 44 }, { "Piotte", 80, 250 }, { "Tombola", 80, 350 }, { "Schedine", 70, 440 }, { "Resa", 60, 520 } }
+  -- the list
+  local l = H.Box(p, 470, 424)
+  l:SetPoint("TOPLEFT", 0, -28)
+  local cols = { { "", 24, 10, "RIGHT" }, { "Chi", 130, 40, "LEFT" }, { "Liv", 30, 170, "RIGHT" }, { "Piotte", 64, 206, "RIGHT" },
+    { "Tombola", 54, 276, "RIGHT" }, { "Schedine", 58, 336, "RIGHT" }, { "Resa", 50, 404, "RIGHT" } }
   for _, c in ipairs(cols) do
-    local t = H.Text(p, "GameFontDisableSmall", c[1], c[2], c[1] == "Chi" and "LEFT" or "RIGHT")
+    local t = H.Text(l, "GameFontDisableSmall", c[1], c[2], c[4])
     t:SetPoint("TOPLEFT", c[3], -12)
-    if c[1] == "Resa" or c[1] == "Schedine" then
-      local hit = CreateFrame("Frame", nil, p)
+    if c[1] == "Resa" or c[1] == "Schedine" or c[1] == "Tombola" then
+      local hit = CreateFrame("Frame", nil, l)
       hit:SetSize(c[2], 14) hit:SetPoint("TOPLEFT", c[3], -10) hit:EnableMouse(true)
       hit:SetScript("OnEnter", function(self)
         if c[1] == "Resa" then
           H.Tip(self, { "Resa de le schedine", "Quanto t'hanno reso: (vinto - giocato) / giocato. Vince de più chi azzecca dove nessuno punta: 'na quota arta vale tanto, la vittoria scontata poco." })
+        elseif c[1] == "Tombola" then H.Tip(self, { "Tombola", "Caselle fatte 'sta settimana." })
         else H.Tip(self, { "Schedine", "Domande azzeccate su quelle giocate." }) end
       end)
       hit:SetScript("OnLeave", H.HideTip)
@@ -267,18 +293,63 @@ local function BuildRicchi(v)
   end
   v.rich = {}
   for i = 1, 20 do
-    local y = -30 - (i - 1) * 19
-    local r = {}
-    r.pos = H.Text(p, "GameFontHighlightSmall", "", 30, "RIGHT") r.pos:SetPoint("TOPLEFT", 14, y)
-    r.name = H.Text(p, "GameFontHighlightSmall", "", 200) r.name:SetPoint("TOPLEFT", 44, y)
+    local y = -28 - (i - 1) * 19
+    local r = CreateFrame("Button", nil, l)
+    r:SetSize(450, 18)
+    r:SetPoint("TOPLEFT", 10, y)
+    r:SetHighlightTexture(HL, "ADD")
+    r.selTex = r:CreateTexture(nil, "BACKGROUND")
+    r.selTex:SetAllPoints()
+    r.selTex:SetTexture(SEL)
+    r.selTex:SetBlendMode("ADD")
+    r.pos = H.Text(r, "GameFontHighlightSmall", "", 24, "RIGHT") r.pos:SetPoint("LEFT", 0, 0)
+    r.name = H.Text(r, "GameFontHighlightSmall", "", 130) r.name:SetPoint("LEFT", 30, 0)
     if r.name.SetWordWrap then r.name:SetWordWrap(false) end
-    r.money = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.money:SetPoint("TOPLEFT", 250, y)
-    r.tomb = H.Text(p, "GameFontHighlightSmall", "", 80, "RIGHT") r.tomb:SetPoint("TOPLEFT", 350, y)
-    r.sch = H.Text(p, "GameFontHighlightSmall", "", 70, "RIGHT") r.sch:SetPoint("TOPLEFT", 440, y)
-    r.roi = H.Text(p, "GameFontHighlightSmall", "", 60, "RIGHT") r.roi:SetPoint("TOPLEFT", 520, y)
-    r.dare = H.Btn(p, "Sfida", 60, function(self) ns.Sfide.Prefill(self.guid) end, 18)
-    r.dare:SetPoint("TOPRIGHT", -14, y + 3)
+    r.lv = H.Text(r, "GameFontHighlightSmall", "", 30, "RIGHT") r.lv:SetPoint("LEFT", 160, 0)
+    r.money = H.Text(r, "GameFontHighlightSmall", "", 64, "RIGHT") r.money:SetPoint("LEFT", 196, 0)
+    r.tomb = H.Text(r, "GameFontHighlightSmall", "", 54, "RIGHT") r.tomb:SetPoint("LEFT", 266, 0)
+    r.sch = H.Text(r, "GameFontHighlightSmall", "", 58, "RIGHT") r.sch:SetPoint("LEFT", 326, 0)
+    r.roi = H.Text(r, "GameFontHighlightSmall", "", 50, "RIGHT") r.roi:SetPoint("LEFT", 394, 0)
+    r:SetScript("OnClick", function(self)
+      if not self.guid or self.guid == ns.recordGuid then return end
+      selGuid = self.guid
+      Sound("IG_MAINMENU_OPTION_CHECKBOX_ON", 856)
+      UI.Refresh()
+    end)
     v.rich[i] = r
+  end
+  -- what to do to the one clicked
+  local a = H.Box(p, 268, 424)
+  a:SetPoint("TOPLEFT", 476, -28)
+  v.who = H.Text(a, "GameFontNormal", "", 240)
+  v.who:SetPoint("TOPLEFT", 14, -12)
+  v.whoLines = {}
+  for i = 1, 3 do
+    local t = H.Text(a, "GameFontHighlightSmall", "", 240)
+    t:SetPoint("TOPLEFT", 14, -32 - (i - 1) * 15)
+    if t.SetWordWrap then t:SetWordWrap(false) end
+    v.whoLines[i] = t
+  end
+  local th = H.Text(a, "GameFontNormal", "Che je fai?", 200) th:SetPoint("TOPLEFT", 14, -86)
+  v.acts = {}
+  for i, x in ipairs(ACTIONS) do
+    local y = -108 - (i - 1) * 30
+    local b = H.Btn(a, x.label, 120, function() if selGuid then x.go(selGuid) end end, 22)
+    b:SetPoint("TOPLEFT", 14, y)
+    b:HookScript("OnEnter", function(self) H.Tip(self, x.tip) end)
+    b:HookScript("OnLeave", H.HideTip)
+    b.cost = H.Text(a, "GameFontHighlightSmall", x.cost(), 110, "RIGHT")
+    b.cost:SetPoint("TOPRIGHT", -14, y - 5)
+    v.acts[i] = b
+  end
+  -- what's going on with him: taje, gufate, sfide, and the duels between you
+  local oh = H.Text(a, "GameFontNormal", "Co' lui", 200) oh:SetPoint("TOPLEFT", 14, -268)
+  v.onHim = {}
+  for i = 1, 8 do
+    local t = H.Text(a, "GameFontHighlightSmall", "", 240)
+    t:SetPoint("TOPLEFT", 14, -288 - (i - 1) * 15)
+    if t.SetWordWrap then t:SetWordWrap(false) end
+    v.onHim[i] = t
   end
 end
 
@@ -346,16 +417,16 @@ end
 
 local function Build()
   local v = H.NewView("botteghino")
+  v.tabRich = H.TopTab(v, "Li compari", function() page = "ricchi" end)
+  v.tabRich:SetPoint("TOPLEFT", 0, 0)
   v.tabTomb = H.TopTab(v, "Tombola", function() page = "tombola" end)
-  v.tabTomb:SetPoint("TOPLEFT", 0, 0)
+  v.tabTomb:SetPoint("LEFT", v.tabRich, "RIGHT", 2, 0)
   v.tabSch = H.TopTab(v, "Schedina", function() page = "schedina" end)
   v.tabSch:SetPoint("LEFT", v.tabTomb, "RIGHT", 2, 0)
   v.tabSfide = H.TopTab(v, "Sfide", function() page = "sfide" end)
   v.tabSfide:SetPoint("LEFT", v.tabSch, "RIGHT", 2, 0)
   v.tabConti = H.TopTab(v, "Scontrini", function() page = "conti" end)
   v.tabConti:SetPoint("LEFT", v.tabSfide, "RIGHT", 2, 0)
-  v.tabRich = H.TopTab(v, "Li ricchi", function() page = "ricchi" end)
-  v.tabRich:SetPoint("LEFT", v.tabConti, "RIGHT", 2, 0)
   -- my piotte, top right
   local purse = CreateFrame("Frame", nil, v)
   purse:SetSize(200, 24)
@@ -520,6 +591,30 @@ local function RefreshSchedina(v, wk, me, list, testing, byGuid)
   end
 end
 
+-- what's going on between me and guid, and on him: one line each
+local function OnHim(guid, byGuid)
+  local out = {}
+  local S = ns.Sfide
+  if not S then return out end
+  local all = S.Members()
+  local function Who(g) return g == ns.recordGuid and "Tu" or Short(all[g]) end
+  for _, t in ipairs(S.Taje()) do
+    if t.on == guid and S.TajaState(t, all) == "aperta" then out[#out + 1] = "Taja de " .. Who(t.by) .. ": " .. TB.Piotte(t.s) end
+  end
+  for _, g in ipairs(S.Gufate()) do
+    if g.on == guid and S.GufaState(g, all) == "aperta" then out[#out + 1] = "Gufata de " .. Who(g.by) .. ": " .. TB.Piotte(g.s) end
+  end
+  for _, c in ipairs(S.All()) do
+    local st = S.State(c, all)
+    if (c.from == guid or c.to == guid) and (st == "aspetta" or st == "incorso") then
+      out[#out + 1] = "Sfida " .. Who(c.from) .. " contro " .. Who(c.to) .. ": " .. TB.Piotte(c.s)
+    end
+  end
+  local g = S.AtGogna(guid)
+  if g then out[#out + 1] = RED .. "Sta a la gogna|r" end
+  return out
+end
+
 local function RefreshRicchi(v, wk, list)
   local order = {}
   for _, m in ipairs(list) do order[#order + 1] = m end
@@ -528,6 +623,13 @@ local function RefreshRicchi(v, wk, list)
     if x ~= y then return x > y end
     return tostring(a.name) < tostring(b.name)
   end)
+  local byGuid = {}
+  for _, m in ipairs(order) do byGuid[m.guid] = m end
+  -- the one clicked, or the first that isn't me
+  if not (selGuid and byGuid[selGuid]) or selGuid == ns.recordGuid then
+    selGuid = nil
+    for _, m in ipairs(order) do if m.guid ~= ns.recordGuid then selGuid = m.guid break end end
+  end
   local myPos
   for i, m in ipairs(order) do if m.guid == ns.recordGuid then myPos = i end end
   for i, r in ipairs(v.rich) do
@@ -537,18 +639,47 @@ local function RefreshRicchi(v, wk, list)
       local pos = (m.guid == ns.recordGuid and myPos) or i
       local sc = TB.Card(wk) and TB.Score(m, wk)
       local won, played, roi = TB.SchedineOf(m)
+      r.guid = m.guid
       r.pos:SetText(pos .. "º")
       r.name:SetText(H.Colored(m) .. ((m.guid == ns.recordGuid) and (" " .. GOLD .. "(tu)|r") or ""))
+      r.lv:SetText(tostring(m.lv or "?"))
       r.money:SetText(TB.TotalOf(m) .. " " .. TB.Coin(12))
       r.tomb:SetText(sc and (sc.cells .. "/9") or (GREY .. "-|r"))
       r.sch:SetText(played > 0 and (won .. "/" .. played) or (GREY .. "-|r"))
       r.roi:SetText(roi and ((roi > 0 and "|cff20ff20+" or roi < 0 and "|cffff4040" or GREY) .. roi .. "%|r") or (GREY .. "-|r"))
-      r.dare.guid = m.guid
-      r.dare:SetShown(m.guid ~= ns.recordGuid and not m.fake)
+      r.selTex:SetShown(m.guid == selGuid)
+      r:Show()
     else
-      r.pos:SetText("") r.name:SetText("") r.money:SetText("") r.tomb:SetText("") r.sch:SetText("") r.roi:SetText("") r.dare:Hide()
+      r.guid = nil
+      r:Hide()
     end
   end
+  -- the right side
+  local m = selGuid and byGuid[selGuid]
+  if not m then
+    v.who:SetText(GREY .. "Nessun compare ancora.|r")
+    for _, t in ipairs(v.whoLines) do t:SetText("") end
+    for _, b in ipairs(v.acts) do b:Disable() end
+    for _, t in ipairs(v.onHim) do t:SetText("") end
+    return
+  end
+  v.who:SetText(H.Colored(m))
+  local t = m.stats and m.stats.t or {}
+  local me = ns.MyRecord and ns.MyRecord()
+  local h = me and me.h2h and me.h2h[m.name]
+  local wl = {}
+  wl[1] = "Livello " .. tostring(m.lv or "?") .. ", " .. TB.Piotte(TB.TotalOf(m))
+  wl[2] = "Duelli " .. (t.dw or 0) .. "-" .. (t.dl or 0) .. (h and ((h.w or 0) + (h.l or 0) > 0) and (", co' te " .. (h.w or 0) .. "-" .. (h.l or 0)) or "")
+  wl[3] = m.il and ("Item level " .. m.il) or ""
+  for i, x in ipairs(v.whoLines) do x:SetText(wl[i] or "") end
+  local can = not ns.alt and m.guid ~= ns.recordGuid
+  for i, b in ipairs(v.acts) do
+    if can then b:Enable() else b:Disable() end
+    b.cost:SetText(ACTIONS[i].cost())
+  end
+  local lines = OnHim(m.guid, byGuid)
+  if #lines == 0 then lines[1] = GREY .. "Gnente in ballo.|r" end
+  for i, x in ipairs(v.onHim) do x:SetText(lines[i] or "") end
 end
 
 local function Refresh(v)

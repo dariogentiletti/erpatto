@@ -445,7 +445,12 @@ function TB.Ledger()
   for w, st in pairs(b.stakes or {}) do if st > 0 then out[#out + 1] = { at = TB.WeekStart(w), k = "sc", w = w, s = st } end end
   local sfo = type(b.sfo) == "table" and b.sfo or {}
   for _, x in ipairs(sfo) do out[#out + 1] = { at = x.at, k = "fo", o = x.o, s = TB.SFOTTO, g = 0 } end
-  local rest = (b.spent or 0) - stakesClosed - TB.SFOTTO * #sfo
+  local fcPaid = 0
+  for _, x in ipairs(type(b.fc) == "table" and b.fc or {}) do
+    out[#out + 1] = { at = x.at, k = "fc", o = x.o, s = x.p or 0, g = 0 }
+    fcPaid = fcPaid + (x.p or 0)
+  end
+  local rest = (b.spent or 0) - stakesClosed - TB.SFOTTO * #sfo - fcPaid
   if rest > 0 then out[#out + 1] = { at = start, k = "fo", s = rest, g = 0 } end
   if ns.Sfide then for _, x in ipairs(ns.Sfide.Ledger()) do out[#out + 1] = x end end
   if TB.Testing() then
@@ -482,6 +487,7 @@ function TB.LedgerText(x)
   if k == "tb" then return "Tombola, settimana " .. tostring(x.w or "?") .. (x.open and " (finora)" or "") end
   if k == "sc" then return "Schedina, settimana " .. tostring(x.w or "?") end
   if k == "fo" then return x.o and ("Sfottò a " .. Who(x.o)) or "Sfottò" end
+  if k == "fc" then return "Faccione a " .. Who(x.o) end
   if k == "sf" then return "Sfida co' " .. Who(x.o) end
   if k == "tj" then return "Taja su " .. Who(x.o) end
   if k == "tjw" then return "Taja presa su " .. Who(x.o) end
@@ -914,7 +920,8 @@ local function Outbox()
   local now = U.Now()
   for i = #l, 1, -1 do
     local x = l[i]
-    if type(x) ~= "table" or type(x.t) ~= "string" or type(x.x) ~= "string" or now - (tonumber(x.at) or 0) > TB.SFOTTO_KEEP then table.remove(l, i) end
+    if type(x) ~= "table" or type(x.t) ~= "string" or (type(x.x) ~= "string" and not tonumber(x.f))
+      or now - (tonumber(x.at) or 0) > TB.SFOTTO_KEEP then table.remove(l, i) end
   end
   return l
 end
@@ -924,7 +931,7 @@ local function Deliver(x)
   local to = ns.C.RouteOf and ns.C.RouteOf(x.t)
   if not to then return end
   x.try = GetTime and GetTime() or 0
-  ns.C.SendTo("F", { t = x.t, x = x.x, i = x.i }, to, true)
+  ns.C.SendTo("F", { t = x.t, x = x.x, i = x.i, f = x.f, im = x.im }, to, true)
   -- an older version online never says it got it: once is all it gets (or it would see it again every minute)
   if ns.C.IsOnline(x.t) and not ns.C.AcksSfotto(x.t) then
     local l = Outbox()
@@ -946,7 +953,7 @@ local lastSfotto = 0
 function TB.Sfotti(guid, text)
   if not (ns.state and guid) or ns.alt then return false end
   if guid == ns.recordGuid then return false, "Nun te poi sfotte da solo." end
-  if not ns.state.members[guid] then return false, "Nun sta ner patto." end
+  if not ns.state.members[guid] and not TB.Testing() then return false, "Nun sta ner patto." end
   if type(text) == "number" then text = TB.SFOTTI[text] end
   text = type(text) == "string" and text:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
   if not text or text == "" then return false, "Scegli che je dici." end
@@ -970,6 +977,109 @@ function TB.Sfotti(guid, text)
   end
   return true, text, online
 end
+
+----------------------------------------------------------------------
+-- er faccione: for 10, 20 or 30 piotte one of the patto's faces (at random) covers his screen for 10, 15 or 20
+-- seconds, with Corona playing. Only his bars, the party frames and the map stay over it: it sits under the whole
+-- interface and over the world. Sent and kept as a sfottò (Outbox), shown one at a time.
+----------------------------------------------------------------------
+TB.FACCIONE = { { s = 10, p = 10 }, { s = 15, p = 20 }, { s = 20, p = 30 } }
+TB.FACCIONI = 19 -- Media\faccioni\f01.tga ... f19.tga
+local lastFace = 0
+local ShowFaccione
+function TB.Faccione(guid, tier)
+  if not (ns.state and guid) or ns.alt then return false end
+  if guid == ns.recordGuid then return false, "Er faccione a te stesso, no." end
+  if not ns.state.members[guid] and not TB.Testing() then return false, "Nun sta ner patto." end
+  local t = TB.FACCIONE[tonumber(tier) or 0]
+  if not t then return false, "Scegli quanto dura." end
+  local now = GetTime and GetTime() or 0
+  if now - lastFace < 30 then return false, "Aspetta 'n attimo prima de mannanne 'n artro." end
+  if TB.Balance() < t.p then return false, "Te servono " .. TB.Piotte(t.p) .. "." end
+  lastFace = now
+  local img = math.random(TB.FACCIONI)
+  local online = ns.C.IsOnline(guid)
+  if TB.Testing() then
+    -- test mode: on my own screen, nothing paid
+    ShowFaccione("Tu (prova)", tonumber(tier), img)
+    return true, t, true
+  end
+  local b = Book()
+  b.spent = b.spent + t.p
+  b.fc = type(b.fc) == "table" and b.fc or {}
+  table.insert(b.fc, 1, { at = U.Now(), o = guid, p = t.p })
+  while #b.fc > 30 do table.remove(b.fc) end
+  local l = Outbox()
+  local x = { i = tostring(ns.recordGuid) .. ":" .. U.Now() .. ":" .. math.random(1000, 9999), t = guid, f = tonumber(tier), im = img, at = U.Now() }
+  if l then l[#l + 1] = x end
+  U.Log("Tombola", "faccione a", ns.C.RouteOf(guid) or guid, t.s .. "s", online and "(collegato)" or "(nun collegato: aspetta)")
+  Deliver(x)
+  TB.Update()
+  return true, t, online
+end
+
+-- on my screen: one at a time (the next waits for the one showing)
+local face
+local faceQueue = {}
+local function FaceNext()
+  local n = table.remove(faceQueue, 1)
+  if n then ShowFaccione(n[1], n[2], n[3]) end
+end
+ShowFaccione = function(name, tier, img)
+  local t = TB.FACCIONE[tonumber(tier) or 0]
+  if not t or not UIParent then return end
+  img = math.max(1, math.min(TB.FACCIONI, math.floor(tonumber(img) or 1)))
+  if face and face:IsShown() then faceQueue[#faceQueue + 1] = { name, tier, img } return end
+  local media = "Interface\\AddOns\\" .. ADDON .. "\\Media\\faccioni\\"
+  if not face then
+    face = CreateFrame("Frame", "ErPattoFaccione", UIParent)
+    -- under every window and bar of the interface, over the world
+    face:SetFrameStrata("BACKGROUND")
+    face:SetFrameLevel(0)
+    face:EnableMouse(false)
+    face.tex = face:CreateTexture(nil, "BACKGROUND")
+    face.tex:SetAllPoints()
+    face.cap = face:CreateFontString(nil, "OVERLAY")
+    face.cap:SetFont("Fonts\\FRIZQT__.TTF", 26, "THICKOUTLINE")
+    face.cap:SetTextColor(1, 0.82, 0)
+    face.cap:SetPoint("TOP", face, "TOP", 0, -24)
+    -- a quick fade in and out
+    face:SetScript("OnUpdate", function(self, el)
+      self.t = (self.t or 0) + (el or 0)
+      local left = (self.dur or 0) - self.t
+      self:SetAlpha(math.max(0, math.min(1, self.t / 0.3, left / 0.6)))
+    end)
+  end
+  local w = UIParent.GetWidth and tonumber(UIParent:GetWidth()) or 0
+  local h = UIParent.GetHeight and tonumber(UIParent:GetHeight()) or 0
+  if w <= 0 then w = 1024 end
+  if h <= 0 then h = 768 end
+  face:SetSize(math.floor(w * 0.86), math.floor(h * 0.80))
+  face:ClearAllPoints()
+  face:SetPoint("CENTER", UIParent, "CENTER", 0, math.floor(h * 0.03))
+  face.tex:SetTexture(media .. string.format("f%02d.tga", img))
+  face.cap:SetText(name .. " t'ha mannato er faccione!")
+  face.t, face.dur = 0, t.s
+  face:SetAlpha(0)
+  face:Show()
+  local token = {}
+  face.token = token
+  local function Done()
+    if face.token ~= token then return end
+    face.token = nil
+    face:Hide()
+    if face.sound and StopSound then pcall(StopSound, face.sound, 300) end
+    face.sound = nil
+    FaceNext()
+  end
+  if C_Timer and C_Timer.After then C_Timer.After(t.s, Done) end
+  face.sound = nil
+  if PlaySoundFile then
+    local ok, willPlay, handle = pcall(PlaySoundFile, media .. "corona" .. t.s .. ".ogg", "Master")
+    if ok and willPlay then face.sound = handle end
+  end
+end
+TB.ShowFaccione = function(...) return ShowFaccione(...) end
 
 -- written big in the middle of his screen (raid warning letters), a line in the chat and in the news: it's for
 -- him alone and he paid nothing, so it shows even with the patto's announcements off
@@ -995,9 +1105,10 @@ ns.On("Sfotto", function(from, data)
     if l then for i = #l, 1, -1 do if l[i].i == data.i then table.remove(l, i) end end end
     return
   end
+  local tier = tonumber(data.f)
   local text = type(data.x) == "string" and data.x:gsub("|", ""):gsub("[%c]", ""):sub(1, 140) or nil
-  if not text then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
-  if not text or text == "" then return end
+  if not text and not tier then local p = tonumber(data.p) text = p and TB.SFOTTI[p] end
+  if (not text or text == "") and not (tier and TB.FACCIONE[tier]) then return end
   -- tell him it arrived (also when it's a copy sent again: the first answer may have got lost)
   local id = type(data.i) == "string" and data.i:sub(1, 80) or nil
   if id and ns.C.RouteOf(from) then ns.C.SendTo("F", { k = "ok", i = id, t = from }, ns.C.RouteOf(from), true) end
@@ -1009,7 +1120,14 @@ ns.On("Sfotto", function(from, data)
     for k, at in pairs(ns.db.sfoIn) do if U.Now() - (tonumber(at) or 0) > TB.SFOTTO_KEEP + 86400 then ns.db.sfoIn[k] = nil end end
   end
   local who = ns.state and ns.state.members[from]
-  ShowSfotto(who and U.Short(who.name) or "Quarcuno", text)
+  local name = who and U.Short(who.name) or "Quarcuno"
+  if tier and TB.FACCIONE[tier] then
+    if ns.alt then return end
+    ShowFaccione(name, tier, data.im)
+    if ns.News then ns.News.Add("|cffffd100" .. name .. "|r t'ha mannato er faccione (" .. TB.FACCIONE[tier].s .. " secondi).") end
+    return
+  end
+  ShowSfotto(name, text)
 end)
 
 ns.On("PeerOnline", function(guid) if ns.state then TB.SfottiPending(guid) end end)

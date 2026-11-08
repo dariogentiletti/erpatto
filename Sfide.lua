@@ -972,6 +972,100 @@ function S.RefundBets(a, b, at)
   return n
 end
 
+----------------------------------------------------------------------
+-- the odds ar Colosseo: how likely each one is to win, from what the patto knows of the two, and what a piotta on
+-- him pays back. A logistic model on four things, in order of weight:
+--   the levels     0.5 a level (5 levels up is ~92%), up to ten
+--   the duels      the record of each (all his duels), pulled towards even while it's short ((won+2)/(fought+4)):
+--                  10-0 against 0-10 alone is ~94%
+--   between them   the duels of the two against each other, pulled towards even ((won+1)/(fought+2))
+--   the gear       item level above his level, and the blue and epic pieces worn (the record's il and eq)
+-- The chance stays between 3% and 97%; the quota is 0.95 / chance (the Colosseo keeps 5%), at least 1.05, at
+-- most 20. It's fixed when the bet is placed.
+-- Cost: a few loops over the two records (their last duels and twenty pieces of gear), only when a duel starts
+-- near you and when you bet.
+----------------------------------------------------------------------
+S.ODDS = { lv = 0.5, rec = 0.9, h2h = 0.6, il = 0.12, blue = 0.1, epic = 0.25, margin = 0.95 }
+local function Logit(p) return math.log(p / (1 - p)) end
+local function Clamp(x, lo, hi) return math.max(lo, math.min(hi, x)) end
+local function DuelRecord(m)
+  local t = m and m.stats and m.stats.t or {}
+  return t.dw or 0, t.dl or 0
+end
+-- the duels of a against b (from a's record, or b's turned round)
+local function Between(all, a, b)
+  local wa, wb = 0, 0
+  local A, B = all[a], all[b]
+  for _, d in ipairs(A and A.dd or {}) do if d.o == b then if d.w == 1 then wa = wa + 1 else wb = wb + 1 end end end
+  if wa + wb == 0 then
+    for _, d in ipairs(B and B.dd or {}) do if d.o == a then if d.w == 1 then wb = wb + 1 else wa = wa + 1 end end end
+  end
+  return wa, wb
+end
+local function Gear(m)
+  local blue, epic = 0, 0
+  local parse = ns.T and ns.T.ParseEquipment
+  if parse and m and type(m.eq) == "string" then
+    for _, it in pairs(parse(m.eq)) do
+      if it.q == 3 then blue = blue + 1 elseif (it.q or 0) >= 4 then epic = epic + 1 end
+    end
+  end
+  return tonumber(m and m.il), blue, epic
+end
+-- chance that a beats b (0..1), with the parts for the tooltip
+function S.Chance(a, b, all)
+  all = all or Members()
+  local A, B = all[a], all[b]
+  if not (A and B) then return 0.5, {} end
+  local W = S.ODDS
+  local x = {}
+  x.lvA, x.lvB = A.lv or 1, B.lv or 1
+  local z = W.lv * Clamp(x.lvA - x.lvB, -10, 10)
+  x.wA, x.lA = DuelRecord(A)
+  x.wB, x.lB = DuelRecord(B)
+  local ra, rb = (x.wA + 2) / (x.wA + x.lA + 4), (x.wB + 2) / (x.wB + x.lB + 4)
+  z = z + W.rec * (Logit(ra) - Logit(rb))
+  x.hA, x.hB = Between(all, a, b)
+  if x.hA + x.hB > 0 then z = z + W.h2h * Logit((x.hA + 1) / (x.hA + x.hB + 2)) end
+  local ilA, bA, eA = Gear(A)
+  local ilB, bB, eB = Gear(B)
+  x.ilA, x.ilB, x.bA, x.bB, x.eA, x.eB = ilA, ilB, bA, bB, eA, eB
+  if ilA and ilB then z = z + W.il * Clamp((ilA - x.lvA) - (ilB - x.lvB), -25, 25) end
+  z = z + Clamp(W.blue * (bA - bB) + W.epic * (eA - eB), -2, 2)
+  local p = 1 / (1 + math.exp(-z))
+  return Clamp(p, 0.03, 0.97), x
+end
+-- what a piotta on `pick` pays back (stake included), times 100: 190 is 1.90
+function S.Quota(pick, other, all)
+  local p = S.Chance(pick, other, all)
+  local q = math.floor(100 * S.ODDS.margin / p)
+  return Clamp(q, 105, 2000)
+end
+-- 190 -> "1.9", 105 -> "1.05", 1250 -> "12.5"
+function S.QuotaText(q)
+  q = tonumber(q) or 200
+  local s = string.format(q >= 1000 and "%.1f" or "%.2f", q / 100):gsub("%.?0+$", "")
+  return s
+end
+-- what a bet pays when it's right (a bet from before the odds: double)
+local function BetPays(b) return b.q and math.floor(b.s * b.q / 100) or 2 * b.s end
+S.BetPays = BetPays
+-- the lines of the tooltip on a name in the Colosseo window
+function S.OddsLines(pick, other, all)
+  all = all or Members()
+  local p, x = S.Chance(pick, other, all)
+  local A, B = all[pick], all[other]
+  local lines = { Short(A) .. ": paga " .. S.QuotaText(S.Quota(pick, other, all)), "Vince " .. math.floor(p * 100 + 0.5) .. " vorte su 100." }
+  if not x.lvA then return lines end
+  lines[#lines + 1] = "Livello " .. x.lvA .. " contro " .. x.lvB
+  lines[#lines + 1] = "Duelli " .. x.wA .. "-" .. x.lA .. " contro " .. x.wB .. "-" .. x.lB
+  if x.hA + x.hB > 0 then lines[#lines + 1] = "Tra loro " .. x.hA .. "-" .. x.hB end
+  local function g(il, bl, ep) return (il and ("item level " .. il) or "item level ?") .. (bl > 0 and (", " .. bl .. " blu") or "") .. (ep > 0 and (", " .. ep .. " epici") or "") end
+  lines[#lines + 1] = "Robba: " .. g(x.ilA, x.bA, x.eA)
+  lines[#lines + 1] = "contro " .. g(x.ilB, x.bB, x.eB)
+  return lines
+end
+
 function S.Bet(a, b, pick, stake)
   local st = Store()
   if not st then return NoPlay() end
@@ -980,10 +1074,12 @@ function S.Bet(a, b, pick, stake)
   if stake < 1 then return false, "Punta armeno 'na piotta." end
   if stake > Balance() then return false, "Nun c'hai abbastanza piotte." end
   local id = "bet:" .. NewId()
-  st.bets[id] = { a = a, b = b, pick = pick, s = stake, at = Now() }
+  -- the odds of now, fixed for this bet
+  local q = S.Quota(pick, pick == a and b or a)
+  st.bets[id] = { a = a, b = b, pick = pick, s = stake, q = q, at = Now() }
   Pay(id, stake, "sb", pick)
   if ns.Tombola then ns.Tombola.Update() end
-  return true
+  return true, q
 end
 
 ----------------------------------------------------------------------
@@ -1234,8 +1330,8 @@ function S.Update()
       local d = FirstDuel(all, b.a, b.b, b.at)
       if d and d.at <= b.at + S.BET_WINDOW then
         local won = d.w == b.pick
-        Got(id, won and 2 * b.s or 0, "sb", b.pick)
-        if News then News.Add(won and ("Hai vinto " .. Piotte(2 * b.s) .. " puntando su " .. GOLD .. Name(all, b.pick) .. "|r.")
+        Got(id, won and BetPays(b) or 0, "sb", b.pick)
+        if News then News.Add(won and ("Hai vinto " .. Piotte(BetPays(b)) .. " puntando su " .. GOLD .. Name(all, b.pick) .. "|r" .. (b.q and (" a " .. S.QuotaText(b.q)) or "") .. ".")
           or ("Hai perso " .. Piotte(b.s) .. " puntando su " .. Name(all, b.pick) .. ".")) end
       elseif Now() > b.at + S.BET_WINDOW then
         Got(id, b.s, "sb", b.pick)
@@ -1568,7 +1664,7 @@ function S.ShowBet(a, b, gogna)
   local all = Members()
   if not (all[a] and all[b]) then return end
   if not bet then
-    bet = Dialog("ErPattoScommessa", 320, 172, "Ar Colosseo!")
+    bet = Dialog("ErPattoScommessa", 320, 196, "Ar Colosseo!")
     H.CloseX(bet)
     bet.text = H.Text(bet, "GameFontHighlight", "", 290, "CENTER")
     bet.text:SetPoint("TOP", 0, -32)
@@ -1577,19 +1673,33 @@ function S.ShowBet(a, b, gogna)
     bet.stake = H.Input(bet, 40, 4)
     if bet.stake.SetNumeric then bet.stake:SetNumeric(true) end
     bet.stake:SetPoint("TOPLEFT", 76, -74)
-    bet.note = H.Text(bet, "GameFontHighlightSmall", "piotte, chi indovina raddoppia", 160)
+    bet.note = H.Text(bet, "GameFontHighlightSmall", "piotte", 160)
     bet.note:SetPoint("TOPLEFT", 122, -78)
     local function pick(i)
       return function()
         if bet.closesAt and (GetTime and GetTime() or 0) > bet.closesAt + 0.5 then Report(bet, false, "Troppo tardi: er duello è partito.") return end
         local ok, msg = S.Bet(bet.a, bet.b, i == 1 and bet.a or bet.b, bet.stake:GetText())
         if Report(bet, ok, msg) then
-          Done(bet, "Hai puntato " .. Piotte(tonumber(bet.stake:GetText()) or 0) .. " su " .. Name(Members(), i == 1 and bet.a or bet.b) .. ".", 3)
+          local n = tonumber(bet.stake:GetText()) or 0
+          Done(bet, "Hai puntato " .. Piotte(n) .. " su " .. Name(Members(), i == 1 and bet.a or bet.b) .. " a " .. S.QuotaText(msg) ..
+            ": se vince, " .. Piotte(math.floor(n * msg / 100)) .. ".", 3)
         end
       end
     end
     bet.pa = H.Btn(bet, "", 120, pick(1)) bet.pa:SetPoint("BOTTOMRIGHT", bet, "BOTTOM", -6, 40)
     bet.pb = H.Btn(bet, "", 120, pick(2)) bet.pb:SetPoint("BOTTOMLEFT", bet, "BOTTOM", 6, 40)
+    -- the odds over each name (what a piotta pays back, and what the stake written would), the why in the tooltip
+    bet.qa = H.Text(bet, "GameFontNormal", "", 120, "CENTER") bet.qa:SetPoint("BOTTOM", bet.pa, "TOP", 0, 4)
+    bet.qb = H.Text(bet, "GameFontNormal", "", 120, "CENTER") bet.qb:SetPoint("BOTTOM", bet.pb, "TOP", 0, 4)
+    for i, btn in ipairs({ bet.pa, bet.pb }) do
+      btn:HookScript("OnEnter", function(self)
+        local a, b = bet.a, bet.b
+        if i == 2 then a, b = b, a end
+        if a and b then H.Tip(self, S.OddsLines(a, b)) end
+      end)
+      btn:HookScript("OnLeave", H.HideTip)
+    end
+    bet.stake:SetScript("OnTextChanged", function() if bet.Quotes then bet.Quotes() end end)
     bet.msg = H.Text(bet, "GameFontNormal", "", 270, "CENTER")
     bet.msg:SetPoint("BOTTOM", 0, 46)
     -- the seconds left to bet: the game's casting bar, emptying
@@ -1610,14 +1720,22 @@ function S.ShowBet(a, b, gogna)
     bar.text:SetPoint("CENTER", 0, 1)
     bet.bar = bar
     bet:SetScript("OnUpdate", function(self) S.BetTick() end)
-    bet.controls = { bet.pa, bet.pb, bet.label, bet.stake, bet.note }
+    bet.controls = { bet.pa, bet.pb, bet.label, bet.stake, bet.note, bet.qa, bet.qb }
   end
   Reset(bet)
   bet.a, bet.b = a, b
   bet.text:SetText(H.Colored(all[a]) .. " contro " .. H.Colored(all[b]) .. (gogna and ", a la gogna" or "") .. ".\nSu chi punti?")
   bet.pa:SetText(Short(all[a]))
   bet.pb:SetText(Short(all[b]))
+  bet.qA, bet.qB = S.Quota(a, b, all), S.Quota(b, a, all)
+  bet.Quotes = function()
+    local n = tonumber(bet.stake:GetText()) or 0
+    local function line(q) return GOLD .. "paga " .. S.QuotaText(q) .. "|r" .. (n > 0 and (GREY .. "  (" .. math.floor(n * q / 100) .. ")|r") or "") end
+    bet.qa:SetText(line(bet.qA))
+    bet.qb:SetText(line(bet.qB))
+  end
   bet.stake:SetText("5")
+  bet.Quotes()
   bet.shownAt = GetTime and GetTime() or 0
   -- on top, centred: under the cap bar when the bar is up there (as the clip after a duel)
   bet:ClearAllPoints()
@@ -1854,6 +1972,83 @@ function S.OpenSfotti(guid)
     r:SetShown(sfo.lines[i] ~= nil)
   end
   sfo:Show()
+end
+
+-- la taja from Li compari: piotte on his head, the first who beats him in a duel takes them
+local taj
+function S.OpenTaja(guid)
+  local all = Members()
+  if not all[guid] or guid == ns.recordGuid then return end
+  if not taj then
+    taj = Dialog("ErPattoTaja", 340, 176, "Taja")
+    taj.text = H.Text(taj, "GameFontHighlight", "", 300, "CENTER")
+    taj.text:SetPoint("TOP", 0, -32)
+    local l = H.Text(taj, "GameFontNormalSmall", "Taja", 60) l:SetPoint("TOPLEFT", 100, -92)
+    taj.stake = H.Input(taj, 40, 4)
+    if taj.stake.SetNumeric then taj.stake:SetNumeric(true) end
+    taj.stake:SetPoint("TOPLEFT", 140, -88)
+    local n = H.Text(taj, "GameFontHighlightSmall", "piotte", 60) n:SetPoint("TOPLEFT", 186, -92)
+    taj.yes = H.Btn(taj, "Metti", 120, function()
+      local ok, msg = S.Taja(taj.on, taj.stake:GetText())
+      if Report(taj, ok, msg) then Done(taj, "Taja messa su " .. Name(Members(), taj.on) .. ".", 3) end
+    end)
+    taj.no = H.Btn(taj, "Lassa stà", 120, function() taj:Hide() end)
+    TwoButtons(taj, "Metti", "Lassa stà")
+    taj.msg = H.Text(taj, "GameFontNormal", "", 300, "CENTER")
+    taj.msg:SetPoint("CENTER", 0, -20)
+    taj.controls = { taj.yes, taj.no, taj.stake, l, n }
+  end
+  Reset(taj)
+  taj.on = guid
+  taj.text:SetText("'Na taja su " .. H.Colored(all[guid]) .. ": chi lo batte a duello pe' primo\nse la pija. Si nessuno lo batte in 'na settimana, te torna.")
+  taj.stake:SetText("10")
+  taj:Show()
+end
+
+-- er faccione: one of the patto's faces over his whole screen, with Corona (Tombola.Faccione)
+local fac
+function S.OpenFaccione(guid)
+  local all = Members()
+  local TB = ns.Tombola
+  if not (TB and all[guid]) or guid == ns.recordGuid then return end
+  if not fac then
+    fac = Dialog("ErPattoFaccioneScegli", 360, 176, "Er faccione")
+    fac.text = H.Text(fac, "GameFontHighlight", "", 320, "CENTER")
+    fac.text:SetPoint("TOP", 0, -32)
+    fac.radios = {}
+    for i = 1, #TB.FACCIONE do
+      local r = H.Radio(fac, "", function() fac.pick = i for k, x in ipairs(fac.radios) do x:SetSelected(k == i) end end)
+      r:SetPoint("TOPLEFT", 90, -58 - (i - 1) * 22)
+      r:SetSize(220, 16)
+      fac.radios[i] = r
+    end
+    fac.yes = H.Btn(fac, "Manna!", 120, function()
+      local ok, t, online = TB.Faccione(fac.guid, fac.pick or 1)
+      if Report(fac, ok, t) then
+        if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
+        local who = Name(Members(), fac.guid)
+        if TB.Testing() then Done(fac, "Modalità prova: lo vedi solo te.", 3)
+        elseif online then Done(fac, "Mannato! " .. who .. " nun vede gnente pe' " .. t.s .. " secondi.", 4)
+        else Done(fac, who .. " nun è collegato: je arriva appena entra.", 4) end
+      end
+    end)
+    fac.no = H.Btn(fac, "Lassa stà", 120, function() fac:Hide() end)
+    TwoButtons(fac, "Manna!", "Lassa stà")
+    fac.msg = H.Text(fac, "GameFontNormal", "", 320, "CENTER")
+    fac.msg:SetPoint("CENTER", 0, -4)
+    fac.controls = { fac.yes, fac.no, fac.text }
+    for _, r in ipairs(fac.radios) do fac.controls[#fac.controls + 1] = r end
+  end
+  Reset(fac)
+  fac.guid, fac.pick = guid, 1
+  fac.title:SetText("Er faccione a " .. Short(all[guid]))
+  fac.text:SetText("'Na faccia der patto je copre lo schermo, co' la musica.")
+  for i, r in ipairs(fac.radios) do
+    local t = TB.FACCIONE[i]
+    r.text:SetText(t.s .. " secondi, " .. Piotte(t.p))
+    r:SetSelected(i == 1)
+  end
+  fac:Show()
 end
 
 -- er burattino: the master picks an emote, the loser's character does it (once every ten minutes)
@@ -2791,6 +2986,7 @@ local function AddMenu()
           root:CreateButton("Duello a la gogna", function() S.OpenDuel(guid, data.unit) end)
           root:CreateButton("Gufata", function() S.OpenGufa(guid) end)
           root:CreateButton("Sfotti", function() S.OpenSfotti(guid) end)
+          root:CreateButton("Er faccione", function() S.OpenFaccione(guid) end)
           if S.PuppetOf(guid) then root:CreateButton("Tira li fili", function() S.OpenPuppet(guid) end) end
           return
         end
