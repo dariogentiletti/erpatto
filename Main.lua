@@ -458,6 +458,8 @@ handlers.CHAT_MSG_ADDON = function(...) C.OnAddonMessage(...) end
 handlers.BN_CHAT_MSG_ADDON = function(...) C.OnBNAddon(...) end
 -- the patto's channel: its member list, and the notice that it refuses addon messages (WoW Forever)
 handlers.CHANNEL_ROSTER_UPDATE = function(index) C.OnRosterUpdate(index) end
+handlers.GUILD_ROSTER_UPDATE = function() if C.ReadGuild then C.ReadGuild() end end
+handlers.PLAYER_GUILD_UPDATE = function() if C.AskGuild then C.AskGuild() end end
 handlers.CHANNEL_COUNT_UPDATE = function(index) C.OnChannelCount(index) end
 handlers.CHAT_MSG_CHANNEL_NOTICE = function(...) C.OnChannelNotice(...) end
 handlers.PLAYER_MONEY = function() T.OnMoney() end

@@ -341,7 +341,7 @@ function P.CleanMember(r)
   c.nv = List(r.nv, 5, function(x)
     local k = Str(x.k, 8)
     if not (Str(x.g, 60) and Num(x.at, 0, 4e9) and (k == "gilda" or k == "gruppo" or k == "chat")) then return nil end
-    return { g = Str(x.g, 60), at = Num(x.at, 0, 4e9), k = k }
+    return { g = Str(x.g, 60), at = Num(x.at, 0, 4e9), k = k, v = Num(x.v, 1, 9) }
   end)
   c.dd = List(r.dd, 8, function(x)
     if not (Str(x.o, 60) and Num(x.at, 0, 4e9)) then return nil end

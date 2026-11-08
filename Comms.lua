@@ -2,6 +2,9 @@
 -- Transport: a hidden chat channel named from the code (password-protected). Where the channel can't carry addon
 -- messages (WoW Forever answers NOT_ALLOWED_IN_CHANNEL) it is only the meeting place: its member list says who of
 -- the patto is online, and the messages go to each of them as addon whispers.
+-- The guild: when the patto's members are in my guild, the guild carries the addon messages to all of them at
+-- once (one message instead of a whisper each, on any internal realm); only the members outside the guild still
+-- get whispers. Who is in it comes from the guild roster, by character guid.
 -- Sync: everyone keeps a copy of everything and passes on what others are missing ("passaparola").
 -- Limits respected: 255-byte messages (chunked), ~1 message/s per prefix (token bucket), no sends inside instances.
 local ADDON, ns = ...
@@ -24,6 +27,10 @@ local queue, tokens, lastTick = {}, BUCKET_MAX, nil
 local partsIn = {}
 local seen, nameOf = {}, {}
 local whisperPeers = {} -- members who can only be reached by whisper (their channel failed)
+local guildSet = {}     -- guid -> true: patto members in my guild (from its roster)
+local guildOnline = {}  -- guid -> true: of those, the ones online now
+local guildHeard = {}   -- guid -> clock: heard through the guild
+local guildFail = false -- the game refused an addon message to the guild: whispers as before
 local chanBlocked = false -- the channel is there, but addon messages in it are refused: whispers to the roster
 local roster, rosterOK, displayIdx = {}, false, nil -- guid -> name of who is in the patto's channel now
 -- names to start from when we know nobody yet: who invited us, or the name written next to the code
@@ -259,18 +266,63 @@ local function Enqueue(kind, target, body, urgent, key)
   end
 end
 
+-- the guild as the patto's channel: I'm in a guild, the game didn't refuse it, and someone of the patto is in it
+local function GuildOn()
+  if guildFail or not (IsInGuild and IsInGuild()) then return false end
+  return next(guildSet) ~= nil
+end
+C.GuildOn = GuildOn
+-- the patto's members in my guild, from its roster (by character guid; a name alone only when it's whole)
+function C.ReadGuild()
+  if not (state and IsInGuild and IsInGuild() and GetNumGuildMembers and GetGuildRosterInfo) then guildSet, guildOnline = {}, {} return end
+  local ok, n = pcall(GetNumGuildMembers)
+  if not ok or type(n) ~= "number" or n <= 0 then return end
+  local byName = {}
+  for g, rec in pairs(state.members) do if type(rec.name) == "string" and rec.name:find(" ") then byName[rec.name] = g end end
+  local set, on = {}, {}
+  for i = 1, math.min(n, 1000) do
+    local okr, name, _, _, _, _, _, _, _, online, _, _, _, _, _, _, _, guid = pcall(GetGuildRosterInfo, i)
+    if okr then
+      local g = type(guid) == "string" and not U.IsSecret(guid) and state.members[guid] and guid or nil
+      if not g and type(name) == "string" and not U.IsSecret(name) then g = byName[name] or byName[(name:gsub("%-.*$", ""))] end
+      if g and g ~= me then
+        set[g] = true
+        if online == true then on[g] = true end
+      end
+    end
+  end
+  local had = next(guildSet) ~= nil
+  guildSet, guildOnline = set, on
+  local count = 0
+  for _ in pairs(set) do count = count + 1 end
+  if not had and count > 0 then
+    U.Log("Comms", "gilda: " .. count .. " der patto ce stanno, li messaggi passano da la gilda")
+    C.stats.mode = "gilda"
+  end
+end
+-- the guild's roster: asked at the start and once a minute (the answer comes as GUILD_ROSTER_UPDATE)
+function C.AskGuild()
+  if not (IsInGuild and IsInGuild()) then return end
+  if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) elseif GuildRoster then pcall(GuildRoster) end
+  C.ReadGuild()
+end
+function C.InGuild(guid) return GuildOn() and guildSet[guid] == true end
+function C.GuildOnline(guid) return GuildOn() and guildOnline[guid] == true end
+
 -- who to whisper: who is in the patto's channel (when its list is known), and who wrote to us lately;
--- without the list, hellos go to every member we know by name
+-- without the list, hellos go to every member we know by name. The ones the guild reaches are left out.
 local function WhisperTargets(isHello)
   local out, done = {}, {}
-  local function add(who)
+  local guild = GuildOn()
+  local function add(who, g)
+    if guild and g and guildSet[g] then return end
     if type(who) == "string" and who ~= "" and not done[who] then done[who] = true out[#out + 1] = who end
   end
-  for g, who in pairs(roster) do if g ~= me then add(who) end end
+  for g, who in pairs(roster) do if g ~= me then add(who, g) end end
   local now = Clock()
   -- whoever wrote to us lately, member or not yet (someone just come in with the code)
   for g, t in pairs(seen) do
-    if g ~= me and nameOf[g] and now - t < ONLINE_WINDOW then add(nameOf[g]) end
+    if g ~= me and nameOf[g] and now - t < ONLINE_WINDOW then add(nameOf[g], g) end
   end
   -- a hello goes to every member we know, online or not: on Forever the channel splits the realm in islands
   -- (each internal realm its own copy of the channel), whispers reach everyone; the offline ones' "no player
@@ -278,7 +330,7 @@ local function WhisperTargets(isHello)
   for g, rec in pairs(state and state.members or {}) do
     if g ~= me then
       local who = nameOf[g] or rec.name
-      if (seen[g] and now - seen[g] < ONLINE_WINDOW) or isHello then add(who) end
+      if (seen[g] and now - seen[g] < ONLINE_WINDOW) or isHello then add(who, g) end
     end
   end
   if isHello then for who in pairs(seeds) do if who ~= myName then add(who) end end end
@@ -300,12 +352,24 @@ end
 
 -- no channel to speak in (refused, as on Forever, or never joined): every message is whispered
 local function Whispering()
+  if GuildOn() then return false end
   return chanBlocked or not CurrentChannelId()
 end
 C.Whispering = Whispering
 
 local function Broadcast(body, urgent, key)
   chanId = CurrentChannelId()
+  if GuildOn() then
+    -- the guild once (everyone of the patto in it), then my group and a whisper to the members outside it
+    Enqueue("GUILD", nil, body, urgent, key and (key .. ">guild"))
+    local gk = GroupKind()
+    local out = WhisperTargets(body:sub(1, 1) == "H")
+    if gk and #out > 0 then Enqueue(gk, nil, body, urgent, key and (key .. ">group")) end
+    for _, who in ipairs(out) do
+      if not (gk and InMyGroup(who)) then Enqueue("WHISPER", who, body, urgent, key) end
+    end
+    return
+  end
   if chanBlocked or not chanId then
     -- my group once (everyone in it), then a whisper to each one outside it
     local gk = GroupKind()
@@ -411,6 +475,12 @@ local function Tick()
       C.stats.dropped = C.stats.dropped + 1
       U.Log("Comms", "invio fallito", item[1], item[2], ok and res or "errore")
       if item[1] == "CHANNEL" then chanId = nil end
+      -- the guild refused it: back to whispers for this session
+      if item[1] == "GUILD" and not guildFail then
+        guildFail = true
+        C.stats.mode = "sussurri"
+        U.Log("Comms", "la gilda nun porta li messaggi: torno ai sussurri")
+      end
     end
   end
 end
@@ -435,7 +505,9 @@ end
 -- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
 local introduced = {}
 newPeer = function(guid, name, urgent)
-  if not state or not Whispering() or type(name) ~= "string" then return end
+  if not state or type(name) ~= "string" then return end
+  -- through the guild everyone hears my hello anyway: a whisper only for who is outside it
+  if not Whispering() and not (GuildOn() and not guildSet[guid]) then return end
   if introduced[guid] and Clock() - introduced[guid] < 60 then return end
   introduced[guid] = Clock()
   U.Log("Comms", urgent and "novo ner patto:" or "ner canale c'è", name)
@@ -565,8 +637,9 @@ local function OnHello(from, h, sender)
     U.Say("quarcuno usa 'na versione più nova. Aggiorna l'addon su CurseForge.")
   end
   local theyNewer = false
-  -- whispering (Forever): what they miss goes to them alone
-  local to = Whispering() and type(sender) == "string" and sender or nil
+  -- whispering (Forever), or through the guild: what they miss goes to them alone (whispered, each friend his own
+  -- record: they come in parallel, none twice); in a real channel everyone hears the answers
+  local to = (Whispering() or GuildOn()) and type(sender) == "string" and sender or nil
   local tag = to and (">" .. to) or ""
   local function cmp(kind, mine, theirs)
     theirs = type(theirs) == "number" and theirs or 0
@@ -676,6 +749,11 @@ local function Handle(body, sender, channel)
   seen[from] = Clock()
   firstHeardAt = firstHeardAt or Clock()
   if type(sender) == "string" then nameOf[from] = sender end
+  -- heard through the guild: they're in it, the guild reaches them (before its roster says so)
+  if channel == "GUILD" then
+    guildHeard[from] = Clock()
+    if not guildSet[from] and state.members[from] then guildSet[from] = true guildOnline[from] = true end
+  end
   -- back after a while (or heard for the first time): what was waiting for them goes now (a sfottò)
   if not wasOn then ns.Fire("PeerOnline", from) end
   if channel == "WHISPER" and type(sender) == "string" and CurrentChannelId() and not chanBlocked then
@@ -777,7 +855,7 @@ local function Handle(body, sender, channel)
         local last = askedFull[from]
         if type(sender) == "string" and (not last or Clock() - last > 20) then
           askedFull[from] = Clock()
-          Schedule("H:" .. from .. ":full", function() C.HelloTo(Whispering() and sender or nil) end)
+          Schedule("H:" .. from .. ":full", function() C.HelloTo((Whispering() or GuildOn()) and sender or nil) end)
         end
       end
     end
@@ -796,7 +874,7 @@ local function Handle(body, sender, channel)
       -- whispering, a member we hear of for the first time gets a hello from us: no waiting for the next round
       if not old and data.guid ~= me and not seen[data.guid] then newPeer(data.guid, nameOf[data.guid] or rec.name) end
       -- someone new, heard from them directly: the others online hear of them in one message, and say hello at once
-      if not old and data.guid == from and Whispering() and type(sender) == "string" then
+      if not old and data.guid == from and (Whispering() or GuildOn()) and type(sender) == "string" then
         Broadcast(Body("N", { g = from, n = sender }), true, nil)
       end
       ns.Fire("MemberUpdated", rec, old or nil)
@@ -987,6 +1065,8 @@ function C.Start(st, myGuid, playerName)
   chanName, chanPw = P.ChannelName(st.code), P.ChannelPassword(st.code)
   chanId = nil
   queue, pendingSends, partsIn, whisperPeers = {}, {}, {}, {}
+  guildSet, guildOnline, guildHeard, guildFail = {}, {}, {}, false
+  C.AskGuild()
   roster, rosterOK, displayIdx = {}, false, nil
   chanBlocked = ForeverClient()
   seeds = {}
@@ -1003,13 +1083,27 @@ function C.Start(st, myGuid, playerName)
       if mine and mine.fresh and firstHeardAt and Clock() - firstHeardAt > 60 then
         P.UpdateSelf(state, me, { fresh = false }, "fresh")
       end
+      -- the guild says friends are online, but in five minutes not one message came through it (it doesn't carry
+      -- them here, or they all have an older addon): back to whispers
+      if GuildOn() and Clock() - (C.startedAt or 0) > 300 and not next(guildHeard) then
+        local anyone = false
+        for g in pairs(guildOnline) do if seen[g] and Clock() - seen[g] < ONLINE_WINDOW then anyone = true end end
+        if anyone then
+          guildFail = true
+          C.stats.mode = "sussurri"
+          U.Log("Comms", "da la gilda nun arriva gnente: torno ai sussurri")
+        end
+      end
       -- still waiting for the patto's data (a whisper lost on the way): ask again every 20 seconds, not every 2 minutes
       local every = (state and not P.HasSettings(state)) and 20 or (Whispering() and C.HELLO_WHISPER or HELLO_EVERY)
       if state and Clock() - lastHelloAt >= every then C.Hello() end
     end)
   end
   -- the channel's list, once a minute (a dozen names at most to read)
-  if not C.rosterTicker then C.rosterTicker = C_Timer.NewTicker(60, function() if state and chanBlocked then C.RefreshRoster() end end) end
+  if not C.rosterTicker then C.rosterTicker = C_Timer.NewTicker(60, function()
+    if state and chanBlocked then C.RefreshRoster() end
+    if state then C.AskGuild() end
+  end) end
   if not C.filterSet and type(ChatFrame_AddMessageEventFilter) == "function" then
     ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", SystemFilter)
     C.filterSet = true

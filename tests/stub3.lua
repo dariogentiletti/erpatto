@@ -68,3 +68,14 @@ GROUPMATES = {}
 IsInGroup = function() return #GROUPMATES > 0 end
 IsInRaid = function() return false end
 UnitName = function(u) local i = type(u) == "string" and u:match("^party(%d)$") if i then return GROUPMATES[tonumber(i)] end return nil end
+-- the guild: the harness puts in GUILDROSTER everyone of the same GUILDNAME ({ name, guid, online })
+GUILDNAME = nil
+GUILDROSTER = {}
+IsInGuild = function() return GUILDNAME ~= nil end
+GetNumGuildMembers = function() return #GUILDROSTER end
+GetGuildRosterInfo = function(i)
+  local r = GUILDROSTER[i]
+  if not r then return nil end
+  return r.name, "Membro", 1, 20, "Mago", "Zona", "", "", r.online, 0, "MAGE", 0, 0, false, false, 0, r.guid
+end
+C_GuildInfo = { GuildRoster = function() end }

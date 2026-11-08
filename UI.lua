@@ -1656,7 +1656,7 @@ local function RefreshImp(v)
   local mode = C.stats.mode
   local online = 0
   for g in pairs(state.members) do if g ~= ns.recordGuid and C.IsOnline(g) then online = online + 1 end end
-  local col = mode == "canale" and "ff40ff40" or (mode == "sussurri" and "ffffd100" or "ff9d9d9d")
+  local col = (mode == "canale" or mode == "gilda") and "ff40ff40" or (mode == "sussurri" and "ffffd100" or "ff9d9d9d")
   v.link:SetText("Collegamento: |c" .. col .. mode .. "|r, " .. online .. " online")
   for _, c in ipairs(v.checks) do c.Sync() end
   if ns.alt then

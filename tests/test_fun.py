@@ -845,6 +845,19 @@ check(rep['Player-1-AAA'] is not None and rep['Player-1-CCC'] is not None and an
 A.ns.UI.Show('capo')
 check(A.has('spento'), 'Capo, Membri: "addon spento" by their names')
 check(any('addon spento' in n for n in A.news()), 'and the capo reads it in the news')
+# on Forever everyone is "Er Something" and the game often gives just "Er": that must never point at someone
+B.lua.eval('''function(st)
+  st.members["G-CANARO"] = { guid = "G-CANARO", name = "Er Canaro", up = 1, lv = 20, stats = { t = {}, w = {} } }
+  st.members["G-NIA"] = { guid = "G-NIA", name = "Er Nia", up = 1, lv = 20, stats = { t = {}, w = {} } }
+end''')(B.ns.state)
+W = B.ns.Guardia.Who
+check(W(None, 'Er') is None and W(None, 'Er-Realm') is None and W('G-CANARO', 'Er') == 'G-CANARO' and W(None, 'Er Nia') == 'G-NIA',
+      'la guardia: "Er" alone is nobody, the guid (or the whole name) says who')
+old = B.lua.eval('function(rec) rec.nv = { { g = "Player-1-AAA", at = %d, k = "gilda" } } end' % int(T[0]))(B.rec())
+repB = B.ns.Guardia.Report()['Player-1-AAA']
+check(repB is None or all('gilda' not in str(l) for l in repB.lines.values()),
+      'and a sighting written the old way (by first name) is not believed')
+B.lua.eval('function(st) st.members["G-CANARO"] = nil st.members["G-NIA"] = nil end')(B.ns.state)
 # er Giampaolato: a jump, "ahia" or "basta"; a /thanks, er Cerbero
 A.ns.db.opts.testMode = True
 for _ in range(12):

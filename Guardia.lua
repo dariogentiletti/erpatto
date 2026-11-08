@@ -17,6 +17,8 @@ G.GAP = 600          -- ten minutes played without the addon count
 G.SILENT = 600       -- seen online, addon silent for ten minutes
 G.AGAIN = 6 * 3600   -- the same sighting at most once every six hours
 G.KIND = { gilda = "online in gilda", gruppo = "in gruppo", chat = "scriveva in chat" }
+-- the sightings written before 1.0.15 matched names by their first word ("Er"): on Forever that pointed at
+-- anyone, so only the ones marked by guid (v = 2) are believed
 
 local function Now() return U.Now() end
 local function Clock() return GetTime and GetTime() or 0 end
@@ -62,15 +64,28 @@ end
 -- 2. the others: online, but their addon is silent
 ----------------------------------------------------------------------
 local cand = {} -- guid -> { first = clock, k = kind }
+-- members by name: the whole name, and the first word only when nobody else has it (on Forever everybody is
+-- "Er Something" and the game often says just "Er": that would point at anyone)
 local function ByName()
-  local out = {}
+  local out, first, dup = {}, {}, {}
   for g, m in pairs(ns.state and ns.state.members or {}) do
     if g ~= ns.recordGuid and type(m.name) == "string" then
       out[m.name] = g
-      out[m.name:match("^([^%s%-]+)") or m.name] = g
+      local f = m.name:match("^([^%s%-]+)") or m.name
+      if first[f] and first[f] ~= g then dup[f] = true end
+      first[f] = g
     end
   end
+  for f, g in pairs(first) do if not dup[f] and not out[f] then out[f] = g end end
   return out
+end
+-- a member by the character's guid (it never mistakes one for another), else by a name that says who it is
+local function Who(guid, name, names)
+  local m = ns.state and type(guid) == "string" and not U.IsSecret(guid) and ns.state.members[guid]
+  if m then return guid ~= ns.recordGuid and guid or nil end
+  if type(name) ~= "string" or U.IsSecret(name) then return nil end
+  names = names or ByName()
+  return names[name] or names[name:match("^([^%-]+)") or name]
 end
 local function Silent(guid)
   local C = ns.C
@@ -100,7 +115,7 @@ local function Settle()
       for _, x in ipairs(rec.nv or {}) do if x.g == guid and Now() - (x.at or 0) < G.AGAIN then recent = true end end
       if not recent then
         list = list or { unpack(rec.nv or {}) }
-        table.insert(list, 1, { g = guid, at = Now(), k = c.k })
+        table.insert(list, 1, { g = guid, at = Now(), k = c.k, v = 2 })
         while #list > 5 do table.remove(list) end
       end
     end
@@ -117,7 +132,7 @@ local function LookGroup()
   for i = 1, raid and 40 or 4 do
     local u = (raid and "raid" or "party") .. i
     local n = U.FullName(u)
-    local g = n and (names[n] or names[U.Short(n)])
+    local g = Who(UnitGUID and U.Plain(UnitGUID(u), "string"), n, names)
     if g then
       local okc, on = pcall(UnitIsConnected, u)
       if okc and on == true then Saw(g, "gruppo") end
@@ -134,18 +149,17 @@ local function LookGuild()
   local ok, n = pcall(GetNumGuildMembers)
   if not ok or type(n) ~= "number" then return end
   for i = 1, math.min(n, 1000) do
-    local okr, name, _, _, _, _, _, _, _, online = pcall(GetGuildRosterInfo, i)
-    if okr and type(name) == "string" and not U.IsSecret(name) and online == true then
-      local g = names[name] or names[name:match("^([^%-]+)") or name]
+    local okr, name, _, _, _, _, _, _, _, online, _, _, _, _, _, _, _, guid = pcall(GetGuildRosterInfo, i)
+    if okr and online == true then
+      local g = Who(guid, name, names)
       if g then Saw(g, "gilda") end
     end
   end
 end
 
-function G.OnChat(author)
-  if not (Ready() and type(author) == "string") or U.IsSecret(author) then return end
-  local names = ByName()
-  local g = names[author] or names[author:match("^([^%-]+)") or author]
+function G.OnChat(author, guid)
+  if not Ready() then return end
+  local g = Who(guid, author)
   if g then Saw(g, "chat") end
 end
 
@@ -168,7 +182,7 @@ function G.Report()
       end
     end
     for _, x in ipairs(m.nv or {}) do
-      if all[x.g] and (x.at or 0) >= week then
+      if all[x.g] and (x.at or 0) >= week and x.v == 2 then
         local r = get(x.g)
         r.at = math.max(r.at, x.at or 0)
         r.lines[#r.lines + 1] = U.Day(x.at) .. ": " .. (G.KIND[x.k] or "online") .. " co' l'addon spento (l'ha visto " .. Short(m) .. ")"
@@ -200,10 +214,14 @@ for _, e in ipairs({ "TIME_PLAYED_MSG", "GUILD_ROSTER_UPDATE", "CHAT_MSG_SAY", "
   "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_WHISPER" }) do
   pcall(frame.RegisterEvent, frame, e)
 end
-frame:SetScript("OnEvent", function(_, event, a, b)
+frame:SetScript("OnEvent", function(_, event, a, b, ...)
   if event == "TIME_PLAYED_MSG" then pcall(G.OnPlayed, a) if C_Timer then C_Timer.After(0, G.Loud) end
   elseif event == "GUILD_ROSTER_UPDATE" then pcall(LookGuild)
-  else pcall(G.OnChat, b) end
+  else
+    -- the chat events carry the author's guid as their twelfth argument
+    local guid = select(10, ...)
+    pcall(G.OnChat, b, guid)
+  end
 end)
 
 -- ask /played once per login, without the line in the chat windows (they listen again when the answer is in)
@@ -235,4 +253,4 @@ ns.On("Login", function()
     if IsInGuild and IsInGuild() and C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
   end)
 end)
-G.Settle, G.LookGroup, G.LookGuild, G.Tell = Settle, LookGroup, LookGuild, Tell
+G.Settle, G.LookGroup, G.LookGuild, G.Tell, G.Who = Settle, LookGroup, LookGuild, Tell, Who

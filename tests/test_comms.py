@@ -39,6 +39,9 @@ def step(n=1, dt=0.25):
                     c.g.ROSTER_LATE = None
                     c.ns.C.OnRosterUpdate(1)
             c.g.NOWV = T[0]
+            if c.g.GUILDNAME:
+                c.g.GUILDROSTER = c.lua.table_from([c.lua.table_from({'name': d.name, 'guid': d.guid, 'online': d.online})
+                    for d in clients.values() if d.g.GUILDNAME == c.g.GUILDNAME])
             if c.online: c.g.RUN_TIMERS()
         for c in clients.values():
             if not c.online:
@@ -53,6 +56,8 @@ def step(n=1, dt=0.25):
                         continue
                     if m.kind == 'CHANNEL' and d.g.JOINED and d.g.JOINED == c.g.JOINED:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, 'CHANNEL', c.name, '', 0, 7, d.g.JOINED)
+                    elif m.kind == 'GUILD' and c.g.GUILDNAME and d.g.GUILDNAME == c.g.GUILDNAME:
+                        d.ns.C.OnAddonMessage(m.prefix, m.text, 'GUILD', c.name, '')
                     elif m.kind in ('PARTY', 'RAID') and c.g.GROUP and d.g.GROUP == c.g.GROUP:
                         d.ns.C.OnAddonMessage(m.prefix, m.text, m.kind, c.name, '', 0, 0, '')
                     elif m.kind == 'BN' and m.target == d.g.BNID:
