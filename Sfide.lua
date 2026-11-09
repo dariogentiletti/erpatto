@@ -36,10 +36,11 @@ local DAY = 86400
 S.PENDING = DAY           -- a sfida waits a day for the answer
 -- the yes is the game's own: the challenge sends the duel request, accepting it is accepting the gogna
 S.DUEL_WINDOW = 600       -- the duel after the request counts if it ends within ten minutes
--- a round a la gogna counts only if its duel request was accepted (the duel countdown started, marked x = 3 by one
--- of the two) within ACCEPT_WIN of the request; a request not accepted by then, turned down, or followed by another
--- duel request between the two (a normal one) is void: a normal duel after it never counts a la gogna.
--- (Rounds before ACCEPT_SINCE, 1.0.12, keep the old rule: their results stay.)
+-- a round a la gogna counts with the first duel the two fight after its request, unless the request was turned
+-- down (the game ends it without a duel) or another duel request came between the two (a normal one) first:
+-- then it's void (x = 2) and a normal duel after it never counts a la gogna. Where the game tells the countdown
+-- (x = 3, written by one of the two) the patto hears at once that it was accepted; WoW Forever doesn't tell it,
+-- so there the duel itself says so. (Rounds before ACCEPT_SINCE, 1.0.12, keep the old rule: their results stay.)
 S.ACCEPT_WIN = 90
 S.ACCEPT_SINCE = 1794089000
 S.RV_ASK = 600            -- the loser has ten minutes to ask for la rivincita (or la bella)
@@ -463,13 +464,18 @@ function S.Series(all)
         local d
         if not newRule then
           d = FirstDuel(all, cur.from, cur.to, math.max(t0 - SLACK, prev and (prev.at + 1) or 0))
-        elseif acc and not off then
-          d = FirstDuel(all, cur.from, cur.to, math.max(acc.at - 5, prev and (prev.at + 1) or 0))
+        elseif not off or acc then
+          -- the duel fought after the request: accepted (the countdown, where the game tells it) or not, the duel
+          -- itself says it was accepted. Only a void written before it (turned down, another duel request between
+          -- the two) takes it away; a void written after it is the end of that same duel
+          d = FirstDuel(all, cur.from, cur.to, math.max((acc and acc.at or t0) - 5, prev and (prev.at + 1) or 0))
+        else
+          d = FirstDuel(all, cur.from, cur.to, math.max(t0 - 5, prev and (prev.at + 1) or 0))
+          if d and off.at <= d.at then d = nil elseif d then off = nil end
         end
         if d and d.at > t0 + fightWin then d = nil end
         if not d then
-          -- the duel request turned down (x = 2, written by either of the two), never accepted, or never fought
-          if newRule and not acc and not off and now - t0 > S.ACCEPT_WIN then off = { at = t0 + S.ACCEPT_WIN } end
+          -- the duel request turned down (x = 2, written by either of the two), or never fought in its time
           if off then s.refused = { n = n, id = cur.id, from = cur.from, to = cur.to, at = off.at } end
           if not off and now - t0 <= fightWin then s.state, s.cur, s.n, s.acc = "incorso", cur, n, acc
           elseif n == 1 then s.state = "nunfatto"
@@ -693,6 +699,7 @@ local function StartTheDuel(guid, hint)
   sendingGogna = true
   local ok = pcall(StartDuel, u)
   sendingGogna = false
+  if ok then S.DuelAsked() end
   if not ok then return false, "Er duello nun è partito: riprova." end
   return true
 end
@@ -779,6 +786,7 @@ end
 -- my duel requests: the ones of a round a la gogna go through StartTheDuel; any other one voids my pending round
 if type(hooksecurefunc) == "function" and StartDuel then
   hooksecurefunc("StartDuel", function()
+    S.DuelAsked()
     if sendingGogna or not ns.state or ns.alt then return end
     local x, o = PendingRound()
     if x and x.cur.from == ns.recordGuid then pcall(VoidRound, x, o, "n'antra richiesta de duello mia") end
@@ -3007,9 +3015,11 @@ local duelOn
 function S.InDuel()
   return duelOn ~= nil and (GetTime and GetTime() or 0) - duelOn < 600
 end
+-- (WoW Forever has no countdown event: a duel request, asked or received, counts until the game ends it)
+function S.DuelAsked() duelOn = duelOn or (GetTime and GetTime() or 0) end
 local frame = CreateFrame("Frame")
 frame:SetScript("OnEvent", function(_, event, ...)
-  if event == "DUEL_REQUESTED" then pcall(OnDuelRequested, ...)
+  if event == "DUEL_REQUESTED" then S.DuelAsked() pcall(OnDuelRequested, ...)
   elseif event == "DUEL_COUNTDOWN" then duelOn = GetTime and GetTime() or 0 pcall(S.DuelStarts)
   elseif event == "DUEL_FINISHED" then
     duelOn = nil

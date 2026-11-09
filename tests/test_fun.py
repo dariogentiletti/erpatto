@@ -1092,8 +1092,10 @@ secs(200)
 A.g.TARGETNAME = 'Nando'
 r = A.ns.Sfide.Gogna('Player-1-NNN', 'target'); secs(3)
 check(first(r) is not False, 'Dario throws a duello a la gogna at Nando: ' + str(r))
-# 1) Nando never accepts it; two minutes later they fight a normal duel: it's not a la gogna
+# 1) Nando never accepts it; two minutes later Dario asks him a normal duel and they fight it: not a la gogna
 secs(120)
+N.g.FIRE('DUEL_REQUESTED', 'Dario')
+secs(2)
 duel(A, N)
 s1 = series_with(A, 'Player-1-NNN')
 check(s1 is not None and str(s1.state) != 'chiusa' and A.ns.Sfide.AtGogna('Player-1-NNN') is None,
@@ -1105,12 +1107,18 @@ for x in (A, N): x.g.FIRE('DUEL_FINISHED')
 secs(6)
 duel(A, N)
 check(A.ns.Sfide.AtGogna('Player-1-NNN') is None, 'turned down, then a normal duel: Nando is NOT a la gogna')
-# 3) and one accepted and fought: that one counts
+# 3) and one accepted and fought, on WoW Forever (no countdown event), a long duel: that one counts, and nobody
+# is told he ran away while they fight
 secs(200)
 r = A.ns.Sfide.Gogna('Player-1-NNN', 'target'); secs(3)
-duel(A, N)
+T[0] += 100; secs(5)
+check(not any('cagato' in n for n in B.news() + C.news()), 'a long duel, no countdown: nobody hears he ran away')
+duel(A, N, accepted=False)
 s3 = series_with(A, 'Player-1-NNN')
-check(s3 is not None and str(s3.state) in ('rivincita', 'chiusa') and len(list(s3.duels.values())) == 1, 'accepted and fought: the duel counts a la gogna (%s)' % (s3 and s3.state))
+check(s3 is not None and str(s3.state) in ('rivincita', 'chiusa') and len(list(s3.duels.values())) == 1, 'accepted and fought (no countdown): the duel counts a la gogna (%s)' % (s3 and s3.state))
+sN = series_with(N, 'Player-1-AAA')
+check(sN is not None and str(sN.state) == str(s3.state), 'and Nando reads it the same (%s)' % (sN and sN.state))
+check(any('accettato' in n for n in B.news()), 'the patto hears he took it')
 A.g.TARGETNAME = 'Pietro'
 
 # the capo gives the squadra more hours in the middle of the week: the cap goes up now, for him and for Pietro
