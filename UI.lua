@@ -1077,7 +1077,8 @@ local function BuildWelcome()
   v.go = go
 end
 
--- an alt of a member: nothing of the patto until this character joins as one of its own
+-- another character of the account is in a patto: nothing of it here until this one joins as one of its own.
+-- Linked as an alt only if the player asks (the friends see it under the main), and unlinked the same way
 local function BuildAlt()
   local v = NewView("alt")
   local b = Box(v, 744, 452)
@@ -1086,15 +1087,21 @@ local function BuildAlt()
   t:SetPoint("TOPLEFT", 16, -16)
   v.text = Text(b, "GameFontHighlight", "", 700)
   v.text:SetPoint("TOPLEFT", 16, -44)
-  v.err = Text(b, "GameFontRedSmall", "", 500)
-  v.err:SetPoint("TOPLEFT", 16, -132)
   v.join = Btn(b, "Entra co' 'sto personaggio", 210, function()
-    if not ns.state then return end
-    local ok, e = ns.JoinPatto(ns.state.code)
+    local st = ns.state or ns.AccountPatto()
+    if not st then return end
+    local ok, e = ns.JoinPatto(st.code)
     if ok == nil or ok == false then v.err:SetText(e or "Nun so' riuscito a entrà.") end
-    UI.Refresh()
   end)
-  v.join:SetPoint("TOPLEFT", 16, -100)
+  v.join:SetPoint("TOPLEFT", v.text, "BOTTOMLEFT", 0, -16)
+  v.link = Btn(b, "", 210, function()
+    if ns.alt then ns.UnlinkAlt() else ns.LinkAlt() end
+  end)
+  v.link:SetPoint("LEFT", v.join, "RIGHT", 10, 0)
+  v.link:SetScript("OnEnter", function(self) if self.tip then Tip(self, self.tip) end end)
+  v.link:SetScript("OnLeave", HideTip)
+  v.err = Text(b, "GameFontRedSmall", "", 500)
+  v.err:SetPoint("TOPLEFT", v.join, "BOTTOMLEFT", 0, -10)
 end
 
 local function BuildCreate()
@@ -2127,7 +2134,8 @@ function UI.Refresh()
   Safe(function()
     local state = ns.state
     for _, v in pairs(views) do v:Hide() end
-    if not state then
+    local acct = not state and ns.AccountPatto and ns.AccountPatto() or nil
+    if not state and not acct then
       for _, b in ipairs(tabs) do b:Hide() end
       LayoutTabs()
       f.SetTitle("Er Patto")
@@ -2141,17 +2149,26 @@ function UI.Refresh()
       end
       return
     end
-    -- an alt sees nothing of the patto: only the way in, as a member of its own
-    if ns.alt then
+    -- another character of the account is in a patto: this one sees nothing of it, only the way in (as a member
+    -- of its own), and the link as an alt, which only the player turns on
+    if ns.alt or acct then
+      local st = state or acct
       for _, b in ipairs(tabs) do b:Hide() end
       LayoutTabs()
-      f.SetTitle(P.HasSettings(state) and tostring(state.settings.name) or "Er Patto")
+      f.SetTitle(P.HasSettings(st) and tostring(st.settings.name) or "Er Patto")
       f.info:SetText("|cff9d9d9dStai co' 'n alt|r")
       f.alert:SetText("")
-      local main = ns.state.members[ns.recordGuid]
-      views.alt.text:SetText("'Sto personaggio è 'n alt" .. (main and (" de " .. tostring(main.name)) or "") .. ". Co' l'alt nun vedi gnente der patto e nun pòi giocà a gnente.\n\n" ..
+      local main = st.members[ns.alt and ns.recordGuid or st.main]
+      local name = tostring(main and main.name or "?")
+      local v = views.alt
+      v.text:SetText((ns.alt and ("'Sto personaggio è collegato come alt de " .. name .. ": l'amichi lo vedono sotto de lui, co' nome e livello.")
+          or ("'Sto personaggio nun sta ner patto de " .. name .. ": l'amichi nun lo vedono.")) ..
+        " Co' l'alt nun vedi gnente der patto e nun pòi giocà a gnente.\n\n" ..
         "Si vòi, entra co' 'sto personaggio: diventa 'n membro come l'artri, co' la squadra sua, er cap suo e le piotte sue. Er main nun pò scommette su de lui.")
-      views.alt:Show()
+      v.link:SetText(ns.alt and "Scollegalo" or "Collegalo come alt")
+      v.link.tip = ns.alt and { "Scollegalo", "Esce dar patto: sparisce da sotto " .. name .. " appena entri co' " .. name .. "." }
+        or { "Collegalo come alt", "L'amichi lo vedono sotto " .. name .. ", co' nome e livello. Nun conta pe' gnente." }
+      v:Show()
       return
     end
     local admin = ns.CanAdmin()

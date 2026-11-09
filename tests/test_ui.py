@@ -571,6 +571,33 @@ A.ns.Diag.Toggle(); A.ns.Diag.EnvReport()
 check(any('[Patto] codice' in str(x) for x in A.g.ErPattoDB.log.values()), 'diag report includes patto status')
 check(A.g.ErPattoDiagFrame.shown, 'one /patto diag opens the window')
 A.ns.Diag.Toggle()  # the log quotes the stub's raw values; close it before the "nil" check
+# an alt linked, then unlinked: the friends' copy of the main follows, the list emptied too
+code = str(A.ns.state.code)
+A.lua.eval('function(code) ErPattoDB.chars["Player-1-OLD"] = { name = "Vecchio", lv = 5, alt = code } end')(code)
+A.ns.T.RefreshSelf('alts'); secs(10)
+ba = B.ns.state.members[A.guid].alts
+check(ba and ba[1] and str(ba[1].name) == 'Vecchio', "friends see a linked alt under the main")
+# unlinked from the alt (another session of the account): the main's next session sends the list without it
+A.g.ErPattoDB.chars['Player-1-OLD'].alt = None
+A.g.FIRE('PLAYER_LOGIN'); A.g.FIRE('PLAYER_ENTERING_WORLD'); secs(300)
+ba = B.ns.state.members[A.guid].alts
+check(not (ba and ba[1]), "an unlinked alt leaves the friends' copy of the main at the main's next session")
+# another character of A's account: out of the patto until the player links it or joins with it
+D = Client('Player-1-DDD', 'Dariolo')
+D.g.ErPattoDB = D.ns.U.Deserialize(A.ns.U.Serialize(A.g.ErPattoDB))
+D.login(T[0])
+for _ in range(40): D.g.RUN_TIMERS()
+D.ns.UI.Toggle()
+check(D.ns.state is None and D.has('nun sta ner patto de Dario') and D.btn("Entra co' 'sto personaggio") is not None
+      and D.btn('Collegalo come alt') is not None, 'alt of the account: the way in and the link, nothing linked yet')
+check(not D.g.JOINED and len(list(D.g.TAKE_OUTBOX().values())) == 0, 'alt not linked: no channel, no messages')
+b = D.btn('Collegalo come alt'); b.Click(b)
+check(D.ns.alt and D.has('collegato come alt de Dario') and D.btn('Scollegalo') is not None, 'linked only on the click')
+b = D.btn('Scollegalo'); b.Click(b)
+check(D.ns.state is None and D.has('nun sta ner patto de') and not D.g.JOINED, 'unlinked: out of the patto again')
+b = D.btn("Entra co' 'sto personaggio"); b.Click(b)
+check(D.ns.state is not None and not D.ns.alt and D.ns.recordGuid == 'Player-1-DDD', 'joins as a member of its own')
+check(not D.errors() and not [t for t in D.texts() if re.search(r'\bnil\b', t)], 'alt window: no errors, no "nil": ' + str(D.errors()[:3]))
 # leaving as capo with members is blocked, then transfer and leave
 A.ns.UI.Show('imp')
 lv = A.btn('Esci dar patto'); lv.Click(lv); lv.Click(lv)
