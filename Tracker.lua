@@ -63,10 +63,15 @@ T.Alert = Alert
 ----------------------------------------------------------------------
 -- level, XP, zone
 ----------------------------------------------------------------------
+-- the other characters of this account in this patto: the ones the player linked as alts, and the ones that joined
+-- it as members of their own (so nobody bets on himself). One never linked stays out: the friends don't see it
 local function AltsOf()
   local alts = {}
+  local code = state and state.code
   for g, c in pairs(ns.db and ns.db.chars or {}) do
-    if g ~= me and c.name and c.alt and #alts < 6 then alts[#alts + 1] = { name = c.name, lv = c.lv or 1, cls = c.cls } end
+    if g ~= me and c.name and code and (c.alt == code or c.code == code) and #alts < 6 then
+      alts[#alts + 1] = { name = c.name, lv = c.lv or 1, cls = c.cls }
+    end
   end
   table.sort(alts, function(a, b) return a.lv > b.lv or (a.lv == b.lv and a.name < b.name) end)
   return alts

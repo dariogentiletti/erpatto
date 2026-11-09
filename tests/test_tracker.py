@@ -123,16 +123,37 @@ lua2, ns2, g2 = runtime()
 g2.ErPattoDB = ns2.U.Deserialize(ser)
 g2.P_GUID, g2.P_NAME, g2.P_LEVEL = 'Player-1-0002', 'Dariolo', 7
 g2.NOWV = START + WEEK + 200
-g2.FIRE('ADDON_LOADED', 'ErPatto'); g2.FIRE('PLAYER_LOGIN')
-check(ns2.alt == True and ns2.recordGuid == g.P_GUID, 'second character starts in alt mode')
+g2.FIRE('ADDON_LOADED', 'ErPatto'); g2.FIRE('PLAYER_LOGIN'); g2.FIRE('PLAYER_ENTERING_WORLD')
+lua2.eval('function() for i = 1, 40 do RUN_TIMERS() end end')()
+main = g2.ErPattoDB.patti[str(st.code)].members[g.P_GUID]
+check(ns2.state is None and ns2.alt == False, 'second character is in no patto until the player chooses')
+check(not g2.JOINED and len(list(g2.TAKE_OUTBOX().values())) == 0, 'not linked: no channel, no messages')
+check(not (main.alts and main.alts[1]), 'not linked: not in the main record')
+check(any("nun sta ner patto de" in str(x) for x in g2.CHAT.values()), 'login says this character is not in the patto')
+ns2.LinkAlt()
+check(ns2.alt == True and ns2.recordGuid == g.P_GUID, 'linked by the player: alt mode')
 main = ns2.state.members[g.P_GUID]
-check(main.alts and main.alts[1] and main.alts[1].name == 'Dariolo' and main.alts[1].lv == 7, 'main record lists the alt')
+check(main.alts and main.alts[1] and main.alts[1].name == 'Dariolo' and main.alts[1].lv == 7, 'main record lists the linked alt')
+ns2.UnlinkAlt()
+check(ns2.state is None and g2.ErPattoDB.chars['Player-1-0002'].alt is None and not g2.JOINED, 'unlinked: out of the patto, channel left')
+g2.FIRE('PLAYER_LOGIN')
+check(ns2.state is None, 'unlinked stays out after a new login')
+ns2.LinkAlt()
+g2.FIRE('PLAYER_LOGIN')
+check(ns2.alt == True, 'the link holds across logins')
 lvbefore = main.lv
 g2.P_LEVEL = 8; g2.FIRE('PLAYER_LEVEL_UP', 8); g2.FIRE('QUEST_TURNED_IN', 1, 1, 1)
 check(main.lv == lvbefore and main.alts[1].lv == 8, 'alt ding updates alt list, not main level')
 check(not ns2.CanAdmin(), 'alt cannot admin')
 st2 = ns2.JoinPatto(str(ns2.state.code))
 check(st2 is not None and ns2.alt == False and ns2.recordGuid == 'Player-1-0002', 'alt can become its own member with the code')
+ns2.T.RefreshSelf('alts')
+own = ns2.state.members['Player-1-0002']
+check(own.alts and own.alts[1] and own.alts[1].name == g.P_NAME, 'a character that joined lists the main (nobody bets on himself)')
+# the links made by themselves before schema 3 (never asked) go
+old = lua2.eval('function(db) db.schema = 2; db.chars["Player-1-0003"] = { name = "Vecchio", alt = true }; return db end')(g2.ErPattoDB)
+ns2.InitDB()
+check(old.chars['Player-1-0003'].alt is None and old.chars['Player-1-0002'].code is not None, 'old automatic links dropped, joined characters kept')
 logs2 = [str(x) for x in g2.ErPattoDB.log.values() if '[Errore]' in str(x)] + list(g2.ERRORS.values())
 check(not logs2, 'no errors in alt session ' + str(logs2[:3]))
 # leaving

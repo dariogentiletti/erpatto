@@ -17,7 +17,12 @@ function ns.InitDB()
   if type(db.opts) ~= "table" then db.opts = {} end
   for k, v in pairs(DEFAULT_OPTS) do if db.opts[k] == nil then db.opts[k] = v end end
   if type(db.log) ~= "table" then db.log = {} end
-  db.schema = 2
+  -- up to schema 2 every other character of the account became an alt of the main by itself, never asked:
+  -- those links go, an alt is linked only when the player chooses it (c.alt = the patto's code)
+  if (tonumber(db.schema) or 0) < 3 then
+    for _, c in pairs(db.chars) do if type(c) == "table" then c.alt = nil end end
+  end
+  db.schema = 3
   -- Phase 0 left its own keys; they are harmless but the log format changed
   db.ui = type(db.ui) == "table" and db.ui or {}
   ns.db = db
@@ -37,24 +42,31 @@ end
 ----------------------------------------------------------------------
 -- which patto this character belongs to
 ----------------------------------------------------------------------
+-- the patto another character of this account is in (its main), whether this one is linked to it or not
+local function MainOf(st)
+  return type(st) == "table" and st.main and st.main ~= ns.me and type(st.members) == "table" and st.members[st.main] ~= nil
+end
+function ns.AccountPatto()
+  for _, st in pairs(ns.db.patti) do if MainOf(st) then return st end end
+  return nil
+end
+
 -- returns state, recordGuid, isAlt
 function ns.FindPatto()
   local c = ns.db.chars[ns.me]
   if c and c.code and ns.db.patti[c.code] then return ns.db.patti[c.code], ns.me, false end
-  -- another character of this account is in a patto: this one is an alt of that main
-  for code, st in pairs(ns.db.patti) do
-    if type(st) == "table" and st.main and st.main ~= ns.me and st.members and st.members[st.main] then
-      return st, st.main, true
-    end
-  end
+  -- another character of this account is in a patto: this one is its alt only if the player linked it. Never
+  -- linked, it stays out of it: no channel, no messages, not in the main's list of alts
+  local st = c and c.alt and ns.db.patti[c.alt]
+  if MainOf(st) then return st, st.main, true end
+  if c then c.alt = nil end
   return nil
 end
 
 local function Activate(state, recordGuid, isAlt)
   ns.state, ns.recordGuid, ns.alt = state, recordGuid, isAlt and true or false
   local c = MyChar()
-  c.alt = ns.alt or nil
-  if not isAlt then c.code = state.code end
+  if isAlt then c.alt = state.code else c.code, c.alt = state.code, nil end
   state.lastWeek = state.lastWeek or (P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) or nil)
   -- my record as this PC last saw it may be old: I may have played on another computer since. Until the friends
   -- are heard it's provisional ("fresh": they don't take it over theirs), and a newer copy of it they hold comes
@@ -136,6 +148,23 @@ function ns.LeavePatto(quiet)
   end
   ns.state, ns.recordGuid, ns.alt = nil, nil, false
   ns.Fire("PattoChanged", nil)
+end
+
+-- this character linked as an alt of the account's main, only when the player asks: the friends see it under the
+-- main (name, level), it counts for nothing
+function ns.LinkAlt()
+  if ns.state then return nil end
+  local st = ns.AccountPatto()
+  if not st then return nil end
+  Activate(st, st.main, true)
+  return st
+end
+
+-- unlinked: out of the patto again, as if never linked (the main's list drops it when the main next plays)
+function ns.UnlinkAlt()
+  if not ns.alt then return end
+  MyChar().alt = nil
+  ns.LeavePatto(true)
 end
 
 function ns.MyRecord()
@@ -407,11 +436,15 @@ handlers.PLAYER_LOGIN = function()
     Activate(state, recordGuid, isAlt)
     if isAlt then
       local main = state.members[recordGuid]
-      U.Say("'sto personaggio è 'n alt de " .. tostring(main and main.name) .. ": vedi er patto ma nun conta pe' i livelli.")
+      U.Say("'sto personaggio è collegato come alt de " .. tostring(main and main.name) .. ": nun conta pe' gnente.")
     end
     if P.HasSettings(state) and M.WeekIndex(state.settings, U.Now()) == 0 then
       U.Say("er patto parte " .. U.When(state.settings.start) .. " (tra " .. U.Until(state.settings.start - U.Now()) .. ").")
     end
+  elseif ns.AccountPatto() then
+    local acct = ns.AccountPatto()
+    local main = acct.members[acct.main]
+    U.Say("'sto personaggio nun sta ner patto de " .. tostring(main and main.name) .. ": scrivi |cffffffff/patto|r si ce vòi entrà.")
   else
     U.Say("nun stai in nessun patto: scrivi |cffffffff/patto|r pe' creallo o entrà co' 'n codice.")
   end
