@@ -10,7 +10,7 @@ ns.J = J
 
 J.VERSION = 1
 local CAP = { deaths = 300, levels = 70, loot = 600, equip = 300, dungeons = 300, bgs = 300, duels = 400, flights = 300,
-  profs = 400, sessions = 200, rep = 60 }
+  profs = 400, sessions = 200, rep = 60, vend = 600 }
 
 local function Plain(v, kind) return U.Plain(v, kind) end
 local function Safe(f, ...)
@@ -37,7 +37,7 @@ function J.Get()
     ns.db.journal[ns.me] = j
   end
   for _, k in ipairs({ "kills", "items", "spells", "zones", "together", "money", "xp", "deaths", "levels", "loot", "equip",
-    "dungeons", "bgs", "duels", "flights", "profs", "sessions", "rep", "counters" }) do
+    "dungeons", "bgs", "duels", "flights", "profs", "sessions", "rep", "counters", "vend" }) do
     j[k] = j[k] or {}
   end
   return j
@@ -267,6 +267,7 @@ function J.OnMoney()
     local d = m - lastMoney
     local where = Where()
     if d > 0 then Add(j.money, "in_" .. where, d) else Add(j.money, "out_" .. where, -d) end
+    if where == "merchant" and d > 0 and J.OnVendorGold then J.OnVendorGold(d) end
     if where == "taxi" and d < 0 then
       Push(j.flights, { at = U.Now(), from = Zone(), cost = -d }, CAP.flights)
       Add(j.counters, "flights")
@@ -275,6 +276,113 @@ function J.OnMoney()
   end
   lastMoney = m
   if m > (j.money.peak or 0) then j.money.peak = m end
+end
+
+----------------------------------------------------------------------
+-- sold to a vendor: what left the bags at a merchant, once the gold that came in matches what the vendor pays for
+-- it. The auction house addons never see these sales; the AH radar reads them from here, so something sold to a
+-- vendor doesn't stay "in your bags" there. Used, destroyed or equipped things bring no gold and don't count;
+-- buying something back takes its sale off again.
+----------------------------------------------------------------------
+local bagsSeen, pending, credit, visitAt = nil, {}, { n = 0, at = 0 }, 0
+
+local function SlotItem(bag, slot)
+  if C_Container and C_Container.GetContainerItemInfo then
+    local info = Safe(C_Container.GetContainerItemInfo, bag, slot)
+    if type(info) ~= "table" then return nil end
+    return Plain(info.itemID, "number"), Plain(info.stackCount, "number")
+  end
+  local _, n, _, _, _, _, link = Safe(GetContainerItemInfo, bag, slot)
+  link = Plain(link, "string")
+  return link and tonumber(link:match("item:(%d+)")), Plain(n, "number")
+end
+
+local function Bags()
+  local out = {}
+  local slotsOf = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
+  for bag = 0, NUM_BAG_SLOTS or 4 do
+    for slot = 1, Plain(Safe(slotsOf, bag), "number") or 0 do
+      local id, n = SlotItem(bag, slot)
+      if id and n then out[id] = (out[id] or 0) + n end
+    end
+  end
+  return out
+end
+
+-- what a vendor pays for one (nil: the client doesn't know yet)
+local function VendorPrice(id)
+  local f = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if type(f) ~= "function" then return nil end
+  local ok, _, _, _, _, _, _, _, _, _, _, price = pcall(f, id)
+  return ok and Plain(price, "number") or nil
+end
+
+-- a sale counts when the gold that came in is what one of the things that left pays, or the oldest few together
+local function Settle()
+  local j, now = J.Get(), U.Now()
+  for i = #pending, 1, -1 do if now - pending[i].at > 5 then table.remove(pending, i) end end
+  if now - credit.at > 5 then credit.n = 0 end
+  if not j or credit.n <= 0 or #pending == 0 then return end
+  local function Log(s, p) Push(j.vend, { at = s.at, id = s.id, n = s.n, p = p }, CAP.vend) end
+  for i, s in ipairs(pending) do
+    if s.p == credit.n or (not s.p and #pending == 1) then
+      table.remove(pending, i)
+      Log(s, credit.n)
+      credit.n = 0
+      return
+    end
+  end
+  local sum, upto = 0, nil
+  for i, s in ipairs(pending) do
+    if not s.p then break end
+    sum = sum + s.p
+    if sum == credit.n then upto = i break end
+    if sum > credit.n then break end
+  end
+  if not upto then return end
+  for _ = 1, upto do local s = table.remove(pending, 1) Log(s, s.p) end
+  credit.n = 0
+end
+
+function J.OnMerchantShow()
+  bagsSeen, visitAt, pending, credit.n = Bags(), U.Now(), {}, 0
+end
+
+function J.OnBags()
+  if not (open.merchant and bagsSeen) then return end
+  local j, now, at = J.Get(), Bags(), U.Now()
+  for id, was in pairs(bagsSeen) do
+    local left = now[id] or 0
+    if left < was then
+      local u = VendorPrice(id)
+      -- a vendor pays nothing for it: it left the bags some other way
+      if u ~= 0 then table.insert(pending, { at = at, id = id, n = was - left, p = u and u * (was - left) or nil }) end
+    end
+  end
+  for id, n in pairs(now) do
+    local back = n - (bagsSeen[id] or 0)
+    -- bought back: off this visit's sales, newest first
+    for i = #pending, 1, -1 do
+      local s = pending[i]
+      if back > 0 and s.id == id then local k = math.min(back, s.n) s.n, back = s.n - k, back - k if s.n <= 0 then table.remove(pending, i) end end
+    end
+    for i = j and #j.vend or 0, 1, -1 do
+      local s = j.vend[i]
+      if back <= 0 or s.at < visitAt then break end
+      if s.id == id then
+        local k, unit = math.min(back, s.n), s.p / s.n
+        s.n, s.p, back = s.n - k, s.p - math.floor(unit * k + 0.5), back - k
+        if s.n <= 0 then table.remove(j.vend, i) end
+      end
+    end
+  end
+  bagsSeen = now
+  Settle()
+end
+
+function J.OnVendorGold(d)
+  credit.n, credit.at = credit.n + d, U.Now()
+  Settle()
 end
 
 ----------------------------------------------------------------------
@@ -468,6 +576,8 @@ local handlers = {
   QUEST_TURNED_IN = function() J.OnQuestXp() end,
   PLAYER_LEVEL_UP = function(level) J.OnLevel(level) J.OnXp() end,
   PLAYER_MONEY = function() J.OnMoney() end,
+  MERCHANT_SHOW = function() J.OnMerchantShow() end,
+  BAG_UPDATE_DELAYED = function() J.OnBags() end,
   ZONE_CHANGED_NEW_AREA = function() J.OnZone() end,
   PLAYER_DEAD = function() J.OnDeath() end,
   UNIT_SPELLCAST_SUCCEEDED = function(...) J.OnSpell(...) end,
@@ -480,15 +590,19 @@ local handlers = {
     if s and not s.out then s.out = U.Now() end
   end,
 }
+local closing = {}
 for ev, place in pairs(PLACES) do
   local prev = handlers[ev]
-  handlers[ev] = function(...) open[place] = true if prev then prev(...) end end
+  handlers[ev] = function(...) open[place], closing[place] = true, nil if prev then prev(...) end end
 end
 for ev, place in pairs(CLOSES) do
   local prev = handlers[ev]
-  -- the money can arrive just after the window closes
+  -- the money can arrive just after the window closes; opened again meanwhile, it stays open
   handlers[ev] = function(...)
-    if C_Timer then C_Timer.After(2, function() open[place] = nil end) else open[place] = nil end
+    local token = {}
+    closing[place] = token
+    if C_Timer then C_Timer.After(2, function() if closing[place] == token then open[place], closing[place] = nil, nil end end)
+    else open[place] = nil end
     if prev then prev(...) end
   end
 end

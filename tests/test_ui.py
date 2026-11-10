@@ -421,6 +421,28 @@ check(jj['items'][2000].c == 2, 'items received counted by id')
 _om = jj.money.out_merchant or 0
 A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY - 500; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED')
 check((jj.money.out_merchant or 0) == _om + 500, 'gold spent at the merchant filed under merchant')
+# sold to a vendor: what leaves the bags at a merchant, when the gold matches what the vendor pays
+A.lua.execute('''
+BAGS = { [0] = { { id = 3041, n = 1 }, { id = 2770, n = 20 }, { id = 4570, n = 2 }, { id = 159, n = 5 } } }
+C_Container = {
+  GetContainerNumSlots = function(b) return BAGS[b] and 16 or 0 end,
+  GetContainerItemInfo = function(b, s) local x = BAGS[b] and BAGS[b][s] if x and x.n > 0 then return { itemID = x.id, stackCount = x.n } end end,
+}
+SELL = { [3041] = 3769, [2770] = 5, [4570] = 922, [159] = 1 }
+C_Item.GetItemInfo = function(id) return "x", nil, 2, 1, 1, "Weapon", "x", 1, "", 1, SELL[id] end
+''')
+def bag(slot, n): A.lua.execute('BAGS[0][%d].n = %d' % (slot, n))
+def gold(d): A.g.P_MONEY = A.g.P_MONEY + d; A.g.FIRE('PLAYER_MONEY')
+A.g.FIRE('MERCHANT_SHOW')
+bag(1, 0); A.g.FIRE('BAG_UPDATE_DELAYED'); gold(3769)              # bags first, then the gold
+gold(100); bag(2, 0); A.g.FIRE('BAG_UPDATE_DELAYED')               # gold first, then the bags
+bag(4, 4); A.g.FIRE('BAG_UPDATE_DELAYED'); secs(6)                 # ate a bread: no gold, no sale
+bag(3, 1); A.g.FIRE('BAG_UPDATE_DELAYED'); gold(922)
+bag(1, 1); gold(-3769); A.g.FIRE('BAG_UPDATE_DELAYED')             # bought the gun back
+A.g.FIRE('MERCHANT_CLOSED'); secs(3)
+bag(3, 0); A.g.FIRE('BAG_UPDATE_DELAYED'); gold(922)               # away from the merchant: not a vendor sale
+vs = sorted((int(s.id), int(s.n), int(s.p)) for s in jj.vend.values())
+check(vs == [(2770, 20, 100), (4570, 1, 922)], 'vendor sales: copper and one maul; the bread, the gun bought back and the sale away from the merchant are not (%s)' % vs)
 A.g.FIRE('PLAYER_DEAD')
 check(len(list(jj.deaths.values())) >= 1, 'deaths logged with place and level')
 A.g.FIRE('UNIT_SPELLCAST_SUCCEEDED', 'player', 'x', 8690)
