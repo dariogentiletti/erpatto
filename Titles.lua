@@ -43,6 +43,7 @@ end
 -- kind "check": a condition on the member; of those who meet it, only the first who did (tt) holds it
 Ti.LIST = {
   { id = "pariolino", name = "A Pariolino", kind = "top", value = function(m) return Stat(m, "g") end, desc = "Er primo der patto pe' sordi fatti." },
+  { id = "bancarellaro", name = "A Bancarellaro", kind = "top", value = function(m) return Stat(m, "ga") end, desc = "Er primo pe' sordi fatti vennenno a l'asta: c'ha 'na bancarella a Porta Portese." },
   { id = "fattorino", name = "A Fattorino", kind = "top", value = function(m) return Stat(m, "q") end, desc = "Er primo pe' quest consegnate: te fai tutte le commissioni de Azeroth." },
   { id = "topo", name = "A Topo de Fogna", kind = "top", value = function(m) return Stat(m, "dg") end, desc = "Er primo pe' dungeon fatti: vivi sotto terra." },
   { id = "bullo", name = "A Bullo", kind = "top", value = function(m, c) return (InPattoDuels(m, c.idx)) end, desc = "Er primo pe' duelli vinti contro l'artri der patto." },

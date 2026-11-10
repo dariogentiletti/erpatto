@@ -251,9 +251,14 @@ local PLACES = { MERCHANT_SHOW = "merchant", TRAINER_SHOW = "trainer", TAXIMAP_O
 local CLOSES = { MERCHANT_CLOSED = "merchant", TRAINER_CLOSED = "trainer", TAXIMAP_CLOSED = "taxi", MAIL_CLOSED = "mail",
   AUCTION_HOUSE_CLOSED = "auction", TRADE_CLOSED = "trade", BANKFRAME_CLOSED = "bank", LOOT_CLOSED = "loot" }
 
+local openedAt, closing = {}, {}
 local function Where()
   if U.Now() - lastQuestAt <= 2 then return "quest" end
   for _, k in ipairs({ "auction", "mail", "trade", "taxi", "trainer", "merchant", "bank", "loot" }) do
+    -- a window whose closing never arrived: once the game says it isn't open, it isn't
+    if open[k] and not closing[k] and GetTime and GetTime() - (openedAt[k] or 0) > 5 and T and T.StillOpen and T.StillOpen(k) == false then
+      open[k] = nil
+    end
     if open[k] then return k end
   end
   return "other"
@@ -349,7 +354,7 @@ function J.OnMerchantShow()
 end
 
 function J.OnBags()
-  if not (open.merchant and bagsSeen) then return end
+  if not (bagsSeen and Where() == "merchant") then return end
   local j, now, at = J.Get(), Bags(), U.Now()
   for id, was in pairs(bagsSeen) do
     local left = now[id] or 0
@@ -590,10 +595,12 @@ local handlers = {
     if s and not s.out then s.out = U.Now() end
   end,
 }
-local closing = {}
 for ev, place in pairs(PLACES) do
   local prev = handlers[ev]
-  handlers[ev] = function(...) open[place], closing[place] = true, nil if prev then prev(...) end end
+  handlers[ev] = function(...)
+    open[place], closing[place], openedAt[place] = true, nil, GetTime and GetTime() or 0
+    if prev then prev(...) end
+  end
 end
 for ev, place in pairs(CLOSES) do
   local prev = handlers[ev]

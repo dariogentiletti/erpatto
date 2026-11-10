@@ -222,17 +222,89 @@ function T.ItemLevel()
 end
 
 ----------------------------------------------------------------------
--- gold: what comes in from the world (loot, quests, vendors) and, unless the capo turned it off, auction sales.
--- Other mail money (gifts from friends, refunds) and trades between players are skipped.
+-- gold: what comes in from the world (loot, quests, what you sell to vendors) and, unless the capo turned it off,
+-- auction sales. Money from other players (mail that isn't an auction sale, trades) is kept apart: a gift isn't
+-- money made. At a merchant every sale counts; buying something back takes its price off again (sold and bought
+-- back makes nothing), while buying new things and repairs are spending, like a trainer or a flight, and take
+-- nothing off. Each window (mail, trade, merchant) counts as open until 2 s after it closes, for the money that
+-- lands late; one whose closing never arrived is taken as closed once the game says it isn't open.
 ----------------------------------------------------------------------
 local lastMoney
-local moneyBlocked = {}
-local pendingAH = 0
+local win = {}        -- mail, trade, merchant: { at = opened, closed = closed at }
+local pendingAH = 0   -- auction sale money taken from the mailbox, still to land
+local sold = {}       -- this session's sales to a vendor, newest last (the buyback tab keeps 12)
+local debt = 0        -- bought back after it was counted: comes off the next gold made
 
 local function AuctionCounts()
   return not (state and state.settings and state.settings.noAh)
 end
 T.AuctionCounts = AuctionCounts
+
+-- is the game still showing it? true, false, or nil when it can't tell
+local KIND = { mail = "MailInfo", trade = "TradePartner", merchant = "Merchant" }
+local FRAME = { mail = "MailFrame", trade = "TradeFrame", merchant = "MerchantFrame" }
+local function StillOpen(source)
+  local pim, kinds = C_PlayerInteractionManager, Enum and Enum.PlayerInteractionType
+  if pim and pim.IsInteractingWithNpcOfType and kinds and kinds[KIND[source]] then
+    local ok, v = pcall(pim.IsInteractingWithNpcOfType, kinds[KIND[source]])
+    if ok and v == true then return true end
+  end
+  local f = _G[FRAME[source]]
+  if type(f) == "table" and type(f.IsShown) == "function" then
+    local ok, v = pcall(f.IsShown, f)
+    if ok then return v and true or false end
+  end
+  return nil
+end
+T.StillOpen = StillOpen
+
+local function IsOpen(source)
+  local w = win[source]
+  if not w then return false end
+  local now = GetTime()
+  if w.closed then
+    if now - w.closed <= 2 then return true end
+    win[source] = nil
+    return false
+  end
+  if now - w.at > 5 and StillOpen(source) == false then win[source] = nil return false end
+  return true
+end
+T.IsOpen = IsOpen
+
+function T.SetWindow(source, open)
+  if open then
+    win[source] = { at = GetTime() }
+    if source == "mail" then pendingAH = 0 end
+  elseif win[source] and not win[source].closed then
+    win[source].closed = GetTime()
+  end
+end
+-- (the old name, for the events in Main.lua)
+function T.SetMoneyBlock(source, on) T.SetWindow(source, on) end
+function T.OnMerchant(open) T.SetWindow("merchant", open) end
+T.InMerchant = function() return IsOpen("merchant") end
+
+-- where the gold came from, kept on this account for the tooltip: w the world (loot, quests), v vendors,
+-- a auctions, x what doesn't count (gifts, trades, auctions when the capo switched them off)
+local function Sources()
+  if not (ns.db and me) then return nil end
+  ns.db.gsrc = ns.db.gsrc or {}
+  local s = ns.db.gsrc[me]
+  if not s then s = { since = U.Now() } ns.db.gsrc[me] = s end
+  return s
+end
+function T.Sources() return ns.db and ns.db.gsrc and ns.db.gsrc[me] end
+local function Note(key, n)
+  local s = Sources()
+  if s then s[key] = math.max(0, (s[key] or 0) + n) end
+end
+
+local function Made(n, key)
+  Note(key, n)
+  if debt > 0 then local k = math.min(debt, n) debt, n = debt - k, n - k end
+  if n > 0 then Bump("g", n) end
+end
 
 local soldPat
 -- is mail number `index` the money from an auction I sold?
@@ -258,7 +330,7 @@ end
 
 -- called right after the game takes the money of a mail (by hand or with "open all")
 function T.OnTakeMail(index)
-  if type(index) ~= "number" or not AuctionCounts() then return end
+  if type(index) ~= "number" then return end
   local m = MailMoney(index)
   if m > 0 and IsAuctionSale(index) then pendingAH = pendingAH + m end
 end
@@ -269,76 +341,45 @@ if type(hooksecurefunc) == "function" then
   end
 end
 
--- the money from a trade or the mailbox can land just after the window closes: unblock 2 s later
-function T.SetMoneyBlock(source, on)
-  if on then
-    moneyBlocked[source] = GetTime()
-    return
-  end
-  local token = moneyBlocked[source]
-  local function release()
-    if moneyBlocked[source] ~= token then return end
-    moneyBlocked[source] = nil
-    lastMoney = U.Plain(GetMoney and GetMoney(), "number")
-    if source == "mail" then pendingAH = 0 end
-  end
-  if C_Timer then C_Timer.After(2, release) else release() end
-end
-
-local function Blocked()
-  return next(moneyBlocked) ~= nil
-end
-
--- at a merchant only what the visit leaves you counts: what you sold minus what you bought there (bought back
--- included), repairs aside (they're a cost of playing, not a purchase). Selling and buying back the same thing
--- makes nothing. Counted when the merchant closes.
-local merchant -- { start = money when it opened, repairs = spent on repairs, cost = repair cost seen last }
-local function RepairCost()
-  if not (GetRepairAllCost and CanMerchantRepair) then return nil end
-  local okc, can = pcall(CanMerchantRepair)
-  if not okc or not U.Plain(can, "boolean") then return nil end
-  local ok, cost = pcall(GetRepairAllCost)
-  return ok and U.Plain(cost, "number") or nil
-end
-local function NoteRepairs()
-  if not merchant then return end
-  local c = RepairCost()
-  if c and merchant.cost and c < merchant.cost then merchant.repairs = merchant.repairs + (merchant.cost - c) end
-  if c then merchant.cost = c end
-end
-function T.OnMerchant(open)
-  local m = U.Plain(GetMoney and GetMoney(), "number")
-  if open then
-    if not merchant and m then merchant = { start = m, repairs = 0, cost = RepairCost() } end
-    return
-  end
-  if not merchant then return end
-  NoteRepairs()
-  local v = merchant
-  merchant = nil
-  lastMoney = m or lastMoney
-  if not (m and Ready()) then return end
-  local net = (m - v.start) + v.repairs
-  if net > 0 and not Blocked() then Bump("g", net) end
-end
-T.InMerchant = function() return merchant ~= nil end
-
 function T.OnMoney()
   local m = U.Plain(GetMoney and GetMoney(), "number")
   if not m then return end
   local before = lastMoney
   lastMoney = m
-  if merchant then NoteRepairs() return end
-  if not (before and m > before and Ready()) then return end
-  local gain = m - before
-  if not Blocked() then
-    Bump("g", gain)
-  elseif moneyBlocked.mail and not moneyBlocked.trade and pendingAH > 0 then
-    -- only the part that came from auction sales
-    local credit = math.min(gain, pendingAH)
-    pendingAH = pendingAH - credit
-    Bump("g", credit)
+  if not (before and m ~= before and Ready()) then return end
+  local d = m - before
+  if d < 0 then
+    -- bought back at the merchant: the sale it undoes comes off
+    if not IsOpen("merchant") then return end
+    for i = #sold, 1, -1 do
+      if sold[i] == -d then
+        table.remove(sold, i)
+        debt = debt - d
+        Note("v", d)
+        return
+      end
+    end
+    return
   end
+  if IsOpen("trade") then Note("x", d) return end
+  if IsOpen("mail") then
+    -- only the part that came from auction sales
+    local credit = math.min(d, pendingAH)
+    pendingAH = pendingAH - credit
+    if credit > 0 then
+      Bump("ga", credit)
+      if AuctionCounts() then Made(credit, "a") else Note("x", credit) end
+    end
+    if d > credit then Note("x", d - credit) end
+    return
+  end
+  if IsOpen("merchant") then
+    table.insert(sold, d)
+    while #sold > 12 do table.remove(sold, 1) end
+    Made(d, "v")
+    return
+  end
+  Made(d, "w")
 end
 
 function T.CheckCap(level)
@@ -914,8 +955,7 @@ function T.Start(st, recordGuid, guid, playerName, isAlt)
   myShort = playerName and U.Short(playerName) or playerName
   bg = nil
   lastMoney = U.Plain(GetMoney and GetMoney(), "number")
-  moneyBlocked = {}
-  pendingAH = 0
+  win, pendingAH, sold, debt = {}, 0, {}, 0
   T.RefreshSelf("login")
   T.RefreshProfessions()
   T.CheckPvP()

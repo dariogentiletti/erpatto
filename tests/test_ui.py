@@ -187,17 +187,40 @@ for d in (3000, -3000, 3000):
 A.g.FIRE('MERCHANT_CLOSED'); A.g.FIRE('MERCHANT_CLOSED')
 g2 = A.ns.MyRecord().stats.t.g
 check(g2 == g + 3000, 'merchant: sold, bought back, sold again: counted once (%s)' % (g2 - g))
-# junk sold for 5000, food bought for 1000, repairs 2000: 4000 earned (repairs don't eat what was sold)
+# junk sold for 5000, food bought for 1000, repairs 2000: 5000 earned (buying and repairing are spending)
 A.g.FIRE('MERCHANT_SHOW')
 A.g.P_MONEY = A.g.P_MONEY + 5000; A.g.FIRE('PLAYER_MONEY')
 A.g.P_MONEY = A.g.P_MONEY - 1000; A.g.FIRE('PLAYER_MONEY')
 A.g.REPAIR = 0; A.g.P_MONEY = A.g.P_MONEY - 2000; A.g.FIRE('PLAYER_MONEY')
 A.g.FIRE('MERCHANT_CLOSED')
 g3 = A.ns.MyRecord().stats.t.g
-check(g3 == g2 + 4000, 'merchant: sold 50s, bought 10s, repaired 20s: 40s earned (%s)' % (g3 - g2))
+check(g3 == g2 + 5000, 'merchant: sold 50s, bought 10s, repaired 20s: the 50s sold all count (%s)' % (g3 - g2))
 # only buying: nothing taken off what was earned elsewhere
 A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY - 700; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED')
 check(A.ns.MyRecord().stats.t.g == g3, 'merchant: only buying takes nothing off')
+# sold, the merchant closed and opened again, then bought back: the sale comes off the next gold made
+secs(3)
+A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY + 4000; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED'); secs(3)
+A.g.FIRE('MERCHANT_SHOW'); A.g.P_MONEY = A.g.P_MONEY - 4000; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MERCHANT_CLOSED'); secs(3)
+A.g.P_MONEY = A.g.P_MONEY + 1500; A.g.FIRE('PLAYER_MONEY')
+check(A.ns.MyRecord().stats.t.g == g3 + 4000, 'merchant: bought back on a second visit: nothing made, and the 15s looted after pay it back (%s)' % (A.ns.MyRecord().stats.t.g - g3))
+A.g.P_MONEY = A.g.P_MONEY + 3000; A.g.FIRE('PLAYER_MONEY')
+g3 = A.ns.MyRecord().stats.t.g
+check(g3 == g3 // 1 and A.ns.MyRecord().stats.t.g - (g2 + 5000) == 4000 + 500, 'merchant: once paid back, gold counts again (%s)' % (A.ns.MyRecord().stats.t.g - g2 - 5000))
+# a mailbox whose closing never arrived: once the game says it isn't open, gold counts again
+A.lua.execute('MailFrame = { IsShown = function() return MAILOPEN end }; MAILOPEN = true')
+A.g.FIRE('MAIL_SHOW'); secs(6)
+A.g.P_MONEY = A.g.P_MONEY + 700; A.g.FIRE('PLAYER_MONEY')
+gm = A.ns.MyRecord().stats.t.g
+check(gm == g3, 'mailbox still open: a gift by mail does not count')
+A.g.MAILOPEN = False; secs(1)
+A.g.P_MONEY = A.g.P_MONEY + 800; A.g.FIRE('PLAYER_MONEY')
+check(A.ns.MyRecord().stats.t.g == gm + 800, 'mailbox closed without its event: the loot after it counts (%s)' % (A.ns.MyRecord().stats.t.g - gm))
+check(A.lua.eval('function(ns) local j = ns.J.Get() return j.money.in_other or 0 end')(A.ns) >= 800, 'the diary too: that loot is not filed under mail')
+A.g.FIRE('MAIL_CLOSED'); secs(3)
+A.lua.execute('MailFrame = nil')
+src = A.ns.T.Sources()
+check(src.w > 0 and src.v > 0 and src.x >= 700, 'where the gold came from: world %s, vendors %s, not counted %s' % (src.w, src.v, src.x))
 A.lua.eval('function() CanMerchantRepair = nil; GetRepairAllCost = nil end')()
 # duels inside the patto: Dario beat Pietro twice, lost once; a duel with an outsider doesn't count here
 A.g.FIRE('CHAT_MSG_SYSTEM', 'Dario has defeated Pietro in a duel')
@@ -454,6 +477,10 @@ A.lua.eval('function() IsInGroup = function() return false end end')()
 A.g.UNIT_GUIDS.party1 = None
 check(jj.together['Player-1-BBB'] == 60, 'time played together with each patto member')
 # auction gold: counts by default, the capo can switch it off
+# the gun sold and bought back at the merchant above: its 37s69c come off the next gold made (9s22c already did)
+gd = A.ns.MyRecord().stats.t.g
+A.g.P_MONEY = A.g.P_MONEY + 5000; A.g.FIRE('PLAYER_MONEY')
+check(A.ns.MyRecord().stats.t.g - gd == 5000 - (3769 - 922), 'what was bought back comes off the next gold made (%s)' % (A.ns.MyRecord().stats.t.g - gd))
 g0 = A.ns.MyRecord().stats.t.g or 0
 A.g.MAILS[1] = A.lua.eval('{ sender = "Casa d\'aste", subject = "Asta riuscita", money = 50000, invoice = "seller" }')
 A.g.MAILS[2] = A.lua.eval('{ sender = "Pietro", subject = "regalo", money = 20000 }')
@@ -463,6 +490,11 @@ A.g.TakeInboxMoney(2); A.g.P_MONEY = A.g.P_MONEY + 20000; A.g.FIRE('PLAYER_MONEY
 A.g.FIRE('MAIL_CLOSED'); secs(3)
 g1 = A.ns.MyRecord().stats.t.g
 check(g1 - g0 == 50000, 'auction sale counted, gift by mail not (%s)' % (g1 - g0))
+check((A.ns.MyRecord().stats.t.ga or 0) >= 50000, 'auction gold kept on its own too (%s)' % A.ns.MyRecord().stats.t.ga)
+hold = A.ns.Titles.Holders()
+check(hold['bancarellaro'] and hold['bancarellaro']['Player-1-AAA'], 'the top seller at the auction gets A Bancarellaro')
+A.ns.UI.Show('pg')
+check(any('asta' in t and 'monno' in t for t in [str(x) for x in A.lua.eval('function(v) return v.stats.g.tip or {} end')(A.ns.UI._views.pg).values()]) if A.lua.eval('function(v) return v and v.stats and v.stats.g end')(A.ns.UI._views.pg) else True, 'my tooltip says where the gold came from')
 A.ns.UI.Show('capo')
 ahc = A.ns.UI._views.capo.ah
 check(ahc.checked == True, 'capo checkbox shows auction gold on by default')
