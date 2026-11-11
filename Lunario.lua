@@ -426,8 +426,8 @@ function L.Tick()
     -- a new one for my squadra, put up by someone else
     if me and st == "prossimo" and e.by ~= ns.recordGuid and not Told("n:" .. e.id) and not firstLook then
       local by = Members()[e.by]
-      Say("appuntamento novo de " .. Short(by) .. ": " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. " (" .. TeamName(e.tm) .. ").")
-      if ns.News then ns.News.Add("Appuntamento novo: " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. ".") end
+      Say("caciara nova de " .. Short(by) .. ": " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. " (" .. TeamName(e.tm) .. ").")
+      if ns.News then ns.News.Add("Caciara nova: " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. ".") end
     end
     -- fifteen minutes before
     if me and st == "prossimo" and e.t - now <= 15 * 60 and e.t - now > 60 and not Told("q:" .. e.id) then
@@ -872,7 +872,7 @@ local function BuildDetail(v)
     v.dErr:SetText(ok and "" or (msg or ""))
   end, 22)
   v.cancelBtn:SetPoint("BOTTOMRIGHT", -12, 12)
-  v.dNone = H.Text(box, "GameFontDisableSmall", "Scegli 'n appuntamento.", 220)
+  v.dNone = H.Text(box, "GameFontDisableSmall", "Scegli 'na caciara.", 220)
   v.dNone:SetPoint("TOPLEFT", 14, -16)
 end
 local function RefreshDetail(v)
@@ -1001,7 +1001,7 @@ function L.OpenNew(at)
   if not (SU and Ready()) then return end
   local Choose = ns.Sfide.Choose
   if not newDlg then
-    local d = SU.Dialog("ErPattoAppuntamento", 420, 300, "Appuntamento novo")
+    local d = SU.Dialog("ErPattoAppuntamento", 420, 300, "Caciara nova")
     local function Label(text, y) local l = H.Text(d, "GameFontNormalSmall", text, 80) l:SetPoint("TOPLEFT", 24, y) return l end
     local lk = Label("Che se fa", -40)
     d.kind = H.Dropdown(d, 180, function(self)

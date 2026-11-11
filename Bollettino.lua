@@ -365,8 +365,8 @@ function B.Data(wk, testing)
         local pick = v and v[x.q.key] and byGuid[v[x.q.key]]
         my.bets[#my.bets + 1] = { text = x.q.text, pick = pick, stake = x.mine, got = x.got, nobody = x.nobody, right = pick and x.winners[pick.guid] }
       end
-      local KIND = { sf = "Sfide", tj = "Taje", tjw = "Taje", gu = "Gufate", gut = "Gufate", sb = "Ar Colosseo", fo = "Sfottò", fc = "Faccioni", ev = "Appuntamenti" }
-      local ORDER = { "Sfide", "Taje", "Gufate", "Ar Colosseo", "Appuntamenti", "Sfottò", "Faccioni" }
+      local KIND = { sf = "Sfide", tj = "Taje", tjw = "Taje", gu = "Gufate", gut = "Gufate", sb = "Ar Colosseo", fo = "Sfottò", fc = "Faccioni", ev = "Caciare" }
+      local ORDER = { "Sfide", "Taje", "Gufate", "Ar Colosseo", "Caciare", "Sfottò", "Faccioni" }
       local sum, open = {}, {}
       for _, x in ipairs(TB.Ledger()) do
         local k = KIND[x.k]

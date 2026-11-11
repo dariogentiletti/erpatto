@@ -32,7 +32,7 @@ eid = str(e.id)
 secs(40)
 eb_ = LB.Find(eid)
 check(eb_ is not None and LB.Visible(eb_, 'mine'), 'Pietro (I Pazzi) has it, in his squadra\'s list')
-check(any('Appuntamento novo' in n and 'Shadowfang' in n for n in B.news()) and any('appuntamento novo' in str(m) for m in B.g.CHAT.values()), 'and is told: a line in the chat and the news')
+check(any('Caciara nova' in n and 'Shadowfang' in n for n in B.news()) and any('caciara nova' in str(m) for m in B.g.CHAT.values()), 'and is told: a line in the chat and the news')
 ec = LC.Find(eid)
 check(ec is not None and not LC.Visible(ec, 'mine') and LC.Visible(ec, 'all') and not any('Shadowfang' in n for n in C.news()), 'Gina (Li Lenti) has it only with the filter on all squadre, and isn\'t told')
 yes, maybe, mine = LA.Answers(LA.Find(eid))[0:3]
