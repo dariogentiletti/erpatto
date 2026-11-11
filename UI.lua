@@ -2215,6 +2215,7 @@ function UI.StopDrag()
   if ns.db then ns.db.ui.main = { p, rp, x, y } end
 end
 
+function UI.IsOpen() return f ~= nil and f:IsShown() end
 function UI.Toggle()
   if not f then Build() end
   if f:IsShown() then f:Hide() else f:Show() end
@@ -2263,6 +2264,21 @@ local function BuildHUD()
   hud.next = hud:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   hud.next:SetPoint("BOTTOM", hud, "TOP", 0, 12)
   hud.next:SetTextColor(0.85, 0.85, 0.85)
+  -- under the bar, one small line: the next caciara I'm in and how long to go (or the ones waiting for my
+  -- answer); a click opens it
+  hud.cac = CreateFrame("Button", nil, hud)
+  hud.cac:SetSize(230, 14)
+  hud.cac:SetPoint("TOP", hud, "BOTTOM", 0, -9)
+  hud.cac.icon = hud.cac:CreateTexture(nil, "ARTWORK")
+  hud.cac.icon:SetSize(12, 12)
+  hud.cac.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  hud.cac.text = hud.cac:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hud.cac.text:SetPoint("CENTER", 7, 0)
+  hud.cac.icon:SetPoint("RIGHT", hud.cac.text, "LEFT", -3, 0)
+  hud.cac:SetScript("OnClick", function(self) if ns.Lunario then if not UI.IsOpen() then UI.Toggle() end ns.Lunario.Show(self.id) end end)
+  hud.cac:SetScript("OnEnter", function(self) if self.tip then Tip(self, self.tip) end end)
+  hud.cac:SetScript("OnLeave", HideTip)
+  hud.cac:Hide()
   hud:SetClampedToScreen(true)
   hud:SetMovable(true)
   hud:EnableMouse(true)
@@ -2353,6 +2369,16 @@ function UI.RefreshHUD()
   hud.spark:ClearAllPoints()
   hud.spark:SetPoint("CENTER", hud, "LEFT", fill * 195, 0)
   hud.spark:SetShown(fill > 0 and fill < 1)
+  -- the caciara line
+  local c = ns.Lunario and ns.Lunario.HudLine and ns.Lunario.HudLine(now)
+  if c then
+    hud.cac.id, hud.cac.tip = c.id, c.tip
+    hud.cac.icon:SetTexture(c.icon)
+    hud.cac.text:SetText(c.text)
+    hud.cac:Show()
+  else
+    hud.cac:Hide()
+  end
   hud:Show()
 end
 

@@ -158,6 +158,9 @@ check(not R(LC.Create(C.lua.table_from({'k': 'bg', 'n': 'X', 't': T[0] + 3600, '
 A.ns.UI.Show('casa')
 check(A.has('Caciare') and A.has('Torneo ar Crossroads') and A.has('tra ') and A.has('Notizie'), 'the Baretto: the caciare to come, with how long to go')
 B.ns.UI.Toggle(); B.ns.UI.Show('casa')
+hb = B.g.ErPattoHUD; ha = A.g.ErPattoHUD
+check(ha.cac.shown and 'Torneo ar Crossroads tra' in str(ha.cac.text.text), 'under Dario\'s cap bar: the torneo he\'s in and how long to go: ' + str(ha.cac.text.text))
+check(hb.cac.shown and 'ce stai?' in str(hb.cac.text.text), 'under Pietro\'s: one waits for his answer: ' + str(hb.cac.text.text))
 check(B.has('Torneo ar Crossroads') and B.has('nova: ce stai?') and B.has('(1 nova)'), 'Pietro hasn\'t answered the torneo: "nova: ce stai?", and the count in the title')
 
 # ---- the other kinds: an elite to kill, world PvP, a long quest: put up, seen by the others, with their questions

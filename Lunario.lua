@@ -562,6 +562,45 @@ function L.Upcoming(now)
   end
   return out
 end
+-- "1g 20h", "2h 15m", "12 min"
+function L.Left(sec)
+  local m = math.max(0, math.floor(sec / 60))
+  local d, h, mm = math.floor(m / 1440), math.floor((m % 1440) / 60), m % 60
+  if d > 0 then return d .. "g" .. (h > 0 and (" " .. h .. "h") or "") end
+  if h > 0 then return h .. "h" .. (mm > 0 and (" " .. mm .. "m") or "") end
+  return mm .. " min"
+end
+-- the line under the cap bar: the caciara going on now that I'm in, else the next one I'm in (the nearer it is,
+-- the more it shows: grey, white under a day, gold under an hour, orange in the last quarter), else the ones
+-- of my squadra still waiting for my answer. Nothing when there's nothing.
+function L.HudLine(now)
+  if not Ready() then return nil end
+  now = now or Now()
+  local mineE, mineA, open, firstOpen = nil, nil, 0, nil
+  for _, e in ipairs(L.Upcoming(now)) do
+    local yes, _, mine = L.Answers(e)
+    if (mine == 1 or mine == 2) and not mineE then mineE, mineA = e, mine end
+    if mine == nil and L.State(e, now) == "prossimo" then open = open + 1 firstOpen = firstOpen or e end
+  end
+  local e = mineE or firstOpen
+  if not e then return nil end
+  local kind = L.KINDS[e.k] or L.KINDS.al
+  local yes = L.Answers(e)
+  local tip = { e.n, kind.name .. ", " .. L.When(e), #yes .. " ce stanno" }
+  if open > 0 then tip[#tip + 1] = open == 1 and "Una caciara aspetta la risposta tua." or (open .. " caciare aspettano la risposta tua.") end
+  local text
+  if mineE then
+    local left = e.t - now
+    if left <= 0 then text = GREEN .. e.n .. ": mo'!|r"
+    else
+      local col = left <= 15 * 60 and "|cffff8000" or (left <= 3600 and GOLD or (left <= 86400 and WHITE or GREY))
+      text = col .. e.n .. " tra " .. L.Left(left) .. (mineA == 2 and " (forse)" or "") .. "|r"
+    end
+  else
+    text = "|cffff8000" .. (open == 1 and ("Caciara nova: " .. e.n) or (open .. " caciare nove")) .. ": ce stai?|r"
+  end
+  return { id = e.id, icon = kind.icon, text = text, tip = tip }
+end
 -- once a day, at the first look: the ones I'm in today and tomorrow, and the ones I haven't answered yet
 function L.Daily(now)
   now = now or Now()
