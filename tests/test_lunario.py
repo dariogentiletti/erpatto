@@ -121,7 +121,7 @@ check(A.has('Ce stanno') and A.has('Le puntate'), 'the detail: who\'s in, the be
 check(not R(LC.Create(C.lua.table_from({'k': 'bg', 'n': 'X', 't': T[0] + 3600, 'tm': 't1'})))[0], 'Gina can\'t put one up for I Pazzi (only the capo)')
 # Baretto: the next one
 A.ns.UI.Show('casa')
-check(A.has('Lunario:') and A.has('Torneo ar Crossroads'), 'the Baretto shows the next appuntamento')
+check(A.has('Caciare:') and A.has('Torneo ar Crossroads'), 'the Baretto shows the next appuntamento')
 
 # ---- called off: the bets given back
 R(LB.Bet(str(e2.id), 'dw', 'Player-1-AAA', 6))

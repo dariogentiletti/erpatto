@@ -204,12 +204,12 @@ local function Refresh(v)
   if nextE then
     local yes, _, mine = L.Answers(nextE)
     v.appt.id = nextE.id
-    v.appt.text:SetText("|cffffd100Lunario:|r " .. (L.State(nextE) == "incorso" and "|cff20ff20mo'|r" or (U.Day(nextE.t) .. ", " .. U.HM(nextE.t))) ..
+    v.appt.text:SetText("|cffffd100Caciare:|r " .. (L.State(nextE) == "incorso" and "|cff20ff20mo'|r" or (U.Day(nextE.t) .. ", " .. U.HM(nextE.t))) ..
       " " .. nextE.n .. " |cff9d9d9d(" .. #yes .. " ce stanno" .. (mine == 1 and ", tu pure" or (mine == nil and ", tu?" or "")) .. ")|r")
     v.appt:Show()
   else
     v.appt.id = nil
-    v.appt.text:SetText("|cffffd100Lunario:|r |cff9d9d9dgnente in programma|r")
+    v.appt.text:SetText("|cffffd100Caciare:|r |cff9d9d9dgnente in programma|r")
     v.appt:Show()
   end
 

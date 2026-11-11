@@ -2091,7 +2091,7 @@ local function Build()
   BuildCapo()
   local order = {}
   for _, x in ipairs(UI.extra) do if x.first then order[#order + 1] = { x.key, x.label } end end
-  for _, t in ipairs({ { "botteghino", "Botteghino" }, { "lunario", "Lunario" }, { "progresso", "Progresso" }, { "cap", "Cap" }, { "gruppi", "Squadre" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
+  for _, t in ipairs({ { "botteghino", "Botteghino" }, { "lunario", "Caciare" }, { "progresso", "Progresso" }, { "cap", "Cap" }, { "gruppi", "Squadre" }, { "imp", "Impostazioni" }, { "capo", "Capo" } }) do
     order[#order + 1] = t
   end
   for i, t in ipairs(order) do MakeTab(i, t[1], t[2]) end

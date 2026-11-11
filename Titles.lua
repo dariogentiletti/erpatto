@@ -50,7 +50,7 @@ Ti.LIST = {
   { id = "sacco", name = "A Sacco da Boxe", kind = "top", value = function(m, c) return select(2, InPattoDuels(m, c.idx)) end, desc = "Chi ha perso più duelli ner patto. Armeno ce provi." },
   { id = "gladiatore", name = "A Gladiatore", kind = "top", value = function(m) return Stat(m, "bw") end, desc = "Er primo pe' campi de battaja vinti." },
   { id = "attaccabrighe", name = "A Attaccabrighe", kind = "top", value = function(m) return Stat(m, "hw") end, desc = "Er primo pe' uccisioni onorevoli pe' strada (fori dai battleground): nun te se pò incontrà." },
-  { id = "presenzialista", name = "A Presenzialista", kind = "top", value = function(m) return Stat(m, "ap") end, desc = "Er primo pe' appuntamenti der Lunario fatti co' la squadra: nun ne salta uno." },
+  { id = "presenzialista", name = "A Presenzialista", kind = "top", value = function(m) return Stat(m, "ap") end, desc = "Er primo pe' caciare fatte co' la squadra: nun ne salta uno." },
   { id = "legionario", name = "A Legionario", kind = "top", value = function(m) return Stat(m, "hb") end, desc = "Er primo pe' uccisioni onorevoli ner battleground: sempre in prima fila." },
   { id = "pretoriano", name = "A Pretoriano", kind = "top", value = function(m) return Stat(m, "hn") end, desc = "Er primo pe' onore guadagnato." },
   { id = "bracconiere", name = "A Bracconiere", kind = "top", value = function(m) return Stat(m, "rk") end, desc = "Er primo pe' mostri rari ammazzati." },

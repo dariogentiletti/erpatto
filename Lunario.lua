@@ -409,7 +409,7 @@ local function Told(key)
   ns.db.evTold[key] = Now()
   return false
 end
-local function Say(text) if ns.News and ns.News.Banner then ns.News.Banner("Lunario:", text, { 1, 0.82, 0 }, "evento") end end
+local function Say(text) if ns.News and ns.News.Banner then ns.News.Banner("Caciare:", text, { 1, 0.82, 0 }, "evento") end end
 function L.When(e)
   return U.Day(e.t) .. ", " .. U.HM(e.t) .. "-" .. U.HM(L.End(e))
 end
@@ -975,7 +975,7 @@ local function Refresh(v)
   RefreshDetail(v)
 end
 
-UI.AddView("lunario", "Lunario", Build, Refresh, false)
+UI.AddView("lunario", "Caciare", Build, Refresh, false)
 function L.Show(id)
   if id then selected = id end
   UI.Show("lunario")
