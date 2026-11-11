@@ -494,6 +494,7 @@ function TB.LedgerText(x)
   if k == "gu" then return "Gufata su " .. Who(x.o) end
   if k == "gut" then return "Gufata de " .. Who(x.o) .. " su de te" end
   if k == "sb" then return "Ar Colosseo, su " .. Who(x.o) end
+  if k == "ev" then return "Appuntamento, puntata su " .. Who(x.o) end
   return "?"
 end
 

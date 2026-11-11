@@ -186,6 +186,7 @@ local function Got(id, n, k, o)
   if e.got == nil then e.got, e.gt = n, Now() end
 end
 local function Balance() return ns.Tombola and ns.Tombola.Balance() or 0 end
+S.Pay, S.Got = Pay, Got
 
 ----------------------------------------------------------------------
 -- reading the records (and the quick messages not yet in a record)
@@ -1569,6 +1570,8 @@ local function OneButton(d, text)
   d.no:ClearAllPoints() d.no:SetPoint("BOTTOM", 0, 18)
   d.no:SetText(text)
 end
+-- for the other windows of the patto (Lunario): the same dialogs
+S.UI = { Dialog = Dialog, Done = Done, Reset = Reset, TwoButtons = TwoButtons, OneButton = OneButton, Report = Report }
 local RULE = "Chi perde sta a la gogna 'n giorno, cor pegno che sceje chi vince."
 
 -- a sfida a piotte for me

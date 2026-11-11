@@ -628,7 +628,7 @@ A.ns.Diag.Toggle()  # the log quotes the stub's raw values; close it before the 
 # an alt linked, then unlinked: the friends' copy of the main follows, the list emptied too
 code = str(A.ns.state.code)
 A.lua.eval('function(code) ErPattoDB.chars["Player-1-OLD"] = { name = "Vecchio", lv = 5, alt = code } end')(code)
-A.ns.T.RefreshSelf('alts'); secs(10)
+A.ns.T.RefreshSelf('alts'); secs(25)  # (a whole record of 7 parts may be ahead in the line)
 ba = B.ns.state.members[A.guid].alts
 check(ba and ba[1] and str(ba[1].name) == 'Vecchio', "friends see a linked alt under the main")
 # unlinked from the alt (another session of the account): the main's next session sends the list without it

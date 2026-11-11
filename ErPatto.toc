@@ -24,6 +24,7 @@ Tombola.lua
 Progress.lua
 Botteghino.lua
 Sfide.lua
+Lunario.lua
 Bollettino.lua
 Guardia.lua
 News.lua

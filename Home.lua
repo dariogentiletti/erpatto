@@ -64,9 +64,18 @@ local function Build()
   v.next = H.Text(a, "GameFontHighlightSmall", "", 344)
   v.next:SetPoint("TOPLEFT", 14, -90)
   v.tip = H.Text(a, "GameFontNormalSmall", "", 344)
-  v.tip:SetPoint("TOPLEFT", 14, -110)
-  v.tip:SetHeight(56)
+  v.tip:SetPoint("TOPLEFT", 14, -106)
+  v.tip:SetHeight(44)
   if v.tip.SetJustifyV then v.tip:SetJustifyV("TOP") end
+  -- the next appuntamento of my squadra (er Lunario): a click opens it
+  v.appt = CreateFrame("Button", nil, a)
+  v.appt:SetSize(344, 16)
+  v.appt:SetPoint("TOPLEFT", 12, -152)
+  v.appt:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
+  v.appt.text = H.Text(v.appt, "GameFontHighlightSmall", "", 340)
+  v.appt.text:SetPoint("LEFT", 2, 0)
+  if v.appt.text.SetWordWrap then v.appt.text:SetWordWrap(false) end
+  v.appt:SetScript("OnClick", function(self) if ns.Lunario then ns.Lunario.Show(self.id) end end)
 
   -- online now
   local b = H.Box(v, 368, 176)
@@ -183,6 +192,26 @@ local function Refresh(v)
     v.next:SetText("")
   end
   v.tip:SetText(CapAdvice(st, rec))
+  -- the next appuntamento (er Lunario)
+  local L = ns.Lunario
+  local nextE
+  if L then
+    for _, e in ipairs(L.Events()) do
+      local s2 = L.State(e)
+      if L.Visible(e, "mine") and (s2 == "prossimo" or s2 == "incorso") then nextE = e break end
+    end
+  end
+  if nextE then
+    local yes, _, mine = L.Answers(nextE)
+    v.appt.id = nextE.id
+    v.appt.text:SetText("|cffffd100Lunario:|r " .. (L.State(nextE) == "incorso" and "|cff20ff20mo'|r" or (U.Day(nextE.t) .. ", " .. U.HM(nextE.t))) ..
+      " " .. nextE.n .. " |cff9d9d9d(" .. #yes .. " ce stanno" .. (mine == 1 and ", tu pure" or (mine == nil and ", tu?" or "")) .. ")|r")
+    v.appt:Show()
+  else
+    v.appt.id = nil
+    v.appt.text:SetText("|cffffd100Lunario:|r |cff9d9d9dgnente in programma|r")
+    v.appt:Show()
+  end
 
   -- online now: me first, then by level
   local on = {}

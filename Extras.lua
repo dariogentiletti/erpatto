@@ -214,6 +214,10 @@ X.INFO = {
     "Er Campione: chi manna a la gogna er campione se pija la corona.",
     "'Sta settimana e Da sempre cambiano er periodo contato." },
   -- the Botteghino has one text per tab of its own (botteghino:<page>); this one is the fallback
+  lunario = { "Lunario", "L'appuntamenti der patto: dungeon, tornei de duelli, battleground, livellate, rimpatriate. Ognuno ne pò mette pe' la squadra sua (er capo pure pe' l'artre, o pe' tutto er patto).",
+    "Dì si ce stai: chi ce sta lo vede, e 'n quarto d'ora prima e quanno comincia te l'addon te chiama. Si er dungeon ce l'avete in programma e ce entri prima, te lo ricorda.",
+    "Prima che comincia se punta: chi fa più danno, chi more de più, chi vince più duelli... Le piotte de 'na domanda vanno a chi ha indovinato, in proporzione a quanto ha puntato. Ar massimo 25, mai su te stesso.",
+    "Quanno finisce, a chi c'era e a chi ha puntato er riepilogo: chi ha fatto più danno, cure, colpi finali, morti, duelli, uccisioni. A Presenzialista è chi ne fa de più." },
   botteghino = { "Botteghino", "Se gioca a piotte, li sordi finti der patto: se parte co' 20, e a giocà in gruppo cor patto se ne guadagnano (vedi Scontrini)." },
   ["botteghino:tombola"] = { "Tombola", "'Na cartella de 9 imprese a settimana, uguale pe' tutti.",
     "1 piotta a casella, +2 a terno, +10 tombola.", "Si 'na casella nun se pò fà, er capo la pò cambià." },

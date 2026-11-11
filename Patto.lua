@@ -174,7 +174,7 @@ end
 -- fl flights taken, hs hearthstones used, gp seconds played in a group with someone of the patto,
 -- hw honorable kills out in the world ("pe' strada"), hb honorable kills in battlegrounds and arenas (hk: all of them)
 local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn",
-  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp", "hw", "hb", "ga" }
+  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp", "hw", "hb", "ga", "ap" }
 local STAT_MAX = { g = 1e11, ga = 1e11, pt = 1e8, hn = 1e8, tr = 1e9, gp = 1e8 }
 
 -- { [string] = count }, at most `max` entries
@@ -286,6 +286,30 @@ function P.CleanMember(r)
   -- duel request turned down), the
   -- pegni I chose as winner (gp: id of the first challenge, which pegno, its text, the emote)
   -- (x: 1 "basta", 2 turned down / off, 3 accepted: the duel countdown started)
+  -- er Lunario: the appuntamenti I put up (ev), my answers (ea), my bets on them (eb), how they went for me (er)
+  local EVK = { dg = true, du = true, bg = true, lv = true, al = true }
+  c.ev = List(r.ev, 6, function(x)
+    if not (Str(x.id, 40) and EVK[x.k] and Plain(x.n, 40) and Num(x.t, 0, 4e9)) then return nil end
+    return { id = Str(x.id, 40), k = x.k, n = Plain(x.n, 40), t = math.floor(Num(x.t, 0, 4e9)), d = math.floor(Num(x.d, 15, 600) or 120),
+      tm = Str(x.tm, 8) or "", m = math.floor(Num(x.m, 0, 40) or 0), no = Plain(x.no, 60), x = x.x == 1 and 1 or nil, at = Num(x.at, 0, 4e9) }
+  end)
+  c.ea = List(r.ea, 12, function(x)
+    local a = tonumber(x.a)
+    if not (Str(x.i, 40) and (a == 0 or a == 1 or a == 2)) then return nil end
+    return { i = Str(x.i, 40), a = a, at = Num(x.at, 0, 4e9) }
+  end)
+  c.eb = List(r.eb, 10, function(x)
+    if not (Str(x.i, 40) and Str(x.q, 3) and Str(x.p, 60) and Num(x.s, 1, 1e4)) then return nil end
+    return { i = Str(x.i, 40), q = Str(x.q, 3), p = Str(x.p, 60), s = math.floor(Num(x.s, 1, 1e4)), at = Num(x.at, 0, 4e9) }
+  end)
+  c.er = List(r.er, 8, function(x)
+    if not Str(x.i, 40) then return nil end
+    local o = { i = Str(x.i, 40), ok = 1 }
+    for _, k in ipairs({ "d", "h", "k", "dt", "dw", "dl", "hk" }) do o[k] = math.floor(Num(x[k], 0, 1e9) or 0) end
+    return o
+  end)
+  -- (empty, they're left out: every record goes to everyone, a few bytes each count)
+  for _, k in ipairs({ "ev", "ea", "eb", "er" }) do if c[k] and #c[k] == 0 then c[k] = nil end end
   c.gd = List(r.gd, 12, function(x)
     if not (Str(x.id, 40) and Str(x.to, 60) and Num(x.at, 0, 4e9)) then return nil end
     local k = tonumber(x.x)
