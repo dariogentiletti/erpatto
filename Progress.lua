@@ -40,7 +40,8 @@ local METRICS = {
   { key = "hw", title = "Uccisioni pe' strada" },
   { key = "hb", title = "Uccisioni in BG" },
   { key = "hn", title = "Onore", text = function(m, md) return U.Thousands(H.StatOf(m, "hn", md)) end },
-  { key = "il", title = "Livello oggetti", value = ItemLevelOf, text = function(m) local v = ItemLevelOf(m) return v > 0 and OneDecimal(v) or "-" end, fixed = true, noCard = true },
+  { key = "il", title = "Robba addosso", value = ItemLevelOf, text = function(m) local v = ItemLevelOf(m) return v > 0 and OneDecimal(v) or "-" end, fixed = true,
+    tip = "Er livello medio dell'oggetti che porti addosso (item level)." },
   { key = "dw", title = "Duelli vinti", text = function(m, md) return H.StatOf(m, "dw", md) .. "-" .. H.StatOf(m, "dl", md) end,
     tie = function(a, b, md) return H.StatOf(a, "dl", md) < H.StatOf(b, "dl", md) end },
   { key = "bw", title = "BG vinte", text = function(m, md) return H.StatOf(m, "bw", md) .. "-" .. H.StatOf(m, "bl", md) end,
@@ -48,6 +49,9 @@ local METRICS = {
   { key = "gp", title = "Ore in compagnia", value = function(m, md) return H.StatOf(m, "gp", md) end, text = function(m, md) return Hours(H.StatOf(m, "gp", md)) end,
     tip = "Ore giocate in gruppo co' quarcuno der patto (quelle che fanno la paghetta)." },
 }
+-- only as cards (fifteen cards fill three rows of five): the deaths, where more is "first", and the caciare done
+METRICS[#METRICS + 1] = { key = "dt", title = "Morti", cardOnly = true, tip = "Chi more de più. Ner Diario e ner confronto vince chi more de meno." }
+METRICS[#METRICS + 1] = { key = "ap", title = "Caciare fatte", cardOnly = true, tip = "Le caciare a cui sei annato davero co' la squadra." }
 local DEATHS = { key = "dt", title = "Morti", low = true }
 
 local function Value(metric, m)
@@ -730,7 +734,7 @@ end
 -- Confronto
 ----------------------------------------------------------------------
 local VS = {}
-for _, m in ipairs(METRICS) do VS[#VS + 1] = m end
+for _, m in ipairs(METRICS) do if not m.cardOnly then VS[#VS + 1] = m end end
 VS[#VS + 1] = DEATHS
 local BAR_W = 150
 

@@ -1193,15 +1193,21 @@ local HOURS = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1 }
 function L.OpenNew(at)
   local SU = ns.Sfide and ns.Sfide.UI
   if not (SU and Ready()) then return end
-  local Choose = ns.Sfide.Choose
+  local function Choose(anchor, items, fn)
+    ns.Sfide.Choose(anchor, items, function(v) fn(v) if newDlg and newDlg.Sync then pcall(newDlg.Sync) end end)
+  end
   if not newDlg then
-    local d = SU.Dialog("ErPattoAppuntamento", 420, 392, "Caciara nova")
+    local d = SU.Dialog("ErPattoAppuntamento", 470, 392, "Caciara nova")
     local function Label(text, y) local l = H.Text(d, "GameFontNormalSmall", text, 80) l:SetPoint("TOPLEFT", 24, y) return l end
     local lk = Label("Che se fa", -40)
     d.kind = H.Dropdown(d, 180, function(self)
       local items = {}
       for _, k in ipairs(L.ORDER) do items[#items + 1] = { k, L.KINDS[k].name } end
-      Choose(self, items, function(k) form.k = k form.m = L.KINDS[k].max if k ~= form.lastK then form.n = nil end form.lastK = k end)
+      Choose(self, items, function(k)
+        -- another kind: its places, and the name of the place chosen before goes
+        if k ~= form.lastK then form.n = nil form.m = L.KINDS[k].max d.name:SetText("") d.err:SetText("") end
+        form.k, form.lastK = k, k
+      end)
     end)
     d.kind:SetPoint("TOPLEFT", 110, -34)
     local lw = Label("Dove", -70)
@@ -1237,6 +1243,8 @@ function L.OpenNew(at)
     lp:ClearAllPoints() lp:SetPoint("TOPLEFT", 252, -160)
     d.places = H.Input(d, 34, 2)
     if d.places.SetNumeric then d.places:SetNumeric(true) end
+    -- what is typed stays (the window is kept in step with the form: without this it went back to the kind's)
+    d.places:HookScript("OnTextChanged", function(self, user) if user then form.m = tonumber(self:GetText()) or 0 end end)
     d.places:SetPoint("TOPLEFT", 296, -156)
     local lt = Label("Pe' chi", -190)
     d.team = H.Dropdown(d, 180, function(self)
@@ -1257,8 +1265,8 @@ function L.OpenNew(at)
     for i = 1, 8 do
       local c = CreateFrame("CheckButton", nil, d, "UICheckButtonTemplate")
       c:SetSize(22, 22)
-      c:SetPoint("TOPLEFT", 104 + ((i - 1) % 2) * 146, -244 - math.floor((i - 1) / 2) * 20)
-      c.label = H.Text(d, "GameFontHighlightSmall", "", 134)
+      c:SetPoint("TOPLEFT", 104 + ((i - 1) % 2) * 170, -244 - math.floor((i - 1) / 2) * 20)
+      c.label = H.Text(d, "GameFontHighlightSmall", "", 150)
       c.label:SetPoint("LEFT", c, "RIGHT", 0, 1)
       if c.label.SetWordWrap then c.label:SetWordWrap(false) end
       c:SetScript("OnClick", function(self)
@@ -1321,6 +1329,8 @@ function L.OpenNew(at)
         c:SetShown(on) c.label:SetShown(on)
         if q then c.label:SetText(L.Q[q].q) c:SetChecked(form.q[q] and true or false) end
       end
+      -- as tall as its questions
+      d:SetHeight(d.yes:IsShown() and (250 + math.ceil(#qs / 2) * 20 + 76) or 160)
     end
     newDlg = d
   end
@@ -1344,7 +1354,9 @@ function L.OpenBets(id)
   local SU = ns.Sfide and ns.Sfide.UI
   local e = L.Find(id)
   if not (SU and e) then return end
-  local Choose = ns.Sfide.Choose
+  local function Choose(anchor, items, fn)
+    ns.Sfide.Choose(anchor, items, function(v) fn(v) if betDlg and betDlg.Sync then pcall(betDlg.Sync) end end)
+  end
   if not betDlg then
     local d = SU.Dialog("ErPattoPuntateEv", 560, 300, "Le puntate")
     d.rows = {}

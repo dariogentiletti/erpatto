@@ -3110,8 +3110,11 @@ local chooser
 local function Choose(anchor, items, onPick)
   if not chooser then
     chooser = CreateFrame("Frame", "ErPattoChoose", UIParent)
-    chooser:SetFrameStrata("DIALOG")
+    -- over every window of ours (a dialog clicked comes up in its own strata: the list must not end under it),
+    -- and never off the screen
+    chooser:SetFrameStrata("FULLSCREEN_DIALOG")
     chooser:SetToplevel(true)
+    if chooser.SetClampedToScreen then chooser:SetClampedToScreen(true) end
     chooser:EnableMouse(true)
     H.Chrome(chooser)
     chooser.rows = {}
@@ -3119,7 +3122,7 @@ local function Choose(anchor, items, onPick)
     -- a click anywhere else closes it: an invisible layer over the screen, under the list (as the old dropdowns)
     local catcher = CreateFrame("Button", nil, UIParent)
     catcher:SetAllPoints(UIParent)
-    catcher:SetFrameStrata("DIALOG")
+    catcher:SetFrameStrata("FULLSCREEN_DIALOG")
     catcher:EnableMouse(true)
     catcher:RegisterForClicks("AnyUp")
     catcher:SetScript("OnClick", function(self) self:Hide() chooser:Hide() end)
@@ -3159,6 +3162,8 @@ local function Choose(anchor, items, onPick)
   chooser:ClearAllPoints()
   chooser:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
   chooser:Show()
+  if chooser.Raise then chooser:Raise() end
+  for i = 1, shown do chooser.rows[i]:SetFrameLevel(chooser:GetFrameLevel() + 2) end
 end
 S.Choose = Choose
 
