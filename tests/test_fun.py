@@ -1166,6 +1166,25 @@ ok, frm2 = A.ns.P.SetPace(A.ns.state, A.ns.me, 't1', 70)
 secs(10)
 check(frm2 == wk0 and B.ns.MyStatus().cap >= capA, 'changed again the same week: still this week (%s), cap %s' % (frm2, B.ns.MyStatus().cap))
 
+# ---- the bulletins of the weeks before: the one of the week just ended is kept, and can be opened again later
+A.ns.db.opts.testMode = False
+BL = A.ns.Bollettino
+wkL = int(A.ns.M.WeekIndex(A.ns.state.settings, T[0])) - 1
+if wkL < 1:
+    T[0] += 7 * 86400; secs(5); wkL += 1
+BL.Show(wkL)
+rich1 = str(bull.rich[1].name.text)
+k0 = list(BL.Kept().values())
+check(k0[0] == wkL, 'the bulletin of the week just ended (%d) is kept: %s' % (wkL, k0))
+T[0] += 7 * 86400; secs(5)
+check(list(BL.Kept().values())[:2] == [wkL + 1, wkL], 'a week later: one more to pick from: ' + str(list(BL.Kept().values())))
+BL.Show(wkL)
+check(bull.shown and ('settimana %d' % wkL) in str(bull.title.text) and str(bull.rich[1].name.text) == rich1 and 'come stava' in str(bull.foot.text) and bull.week.shown,
+      'the old one opens as it was (%s), with the list of the weeks' % rich1)
+BL.Show(wkL + 1)
+check(('settimana %d' % (wkL + 1)) in str(bull.title.text) and 'come stava' not in str(bull.foot.text), 'and back to the last one')
+bull.Hide(bull)
+
 bad = [e for c in clients for e in c.errors()]
 check(not bad, 'no errors: ' + str(bad[:4]))
 unk = dict(A.g.UNKNOWN)

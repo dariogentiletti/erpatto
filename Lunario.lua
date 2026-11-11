@@ -307,6 +307,18 @@ end
 
 -- my bets paid once the results are in (or given back: called off, nobody guessed, nobody did anything)
 local function Book() return ns.Sfide and ns.Sfide.Store and ns.Sfide.Store() end
+-- what comes back if the pick wins, as the piatto stands now: the whole piatto of the question, shared among who
+-- picked him in proportion to the stake. placed: the stake is already in the piatto.
+function L.Return(e, q, pick, stake, placed, pools)
+  stake = math.floor(tonumber(stake) or 0)
+  if stake < 1 or not pick then return nil end
+  local pool = (pools or L.Pools(e))[q] or { total = 0, bets = {} }
+  local total, on = pool.total, 0
+  for _, x in ipairs(pool.bets) do if x.p == pick then on = on + x.s end end
+  if not placed then total, on = total + stake, on + stake end
+  if on <= 0 then return nil end
+  return math.floor(stake * total / on)
+end
 function L.Settle(e)
   local st = Book()
   if not (st and ns.Sfide.Got) then return 0 end
@@ -1244,7 +1256,8 @@ local function RefreshDetail(v)
         row.m:SetText((#who > 0 and ("L'ha fatto " .. GOLD .. table.concat(who, ", ") .. "|r") or (GREY .. "Nessuno|r")) ..
           (b and (b and win[b.p] and (GREEN .. ", hai vinto|r") or (RED .. ", hai perso|r")) or ""))
       elseif b then
-        row.m:SetText("Tu: " .. Piotte(b.s) .. " su " .. Colored(all[b.p]))
+        local ret = L.Return(e, q, b.p, b.s, true, pools)
+        row.m:SetText("Tu: " .. Piotte(b.s) .. " su " .. Colored(all[b.p]) .. (ret and (GREY .. ", si vince: |r" .. GREEN .. ret .. "|r") or ""))
       else
         row.m:SetText(GREY .. (st == "prossimo" and "Nun hai puntato" or "Puntate chiuse") .. "|r")
       end
@@ -1482,7 +1495,7 @@ function L.OpenBets(id)
     d.rows = {}
     for i = 1, L.MAX_QS do
       local r = {}
-      local y = -34 - (i - 1) * 28
+      local y = -34 - (i - 1) * 44
       r.q = H.Text(d, "GameFontNormalSmall", "", 190)
       r.q:SetPoint("TOPLEFT", 22, y - 6)
       if r.q.SetWordWrap then r.q:SetWordWrap(false) end
@@ -1510,8 +1523,14 @@ function L.OpenBets(id)
       r.info:SetPoint("TOPRIGHT", -20, y - 6)
       r.mine = H.Text(d, "GameFontHighlightSmall", "", 250)
       r.mine:SetPoint("TOPLEFT", 216, y - 6)
+      -- under it: what comes back if he wins, as it stands now
+      r.back = H.Text(d, "GameFontHighlightSmall", "", 330)
+      r.back:SetPoint("TOPLEFT", 216, y - 25)
+      if r.back.SetWordWrap then r.back:SetWordWrap(false) end
       d.rows[i] = r
     end
+    d.rule = H.Text(d, "GameFontDisableSmall", "", 520, "CENTER")
+    d.rule:SetPoint("BOTTOM", 0, 62)
     d.no = H.Btn(d, "Chiudi", 120, function() d:Hide() end)
     d.no:SetPoint("BOTTOM", 0, 16)
     d.Sync = function()
@@ -1521,6 +1540,7 @@ function L.OpenBets(id)
       local kind = L.KINDS[ev.k] or L.KINDS.al
       local pools = L.Pools(ev)
       local open = L.Qs(ev)
+      local openNow = L.State(ev) == "prossimo"
       local my = {}
       for _, b in ipairs(MyList("eb")) do if b.i == ev.id then my[b.q] = b end end
       d.title:SetText("Le puntate: " .. ev.n)
@@ -1534,17 +1554,29 @@ function L.OpenBets(id)
           r.q:SetText(L.Q[q].q)
           r.info:SetText(pool.total .. " in palio")
           local b = my[q]
-          r.pick:SetShown(not b) r.stake:SetShown(not b) r.go:SetShown(not b) r.mine:SetShown(b ~= nil)
-          if b then r.mine:SetText("Tu: " .. Piotte(b.s) .. " su " .. Colored(all[b.p]))
+          local can = not b and openNow
+          r.pick:SetShown(can) r.stake:SetShown(can) r.go:SetShown(can) r.mine:SetShown(not can) r.back:Show()
+          if b then
+            r.mine:SetText("Tu: " .. Piotte(b.s) .. " su " .. Colored(all[b.p]))
+            local ret = L.Return(ev, q, b.p, b.s, true, pools)
+            r.back:SetText(ret and (GREY .. "Si vince, te ne tornano |r" .. GREEN .. ret .. "|r" .. GREY .. " (mo'; cambia finché se punta)|r") or "")
+          elseif not openNow then
+            r.mine:SetText(GREY .. "Nun hai puntato.|r")
+            r.back:SetText("")
           else
             r.pick:SetText(d.picks[i] and all[d.picks[i]] and Short(all[d.picks[i]]) or "Scegli")
             if not r.stake:HasFocus() and r.stake:GetText() == "" then r.stake:SetText("5") end
+            local ret = L.Return(ev, q, d.picks[i], r.stake:GetText(), false, pools)
+            r.back:SetText(ret and (GREY .. "Si vince, te ne tornano |r" .. GREEN .. ret .. "|r" .. GREY .. " (mo'; cambia finché se punta)|r")
+              or (GREY .. "Scegli su chi e quanto: te dico quanto torna.|r"))
           end
         else
-          r.pick:Hide() r.stake:Hide() r.go:Hide() r.mine:Hide()
+          r.pick:Hide() r.stake:Hide() r.go:Hide() r.mine:Hide() r.back:Hide()
         end
       end
-      d:SetHeight(100 + #open * 28)
+      d.rule:SetText(openNow and "Er piatto de la domanda se lo divide chi c'azzecca, a seconda de quanto ha puntato.\nSe punta solo prima che comincia."
+        or (RED .. "Le puntate so' chiuse: la caciara è cominciata.|r"))
+      d:SetHeight(134 + #open * 44)
     end
     betDlg = d
   end

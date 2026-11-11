@@ -59,6 +59,7 @@ check(not bad4[0] and [str(x) for x in LC.Qs(LC.Find(eid)).values()] == ['d', 'd
 balC0 = C.ns.Tombola.Balance(); balB0 = B.ns.Tombola.Balance(); balA0 = A.ns.Tombola.Balance()
 secs(20)
 pools = LA.Pools(LA.Find(eid))
+check(LB.Return(LB.Find(eid), 'd', 'Player-1-AAA', 5, True) == 5 and LA.Return(LA.Find(eid), 'd', 'Player-1-BBB', 5, False) == 20, 'what comes back, said before: Pietro\'s 5 on Dario (with Gina\'s 10 on him too) 5; 5 alone on Pietro would bring 20')
 check(pools.d.total == 15 and pools.dt.total == 4, 'the pools everyone sees: damage %s, deaths %s' % (pools.d.total, pools.dt.total))
 
 # ---- the dungeon on the calendar walked into a day early: a reminder

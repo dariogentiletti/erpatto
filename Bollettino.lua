@@ -643,6 +643,13 @@ local function Build()
   bull.foot:SetPoint("BOTTOMLEFT", 26, 24)
   bull.ok = H.Btn(bull, "Daje", 110, function() bull:Hide() end)
   bull.ok:SetPoint("BOTTOMRIGHT", -24, 16)
+  -- the bulletins of the weeks before (the ones kept: B.Archive)
+  bull.week = H.Dropdown(bull, 150, function(self)
+    local items = {}
+    for _, wk in ipairs(B.Kept()) do items[#items + 1] = { wk, "Settimana " .. wk } end
+    if ns.Sfide and ns.Sfide.Choose then ns.Sfide.Choose(self, items, function(wk) B.Show(wk) end) end
+  end)
+  bull.week:SetPoint("RIGHT", bull.ok, "LEFT", -14, 2)
   if UISpecialFrames then table.insert(UISpecialFrames, "ErPattoBulletin") end
 end
 
@@ -833,9 +840,76 @@ local function Fill(d, testing)
   bull.foot:SetText(st and not st.lifted and ("Mo' er cap " .. (st.team and ("de " .. st.team.name .. " ") or "") .. "è " .. GOLD .. st.cap .. "|r.") or "")
 end
 
+----------------------------------------------------------------------
+-- the bulletins kept. The records carry the numbers of the last two weeks only, so an old bulletin can't be made
+-- again: the one of the week just ended is put aside as it's made (and again a little after every login, while
+-- its numbers are still there: what arrives late gets in), the last twelve. Members become name and class, the
+-- titles name and description; nothing that runs.
+----------------------------------------------------------------------
+B.KEEP = 12
+local function Plain(v, depth, seen)
+  if type(v) ~= "table" then
+    if type(v) == "function" or type(v) == "userdata" then return nil end
+    return v
+  end
+  if depth > 8 or seen[v] then return nil end
+  if type(v.guid) == "string" and v.name ~= nil then return { guid = v.guid, name = v.name, cls = v.cls } end
+  seen[v] = true
+  local out = {}
+  for k, x in pairs(v) do
+    if type(k) == "string" or type(k) == "number" then out[k] = Plain(x, depth + 1, seen) end
+  end
+  seen[v] = nil
+  return out
+end
+local function Shelf()
+  if not (ns.db and ns.state) then return nil end
+  ns.db.bullKept = type(ns.db.bullKept) == "table" and ns.db.bullKept or {}
+  local code = ns.state.code
+  ns.db.bullKept[code] = type(ns.db.bullKept[code]) == "table" and ns.db.bullKept[code] or {}
+  return ns.db.bullKept[code]
+end
+-- the week whose numbers are still whole in the records: the one just ended
+local function LastWeek()
+  if not (ns.state and P.HasSettings(ns.state)) then return nil end
+  local wk = M.WeekIndex(ns.state.settings, U.Now()) - 1
+  return wk >= 1 and wk or nil
+end
+function B.Archive(d)
+  local shelf = Shelf()
+  local wk = LastWeek()
+  if not (shelf and wk) or ns.alt then return end
+  d = d or B.Data(wk)
+  if d.wk ~= wk then return end
+  shelf[wk] = Plain(d, 0, {})
+  shelf[wk].at = U.Now()
+  for k in pairs(shelf) do if type(k) ~= "number" or k < wk - B.KEEP + 1 then shelf[k] = nil end end
+end
+-- the weeks there is a bulletin of, the newest first
+function B.Kept()
+  local out, seen = {}, {}
+  local last = LastWeek()
+  if last then out[1] = last seen[last] = true end
+  for wk in pairs(Shelf() or {}) do if type(wk) == "number" and not seen[wk] then out[#out + 1] = wk end end
+  table.sort(out, function(a, b) return a > b end)
+  return out
+end
+
 function B.Show(wk, testing)
   if not bull then Build() end
-  Fill(B.Data(wk, testing), testing)
+  local shelf = Shelf()
+  local d, old
+  if not testing and wk ~= LastWeek() and shelf and shelf[wk] then
+    d, old = shelf[wk], true
+  else
+    d = B.Data(wk, testing)
+    if not testing then pcall(B.Archive, d) end
+  end
+  Fill(d, testing)
+  -- an old one: no cap of now under it
+  if old then bull.foot:SetText(GREY .. "Bollettino de la settimana " .. wk .. ", come stava a la fine.|r") end
+  bull.week:SetText("Settimana " .. wk)
+  bull.week:SetShown(not testing and #B.Kept() > 1)
   -- tall: on a small screen (or a big interface scale) it shrinks to fit
   local h = UIParent and UIParent.GetHeight and tonumber(UIParent:GetHeight()) or 0
   if h > 0 and bull.SetScale then bull:SetScale(math.min(1, (h - 16) / HEIGHT)) end
@@ -868,6 +942,8 @@ end
 ns.On("Login", function()
   if not C_Timer then return end
   C_Timer.After(10, function() pcall(B.SnapTitles) end)
+  -- last week's bulletin put aside (the others' records are in by now)
+  C_Timer.After(120, function() pcall(B.Archive) end)
   C_Timer.After(12, function() pcall(Home.ShowBulletin, false) end)
   C_Timer.NewTicker(300, function() pcall(B.SnapTitles) pcall(Home.ShowBulletin, false) end)
 end)
