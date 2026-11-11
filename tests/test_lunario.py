@@ -26,7 +26,7 @@ secs(30)  # the first look at the list (nothing to tell about what was already t
 # ---- Dario puts up Shadowfang Keep for tomorrow at 21:00, I Pazzi, 5 places
 p = A.ns.U.RomeParts(T[0] + 86400)
 t0 = A.ns.U.FromRome(p.year, p.month, p.day, 21, 0)
-ok, e = R(LA.Create(A.lua.table_from({'k': 'dg', 'n': 'Shadowfang Keep', 't': t0, 'd': 120, 'tm': 't1', 'm': 5, 'no': 'Portate le pozioni'})))
+ok, e = R(LA.Create(A.lua.table_from({'k': 'dg', 'n': 'Shadowfang Keep', 't': t0, 'd': 120, 'tm': 't1', 'm': 5, 'no': 'Portate le pozioni', 'q': 'd,dt,h'})))
 check(ok and e and str(e.n) == 'Shadowfang Keep', 'Dario puts up Shadowfang Keep, tomorrow 21:00: ' + str(e if not ok else e.id))
 eid = str(e.id)
 secs(40)
@@ -50,10 +50,12 @@ ok2 = R(LB.Bet(eid, 'd', 'Player-1-AAA', 5))
 ok3 = R(LA.Bet(eid, 'dt', 'Player-1-BBB', 4))
 bad1 = R(LA.Bet(eid, 'd', 'Player-1-AAA', 5))
 bad2 = R(LC.Bet(eid, 'h', 'Player-1-BBB', 50))
+bad4 = R(LC.Bet(eid, 'mx', 'Player-1-BBB', 5))
 bad3 = R(LC.Bet(eid, 'h', 'Player-1-CCC', 5))
 check(ok1[0] and ok2[0] and ok3[0], 'three bets placed')
 check(not bad1[0] and not bad2[0] and not bad3[0], 'never on yourself, at most 25, only on who is in: %s | %s | %s' % (bad1[1], bad2[1], bad3[1]))
 check(not R(LC.Bet(eid, 'd', 'Player-1-BBB', 3))[0], 'one bet per question')
+check(not bad4[0] and [str(x) for x in LC.Qs(LC.Find(eid)).values()] == ['d', 'dt', 'h'], 'only on the three questions Dario picked putting it up (not the biggest hit): ' + str(bad4[1]))
 balC0 = C.ns.Tombola.Balance(); balB0 = B.ns.Tombola.Balance(); balA0 = A.ns.Tombola.Balance()
 secs(20)
 pools = LA.Pools(LA.Find(eid))
@@ -76,6 +78,11 @@ T[0] = t0 + 10; secs(35)
 check(not R(LC.Bet(eid, 'dt', 'Player-1-AAA', 2))[0], 'the bets close when it starts')
 check(any('comincia' in str(m).lower() and 'Shadowfang' in str(m) for m in A.g.CHAT.values()), 'the start: Dario is told')
 
+# ---- only what happens in the dungeon counts: before going in, a fight in town is nothing
+LA.OnCombatLine('SPELL_DAMAGE', 'Player-1-AAA', None, 5000, None)
+LA.OnDeath()
+for c_ in (A, B): c_.g.INSTANCE = True; c_.g.INST_NAME = 'Shadowfang Keep'; c_.g.INST_KIND = 'party'
+LA.Regate(); LB.Regate()
 # ---- what they do: Dario 1200 damage and a killing blow, Pietro 300 damage, 400 healing and a death
 LA.OnCombatLine('SPELL_DAMAGE', 'Player-1-AAA', None, 700, None)
 LA.OnCombatLine('SWING_DAMAGE', 'Player-1-AAA', 500, None, None)
@@ -88,22 +95,25 @@ B.g.NOWV = B.g.NOWV + 1; LB.OnDeath()  # the second time the game says it: one d
 # the rest that's counted: what Pietro takes, the biggest hit, the jumps, the chat, the time on the ground
 LB.OnCombatLine('SWING_DAMAGE', 'Creature-0-1', 250, None, None, 'Player-1-BBB')
 LB.OnCombatLine('SPELL_DAMAGE', 'Creature-0-1', None, 150, None, 'Player-1-AAA')
-for _ in range(3): B.g.NOWV = B.g.NOWV + 1; LB.OnJump()
-LB.Count('c'); LB.Count('c')
-B.g.NOWV = B.g.NOWV + 40; LB.OnAlive()
+secs(40); LB.OnAlive()
+# Dario leaves the dungeon before the end: what he does outside isn't counted
+A.g.INSTANCE = False; A.g.INST_NAME = 'Silverpine Forest'; A.g.INST_KIND = 'none'; LA.Regate()
+LA.OnCombatLine('SPELL_DAMAGE', 'Player-1-AAA', None, 9000, None)
 # ---- the end (two hours), and the three minutes for the records
 T[0] = t0 + 120 * 60 + 5; secs(40)
+B.g.INSTANCE = False; B.g.INST_NAME = 'Silverpine Forest'; B.g.INST_KIND = 'none'  # out of the dungeon: the records travel again
+secs(20)
 ra = A.rec().er; rb = B.rec().er
 check(ra and ra[1].d == 1200 and ra[1].k == 1 and rb and rb[1].d == 300 and rb[1].h == 400 and rb[1].dt == 1,
       'each one wrote how it went: Dario %s/%s, Pietro %s/%s/%s' % (ra and ra[1].d, ra and ra[1].k, rb and rb[1].d, rb and rb[1].h, rb and rb[1].dt))
-check(ra[1].mx == 700 and rb[1].tk == 250 and rb[1].j == 3 and rb[1].c == 2 and rb[1].fd is not None and rb[1].fd > 0 and rb[1].td >= 40 and ra[1].fd is None,
-      'and the rest: Dario\'s biggest hit %s; Pietro took %s, jumped %s, said %s lines, first death after %s s, %s s on the ground' % (ra[1].mx, rb[1].tk, rb[1].j, rb[1].c, rb[1].fd, rb[1].td))
-check(next(iter(LA.Winners(LA.Find(eid), 'fd')[0].keys())) == 'Player-1-BBB' and next(iter(LA.Winners(LA.Find(eid), 'mx')[0].keys())) == 'Player-1-AAA', 'who died first: Pietro (the only one); the biggest hit: Dario')
+check(ra[1].mx == 700 and rb[1].tk == 250 and rb[1].fd is not None and rb[1].fd > 0 and rb[1].td >= 40 and ra[1].fd is None and ra[1].dt is None,
+      'and the rest: Dario\'s biggest hit %s (the 5000 in town and the 9000 outside don\'t count, nor his death before going in); Pietro took %s, first death after %s s, %s s dead' % (ra[1].mx, rb[1].tk, rb[1].fd, rb[1].td))
+check(next(iter(LB.Winners(LB.Find(eid), 'fd')[0].keys())) == 'Player-1-BBB' and next(iter(LA.Winners(LA.Find(eid), 'mx')[0].keys())) == 'Player-1-AAA', 'who died first: Pietro (the only one); the biggest hit: Dario')
 check(A.stat('ap') == 1 and B.stat('ap') == 1 and C.stat('ap') == 0, 'one appuntamento done for each of the two (A Presenzialista counts it)')
 T[0] += 200; secs(40)
 sm = B.g.ErPattoRiepilogo
 lines = ' | '.join(str(l.text) for l in sm.lines.values()) if sm else ''
-check(sm is not None and sm.shown and 'Shadowfang' in str(sm.title.text) and 'macellaio' in lines and 'Dario' in lines and 'dottore' in lines and 'Pietro' in lines,
+check(sm is not None and sm.shown and 'Shadowfang' in str(sm.title.text) and 'Più danno' in lines and 'Dario' in lines and 'Più cure' in lines and 'Pietro' in lines,
       'the summary on Pietro\'s screen: ' + lines)
 check(C.g.ErPattoRiepilogo is not None and C.g.ErPattoRiepilogo.shown, 'Gina gets it too: she bet')
 # damage: Dario won; pool 15 split between Gina (10) and Pietro (5); deaths: Pietro won, Dario alone on him: 4 back
@@ -157,6 +167,23 @@ for k, n, q in (('ca', 'Er drago de Duskwood', 'k'), ('wp', 'Scorribanda a Cross
     fa = LA.Find(str(ek.id)) if okk else None
     check(okk and fa is not None and str(fa.k) == k and LA.Pools(fa)[q] is not None, '%s (%s): Dario has it, with its bets' % (A.ns.Lunario.KINDS[k].name, n))
     LB.Cancel(str(ek.id)); secs(20)
+
+# ---- a battleground: gnomes killed count only in there, and only gnomes
+okg, eg = R(LA.Create(A.lua.table_from({'k': 'bg', 'n': 'Warsong Gulch', 't': T[0] + 600, 'd': 60, 'tm': 't1', 'q': 'gn,hk'})))
+check(okg and [str(x) for x in LA.Qs(eg).values()] == ['gn', 'hk'], 'a battleground with "chi ammazza più gnomi?" picked')
+A.lua.execute('GetPlayerInfoByGUID = function(g) if g == "Player-1-GNO" then return "Mago", "MAGE", "Gnomo", "Gnome", 2, "Gnomello", "" end return "Guerriero", "WARRIOR", "Umano", "Human", 2, "Ugo", "" end')
+T[0] += 630; secs(35)
+LA.OnCombatLine('PARTY_KILL', 'Player-1-AAA', None, None, None, 'Player-1-GNO')   # not in the battleground yet
+A.g.INSTANCE = True; A.g.INST_NAME = 'Warsong Gulch'; A.g.INST_KIND = 'pvp'
+A.lua.execute('local old = IsInInstance IsInInstance = function() return INSTANCE, INST_KIND end')
+LA.Regate()
+LA.OnCombatLine('PARTY_KILL', 'Player-1-AAA', None, None, None, 'Player-1-GNO')
+LA.OnCombatLine('PARTY_KILL', 'Player-1-AAA', None, None, None, 'Player-1-GNO')
+LA.OnCombatLine('PARTY_KILL', 'Player-1-AAA', None, None, None, 'Player-1-HUM')
+T[0] += 3600; secs(40)
+rg = [r for r in A.rec().er.values() if str(r.i) == str(eg.id)]
+check(len(rg) == 1 and rg[0].gn == 2, 'two gnomes (the human and the one before going in don\'t count): %s' % (rg and rg[0].gn))
+A.g.INSTANCE = False; A.g.INST_KIND = 'none'
 
 # ---- called off: the bets given back
 R(LB.Bet(str(e2.id), 'dw', 'Player-1-AAA', 6))

@@ -291,7 +291,7 @@ function P.CleanMember(r)
   c.ev = List(r.ev, 6, function(x)
     if not (Str(x.id, 40) and EVK[x.k] and Plain(x.n, 40) and Num(x.t, 0, 4e9)) then return nil end
     return { id = Str(x.id, 40), k = x.k, n = Plain(x.n, 40), t = math.floor(Num(x.t, 0, 4e9)), d = math.floor(Num(x.d, 15, 600) or 120),
-      tm = Str(x.tm, 8) or "", m = math.floor(Num(x.m, 0, 40) or 0), no = Plain(x.no, 60), x = x.x == 1 and 1 or nil, at = Num(x.at, 0, 4e9) }
+      tm = Str(x.tm, 8) or "", m = math.floor(Num(x.m, 0, 40) or 0), no = Plain(x.no, 60), x = x.x == 1 and 1 or nil, at = Num(x.at, 0, 4e9), q = Str(x.q, 24) }
   end)
   c.ea = List(r.ea, 12, function(x)
     local a = tonumber(x.a)
@@ -306,7 +306,7 @@ function P.CleanMember(r)
     if not Str(x.i, 40) then return nil end
     local o = { i = Str(x.i, 40), ok = 1 }
     -- (what's zero is left out)
-    for _, k in ipairs({ "d", "h", "k", "dt", "dw", "dl", "hk", "tk", "mx", "fd", "td", "j", "c", "em", "g", "q", "lt" }) do
+    for _, k in ipairs({ "d", "h", "k", "dt", "dw", "dl", "hk", "gn", "tk", "mx", "fd", "td", "g", "q", "lt" }) do
       local v = math.floor(Num(x[k], 0, 1e9) or 0)
       if v > 0 then o[k] = v end
     end
