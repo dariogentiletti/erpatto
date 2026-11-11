@@ -580,7 +580,8 @@ function L.HudLine(now)
   for _, e in ipairs(L.Upcoming(now)) do
     local yes, _, mine = L.Answers(e)
     if (mine == 1 or mine == 2) and not mineE then mineE, mineA = e, mine end
-    if mine == nil and L.State(e, now) == "prossimo" then open = open + 1 firstOpen = firstOpen or e end
+    -- (the ones without my answer only on their day)
+    if mine == nil and L.State(e, now) == "prossimo" and L.DayWord(e.t, now) == "oggi" then open = open + 1 firstOpen = firstOpen or e end
   end
   local e = mineE or firstOpen
   if not e then return nil end
@@ -600,6 +601,84 @@ function L.HudLine(now)
     text = "|cffff8000" .. (open == 1 and ("Caciara nova: " .. e.n) or (open .. " caciare nove")) .. ": ce stai?|r"
   end
   return { id = e.id, icon = kind.icon, text = text, tip = tip }
+end
+-- a caciara of my squadra today and no answer from me yet: the first time I'm in that day, a window with what it
+-- is, when, who's in and how long to go, and the two answers. Once per caciara; more than one, one after the other.
+local askDlg, askQueue = nil, {}
+local function AskFill()
+  local d = askDlg
+  local e = d and d.id and L.Find(d.id)
+  if not e then return end
+  local now = Now()
+  local kind = L.KINDS[e.k] or L.KINDS.al
+  local yes = L.Answers(e)
+  local names = {}
+  for i, m in ipairs(yes) do if i <= 6 then names[#names + 1] = Colored(m) end end
+  d.icon:SetTexture(kind.icon)
+  d.name:SetText(e.n)
+  d.what:SetText(kind.name .. ", oggi " .. U.HM(e.t) .. "-" .. U.HM(L.End(e)) .. ", " .. TeamName(e.tm))
+  d.by:SetText("L'ha messa " .. Colored(Members()[e.by] or {}) .. (e.no and (GREY .. ": " .. e.no .. "|r") or ""))
+  d.who:SetText("Ce stanno (" .. #yes .. (e.m and e.m > 0 and ("/" .. e.m) or "") .. "): " .. (#names > 0 and table.concat(names, ", ") or (GREY .. "ancora nessuno|r")) .. (#yes > 6 and (GREY .. " e artri " .. (#yes - 6) .. "|r") or ""))
+  local left = e.t - now
+  d.count:SetText(left > 0 and ("Comincia tra " .. GOLD .. L.Left(left) .. "|r") or (GREEN .. "È cominciata mo'!|r"))
+end
+local function AskNext()
+  local id = table.remove(askQueue, 1)
+  local e = id and L.Find(id)
+  while id and not (e and L.State(e) ~= "finito" and L.State(e) ~= "annullato" and select(3, L.Answers(e)) == nil) do
+    id = table.remove(askQueue, 1)
+    e = id and L.Find(id)
+  end
+  if not id then if askDlg then askDlg:Hide() end return end
+  local SU = ns.Sfide and ns.Sfide.UI
+  if not SU then return end
+  if not askDlg then
+    local d = SU.Dialog("ErPattoCaciaraOggi", 400, 196, "Caciara oggi")
+    d.icon = d:CreateTexture(nil, "ARTWORK")
+    d.icon:SetSize(36, 36)
+    d.icon:SetPoint("TOPLEFT", 22, -30)
+    d.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    d.name = H.Text(d, "GameFontNormal", "", 310)
+    d.name:SetPoint("TOPLEFT", d.icon, "TOPRIGHT", 10, -2)
+    d.what = H.Text(d, "GameFontHighlightSmall", "", 310)
+    d.what:SetPoint("TOPLEFT", d.name, "BOTTOMLEFT", 0, -4)
+    d.by = H.Text(d, "GameFontHighlightSmall", "", 356)
+    d.by:SetPoint("TOPLEFT", 22, -76)
+    if d.by.SetWordWrap then d.by:SetWordWrap(false) end
+    d.who = H.Text(d, "GameFontHighlightSmall", "", 356)
+    d.who:SetPoint("TOPLEFT", 22, -92)
+    if d.who.SetWordWrap then d.who:SetWordWrap(false) end
+    d.count = H.Text(d, "GameFontNormal", "", 356, "CENTER")
+    d.count:SetPoint("TOP", 0, -116)
+    local function answer(a)
+      if d.id then L.Answer(d.id, a) end
+      if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON) or 856) end
+      AskNext()
+      UI.Refresh()
+    end
+    d.yes = H.Btn(d, "Ce sto", 120, function() answer(1) end)
+    d.no = H.Btn(d, "No", 120, function() answer(0) end)
+    SU.TwoButtons(d, "Ce sto", "No")
+    askDlg = d
+    if C_Timer then C_Timer.NewTicker(1, function() if askDlg:IsShown() then pcall(AskFill) end end) end
+  end
+  askDlg.id = id
+  AskFill()
+  askDlg:Show()
+  if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master") end
+end
+function L.AskToday(now)
+  if not Ready() or ns.alt then return end
+  now = now or Now()
+  local added = false
+  for _, e in ipairs(L.Upcoming(now)) do
+    local _, _, mine = L.Answers(e)
+    if mine == nil and L.State(e, now) == "prossimo" and L.DayWord(e.t, now) == "oggi" and not Told("a:" .. e.id) then
+      askQueue[#askQueue + 1] = e.id
+      added = true
+    end
+  end
+  if added and not (askDlg and askDlg:IsShown()) then AskNext() end
 end
 -- once a day, at the first look: the ones I'm in today and tomorrow, and the ones I haven't answered yet
 function L.Daily(now)
@@ -635,6 +714,8 @@ function L.Tick()
   ticks = ticks + 1
   -- the daily one a minute after login, when the others' records are in
   if ticks >= 3 then pcall(L.Daily, now) end
+  -- (the window only coming in, not for one put up while I play: that one is told in the chat)
+  if ticks == 3 then pcall(L.AskToday, now) end
   for _, e in ipairs(L.Events()) do
     local st = L.State(e, now)
     local _, _, mine = L.Answers(e)

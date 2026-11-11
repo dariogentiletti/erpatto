@@ -160,8 +160,27 @@ check(A.has('Caciare') and A.has('Torneo ar Crossroads') and A.has('tra ') and A
 B.ns.UI.Toggle(); B.ns.UI.Show('casa')
 hb = B.g.ErPattoHUD; ha = A.g.ErPattoHUD
 check(ha.cac.shown and 'Torneo ar Crossroads tra' in str(ha.cac.text.text), 'under Dario\'s cap bar: the torneo he\'s in and how long to go: ' + str(ha.cac.text.text))
-check(hb.cac.shown and 'ce stai?' in str(hb.cac.text.text), 'under Pietro\'s: one waits for his answer: ' + str(hb.cac.text.text))
+check(not hb.cac.shown, 'under Pietro\'s nothing: the one waiting for his answer isn\'t today')
+if False: check(True, 'under Pietro\'s: one waits for his answer: ' + str(hb.cac.text.text))
 check(B.has('Torneo ar Crossroads') and B.has('nova: ce stai?') and B.has('(1 nova)'), 'Pietro hasn\'t answered the torneo: "nova: ce stai?", and the count in the title')
+
+# ---- a caciara today and no answer: under the bar, and a window (once) with the two answers
+pz = A.ns.U.RomeParts(T[0] + 86400); T[0] = A.ns.U.FromRome(pz.year, pz.month, pz.day, 10, 0); secs(35)
+okt, et = R(LA.Create(A.lua.table_from({'k': 'ca', 'n': 'Er drago de oggi', 't': T[0] + 2 * 3600, 'd': 60, 'tm': 't1'})))
+p9 = A.ns.U.RomeParts(T[0]); p8 = A.ns.U.RomeParts(T[0] + 2 * 3600)
+secs(70)
+B.ns.UI.RefreshHUD()
+check(B.g.ErPattoCaciaraOggi is None or not B.g.ErPattoCaciaraOggi.shown, 'put up while Pietro plays: no window (the chat tells him)')
+LB.AskToday()   # as when he comes in
+ad = B.g.ErPattoCaciaraOggi
+if p9.day == p8.day:
+    check(B.g.ErPattoHUD.cac.shown and 'ce stai?' in str(B.g.ErPattoHUD.cac.text.text), 'today\'s without Pietro\'s answer: under his bar: ' + str(B.g.ErPattoHUD.cac.text.text))
+    check(ad is not None and ad.shown and 'drago' in str(ad.name.text) and 'Comincia tra' in str(ad.count.text) and 'Dario' in str(ad.who.text), 'and the window: what, who\'s in, how long to go: %s | %s' % (ad.what.text, ad.count.text))
+    ad.yes.Click(ad.yes); secs(10)
+    check(not ad.shown and LB.Answers(LB.Find(str(et.id)))[2] == 1, 'Ce sto: he\'s in, the window goes')
+    secs(70)
+    check(not ad.shown, 'and it doesn\'t come back')
+LA.Cancel(str(et.id)); secs(20)
 
 # ---- the other kinds: an elite to kill, world PvP, a long quest: put up, seen by the others, with their questions
 for k, n, q in (('ca', 'Er drago de Duskwood', 'k'), ('wp', 'Scorribanda a Crossroads', 'hk'), ('qu', 'La questona de la spada', 'k')):
