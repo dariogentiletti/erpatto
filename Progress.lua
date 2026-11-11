@@ -40,7 +40,7 @@ local METRICS = {
   { key = "hw", title = "Uccisioni pe' strada" },
   { key = "hb", title = "Uccisioni in BG" },
   { key = "hn", title = "Onore", text = function(m, md) return U.Thousands(H.StatOf(m, "hn", md)) end },
-  { key = "il", title = "Robba addosso", value = ItemLevelOf, text = function(m) local v = ItemLevelOf(m) return v > 0 and OneDecimal(v) or "-" end, fixed = true,
+  { key = "il", title = "Er più griffato", value = ItemLevelOf, text = function(m) local v = ItemLevelOf(m) return v > 0 and OneDecimal(v) or "-" end, fixed = true,
     tip = "Er livello medio dell'oggetti che porti addosso (item level)." },
   { key = "dw", title = "Duelli vinti", text = function(m, md) return H.StatOf(m, "dw", md) .. "-" .. H.StatOf(m, "dl", md) end,
     tie = function(a, b, md) return H.StatOf(a, "dl", md) < H.StatOf(b, "dl", md) end },
