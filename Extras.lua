@@ -214,7 +214,7 @@ X.INFO = {
     "Er Campione: chi manna a la gogna er campione se pija la corona.",
     "'Sta settimana e Da sempre cambiano er periodo contato." },
   -- the Botteghino has one text per tab of its own (botteghino:<page>); this one is the fallback
-  lunario = { "Caciare", "Le caciare der patto: dungeon, tornei de duelli, battleground, livellate, rimpatriate. Ognuno ne pò mette pe' la squadra sua (er capo pure pe' l'artre, o pe' tutto er patto).",
+  lunario = { "Caciare", "Le caciare der patto: dungeon, caccia grossa (n'elite, 'n boss, 'n raro da ammazzà), tornei de duelli, scorribande (PvP pe' strada, 'n'invasione), battleground, questone (quelle lunghe), livellate, rimpatriate. Ognuno ne pò mette pe' la squadra sua (er capo pure pe' l'artre, o pe' tutto er patto).",
     "Dì si ce stai: chi ce sta lo vede. Ogni giorno l'addon te ricorda quelle tue e quelle che aspettano la risposta tua (pure ar Baretto); 'n'ora prima, 'n quarto d'ora prima e quanno comincia te chiama. Si er dungeon ce l'avete in programma e ce entri prima, te lo ricorda.",
     "Prima che comincia se punta: chi fa più danno, chi more de più, chi vince più duelli... Le piotte de 'na domanda vanno a chi ha indovinato, in proporzione a quanto ha puntato. Ar massimo 25, mai su te stesso.",
     "Quanno finisce, a chi c'era e a chi ha puntato er riepilogo: chi ha fatto più danno, cure, colpi finali, morti, duelli, uccisioni. A Presenzialista è chi ne fa de più." },

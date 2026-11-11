@@ -141,6 +141,14 @@ check(A.has('Caciare') and A.has('Torneo ar Crossroads') and A.has('tra ') and A
 B.ns.UI.Toggle(); B.ns.UI.Show('casa')
 check(B.has('Torneo ar Crossroads') and B.has('nova: ce stai?') and B.has('(1 nova)'), 'Pietro hasn\'t answered the torneo: "nova: ce stai?", and the count in the title')
 
+# ---- the other kinds: an elite to kill, world PvP, a long quest: put up, seen by the others, with their questions
+for k, n, q in (('ca', 'Er drago de Duskwood', 'k'), ('wp', 'Scorribanda a Crossroads', 'hk'), ('qu', 'La questona de la spada', 'k')):
+    okk, ek = R(LB.Create(B.lua.table_from({'k': k, 'n': n, 't': T[0] + 3 * 86400, 'd': 120, 'tm': 't1'})))
+    secs(40)
+    fa = LA.Find(str(ek.id)) if okk else None
+    check(okk and fa is not None and str(fa.k) == k and LA.Pools(fa)[q] is not None, '%s (%s): Dario has it, with its bets' % (A.ns.Lunario.KINDS[k].name, n))
+    LB.Cancel(str(ek.id)); secs(20)
+
 # ---- called off: the bets given back
 R(LB.Bet(str(e2.id), 'dw', 'Player-1-AAA', 6))
 balB1 = B.ns.Tombola.Balance()

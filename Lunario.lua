@@ -24,10 +24,14 @@ L.KINDS = {
   dg = { name = "Dungeon", icon = "Interface\\Icons\\INV_Misc_Key_03", max = 5, qs = { "d", "dt", "h" } },
   du = { name = "Torneo de duelli", icon = "Interface\\Icons\\Ability_Warrior_Challange", max = 0, qs = { "dw", "dl" } },
   bg = { name = "Battleground", icon = "Interface\\Icons\\INV_BannerPVP_01", max = 10, qs = { "hk", "dt", "d" } },
+  ca = { name = "Caccia grossa", icon = "Interface\\Icons\\Ability_Hunter_SniperShot", max = 5, qs = { "k", "d", "dt" } },
+  wp = { name = "Scorribanda", icon = "Interface\\Icons\\Ability_DualWield", max = 0, qs = { "hk", "dt", "d" } },
+  qu = { name = "Questona", icon = "Interface\\Icons\\INV_Scroll_03", max = 5, qs = { "k", "dt" } },
   lv = { name = "Livellata insieme", icon = "Interface\\Icons\\Ability_Rogue_Sprint", max = 0, qs = { "k", "dt" } },
   al = { name = "Rimpatriata", icon = "Interface\\Icons\\INV_Drink_05", max = 0, qs = { "k", "dt" } },
 }
-L.ORDER = { "dg", "bg", "du", "lv", "al" }
+-- ca: an elite, a boss, a rare to kill together; wp: world PvP (a raid on a town, an invasion); qu: a long quest
+L.ORDER = { "dg", "ca", "du", "wp", "bg", "qu", "lv", "al" }
 -- the questions to bet on, and what each counts
 L.Q = {
   d = { q = "Chi fa più danno?", f = "d", title = "Er macellaio", what = "danno" },
@@ -1004,7 +1008,7 @@ local function Build()
   v.tabList:SetPoint("TOPLEFT", 0, 0)
   v.tabMonth = H.TopTab(v, "Mese", function() page = "month" end)
   v.tabMonth:SetPoint("LEFT", v.tabList, "RIGHT", 2, 0)
-  v.newBtn = H.Btn(v, "Novo", 90, function() L.OpenNew() end, 22)
+  v.newBtn = H.Btn(v, "Nova", 90, function() L.OpenNew() end, 22)
   v.newBtn:SetPoint("TOPRIGHT", -4, -2)
   v.team = H.Dropdown(v, 170, function(self)
     local items = { { "mine", "La squadra mia" }, { "all", "Tutte" } }
@@ -1111,7 +1115,7 @@ function L.OpenNew(at)
     local lo = Label("Nota", -220)
     d.note = H.Input(d, 260, 60)
     d.note:SetPoint("TOPLEFT", 116, -216)
-    d.yes = H.Btn(d, "Mettilo", 120, function()
+    d.yes = H.Btn(d, "Mettila", 120, function()
       local now = Now()
       local p = U.RomeParts(now + (form.day or 1) * 86400)
       local t = U.FromRome(p.year, p.month, p.day, form.h or 21, form.mi or 0)
@@ -1124,7 +1128,7 @@ function L.OpenNew(at)
       end
     end)
     d.no = H.Btn(d, "Lassa stà", 120, function() d:Hide() end)
-    SU.TwoButtons(d, "Mettilo", "Lassa stà")
+    SU.TwoButtons(d, "Mettila", "Lassa stà")
     d.msg = H.Text(d, "GameFontNormal", "", 380, "CENTER")
     d.msg:SetPoint("CENTER", 0, -4)
     d.controls = { d.kind, d.where, d.name, d.day, d.hour, d.min, d.dur, d.places, d.team, d.note, d.yes, d.no, lk, lw, ln, ld, ll, lp, lt, lo }

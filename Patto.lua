@@ -287,7 +287,7 @@ function P.CleanMember(r)
   -- pegni I chose as winner (gp: id of the first challenge, which pegno, its text, the emote)
   -- (x: 1 "basta", 2 turned down / off, 3 accepted: the duel countdown started)
   -- er Lunario: the appuntamenti I put up (ev), my answers (ea), my bets on them (eb), how they went for me (er)
-  local EVK = { dg = true, du = true, bg = true, lv = true, al = true }
+  local EVK = { dg = true, du = true, bg = true, lv = true, al = true, ca = true, wp = true, qu = true }
   c.ev = List(r.ev, 6, function(x)
     if not (Str(x.id, 40) and EVK[x.k] and Plain(x.n, 40) and Num(x.t, 0, 4e9)) then return nil end
     return { id = Str(x.id, 40), k = x.k, n = Plain(x.n, 40), t = math.floor(Num(x.t, 0, 4e9)), d = math.floor(Num(x.d, 15, 600) or 120),
