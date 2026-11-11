@@ -1362,7 +1362,7 @@ function S.Update()
         if s.why == "no" then pre = GOLD .. Name(all, s.l) .. "|r nun ha dato " .. (#s.duels == 2 and "la bella" or "la rivincita") .. " a " .. GOLD .. Name(all, s.w) .. "|r. " end
         if s.why == "no" then line = pre .. line end
         News.Add(line .. ": a la gogna pe' " .. Span(s.long) .. ".")
-        News.Banner(title, Name(all, s.l) .. " va a la gogna pe' " .. Span(s.long) .. ". Er pegno lo sceje " .. Name(all, s.w) .. ".", { 1, 0.5, 0.2 }, "evento", true)
+        News.Banner(title, Name(all, s.l) .. " va a la gogna pe' " .. Span(s.long) .. ". Er pegno lo sceje " .. Name(all, s.w) .. ".", { 1, 0.5, 0.2 }, "evento", { head = "A la gogna", icon = "Interface\\Icons\\Ability_Warrior_Challange" })
       end)
       if s.pena then
         Tell(st, s.id .. ":pegno", function()
@@ -1446,7 +1446,7 @@ function S.Update()
         -- lo strillone: everyone is told
         local cr = criers[guid]
         if cr and g.at >= cr.from and g.at < cr.til and Now() - g.at < 600 then
-          News.Banner("Lo strillone: " .. Short(m) .. " è morto de novo!", S.CrierLine(Short(m), g), { 1, 0.5, 0.2 }, "evento", true)
+          News.Banner("Lo strillone: " .. Short(m) .. " è morto de novo!", S.CrierLine(Short(m), g), { 1, 0.5, 0.2 }, "evento", { head = "Lo strillone", icon = "Interface\\Icons\\Ability_Warrior_BattleShout" })
         end
       end)
     end
@@ -1457,7 +1457,7 @@ function S.Update()
     st.champ = champion
     if not quiet and News then
       News.Add(GOLD .. Name(all, champion) .. "|r è er novo Campione de la gogna" .. (was and all[was] and (": ha battuto " .. Name(all, was)) or "") .. ".")
-      News.Banner(Name(all, champion) .. " è er Campione!", "La corona è sua finché nun perde a la gogna.", nil, "evento", true)
+      News.Banner(Name(all, champion) .. " è er Campione!", "La corona è sua finché nun perde a la gogna.", nil, "evento", { head = "Er Campione", icon = "Interface\\Icons\\INV_Crown_01" })
     end
   end
   quiet = false
@@ -2675,7 +2675,9 @@ local function Moving()
   return IsFalling and select(2, pcall(IsFalling)) == true or false
 end
 local function Shout(text)
-  if RaidNotice_AddMessage and RaidWarningFrame then pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 0.5, b = 0.2 }) end
+  if ns.News and ns.News.Annuncio then
+    ns.News.Annuncio({ head = "Er burattino", title = text, color = { 1, 0.5, 0.2 }, icon = "Interface\\Icons\\Spell_Shadow_Charm", secs = 5, force = true })
+  end
 end
 local function Dance(p, obeyed)
   puppet = nil
@@ -2766,9 +2768,11 @@ local function Jackpot(sp)
   local f = DEFAULT_CHAT_FRAME
   if not (f and f.AddMessage) then return end
   local what = sp < 100 and "|cffa335eeLA VERSIONE AR RALLENTATORE (0,5x)|r" or "|cffa335eeLA VERSIONE TURBO (1,5x)|r"
-  f:AddMessage("|cffff8000***  J A C K P O T  ***|r")
-  f:AddMessage("|cffffd100Daje! Hai trovato " .. what .. "|cffffd100, er pull più raro der karaoke: esce una vorta su dieci!|r")
-  f:AddMessage("|cffffd100Arza er volume, fatte 'n giro e gòdete 'sto capolavoro. Er banco t'aringrazia.|r")
+  f:AddMessage("|cffffd100[Er Patto]|r |cffff8000JACKPOT!|r |cffffd100Hai trovato " .. what .. "|cffffd100, er pull più raro der karaoke.|r")
+  if ns.News and ns.News.Annuncio then
+    ns.News.Annuncio({ head = "Karaoke", title = "|cffff8000J A C K P O T|r", sub = "Hai trovato " .. what .. ", er pull più raro der karaoke: esce una vorta su dieci! Arza er volume e gòdete 'sto capolavoro.",
+      icon = "Interface\\Icons\\INV_Misc_Coin_02", secs = 9, force = true })
+  end
 end
 function S.Karaoke(force)
   local g = S.AtGogna(ns.recordGuid)

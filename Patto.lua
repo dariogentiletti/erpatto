@@ -407,6 +407,9 @@ function P.CleanMember(r)
     end
   end
   c.dat, c.dz = Num(r.dat, 0, 4e9), Str(r.dz, 40)
+  if type(r.wp) == "table" and Num(r.wp.at, 0, 4e9) then
+    c.wp = { at = Num(r.wp.at, 0, 4e9), z = Str(r.wp.z, 40), n = Str(r.wp.n, 160), c = Num(r.wp.c, 0, 40) }
+  end
   if type(r.stats) == "table" and type(r.stats.w) == "table" then
     -- only the latest two weeks travel
     local newest = 0

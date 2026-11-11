@@ -198,7 +198,7 @@ ns.On("SelfChanged", function(state, reason)
   local SLOW = { xp = 1, zone = 1, g = 1, equip = 1, pt = 1, prof = 1, hn = 1, tr = 1, fi = 1, he = 1, mi = 1, sk = 1, fun = 1, hs = 1, fl = 1, pts = 1 }
   local slow = SLOW[reason] ~= nil
   -- what the others must see at once goes before what waits: a squadra, a ding, a death, a duel or a pegno, a bet
-  local FAST = { team = 1, level = 1, rip = 1, silly = 1, sfide = 1, vote = 1, dw = 1, dl = 1, lunario = 1 }
+  local FAST = { team = 1, level = 1, rip = 1, silly = 1, sfide = 1, vote = 1, dw = 1, dl = 1, lunario = 1, wipe = 1 }
   if FAST[reason] then C.MarkSelfDirty(0.3, true) else C.MarkSelfDirty(slow and 60 or 4) end
   ns.Fire("Refresh")
 end)

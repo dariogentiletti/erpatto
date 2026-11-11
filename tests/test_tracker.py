@@ -55,7 +55,7 @@ g.P_XP = 10900; g.FIRE('PLAYER_XP_UPDATE', 'player')
 check(any('95%' in l for l in lines()), '95% warning')
 # quest that would ding
 clear(); g.REWARD_XP = 800; g.FIRE('QUEST_COMPLETE')
-check(any('Se consegni' in l for l in lines()) and len(shown()) == 1, 'quest-ding warning in chat and on screen')
+check(any('Se consegni' in l for l in lines()) and len(shown()) == 0, 'quest-ding warning in chat (its box is over the quest window; no red letters across the screen)')
 clear(); g.REWARD_XP = 100; g.FIRE('QUEST_COMPLETE')
 check(not any('consegni' in l for l in lines()), 'small quest: no warning')
 g.FIRE('QUEST_TURNED_IN', 1, 100, 0); g.FIRE('QUEST_TURNED_IN', 2, 100, 0)

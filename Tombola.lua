@@ -1119,13 +1119,12 @@ function TB.Furbetto(name, img)
   if ns.News then ns.News.Add("Hai provato a rovinà er duello de |cffffd100" .. name .. "|r co' 'n faccione: t'è tornato indietro.") end
 end
 
--- written big in the middle of his screen (raid warning letters), a line in the chat and in the news: it's for
+-- in a box in the middle of his screen, a line in the chat and in the news: it's for
 -- him alone and he paid nothing, so it shows even with the patto's announcements off
 local function ShowSfotto(name, text)
   if ns.alt then return end
-  if RaidNotice_AddMessage and RaidWarningFrame then
-    pcall(RaidNotice_AddMessage, RaidWarningFrame, name .. " te sfotte:", { r = 1, g = 0.5, b = 0.2 })
-    pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 1, b = 1 })
+  if ns.News and ns.News.Annuncio then
+    ns.News.Annuncio({ head = "Sfottò", title = name .. " te sfotte:", sub = text, color = { 1, 0.5, 0.2 }, icon = "Interface\\Icons\\Spell_Nature_Polymorph", secs = 8, force = true })
   end
   local f = DEFAULT_CHAT_FRAME
   if f and f.AddMessage then f:AddMessage("|cffffd100[Er Patto]|r |cffff8033" .. name .. " te sfotte:|r |cffffffff" .. text .. "|r") end

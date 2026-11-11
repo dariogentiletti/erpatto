@@ -1,6 +1,6 @@
 -- Er Patto: what happens in the patto, told to everyone.
 --   * a line in the chat with a soft ping when someone dings (and for epics, silly deaths, tombole); the big ones
---     also in the raid warning letters
+--     also in a box on screen, like the duel's and the death's
 --   * a news list (Baretto tab) built from the changes in everybody's records, kept between sessions
 --   * the invite window: someone asks you to join, one click and you're in
 -- Changes are found by comparing each record with the last copy seen (also across sessions), so a ding that arrives
@@ -16,7 +16,7 @@ local MAX_NEWS = 80
 ----------------------------------------------------------------------
 -- the announcements: what happens to the patto, as the old game told things. One line in the chat (the gold
 -- "[Er Patto]" in front, a soft ping), nothing to close; the big ones (a gogna, a tombola, a wipe, the crown) also
--- go across the screen in the raid warning letters, which fade by themselves.
+-- in a box on screen (N.Annuncio), which goes by itself.
 ----------------------------------------------------------------------
 local function Ping(sound)
   if not (ns.db and ns.db.opts.toastSound and PlaySound) then return end
@@ -34,6 +34,7 @@ local function Ping(sound)
   pcall(PlaySound, kit, "Master")
 end
 
+-- big: true, or { icon = texture, head = plate text } for the box on screen
 function N.Banner(title, sub, color, sound, big)
   if not (ns.db and ns.db.opts.toasts) or ns.alt then return end
   local c = color or { 1, 0.82, 0 }
@@ -42,11 +43,79 @@ function N.Banner(title, sub, color, sound, big)
   if f and f.AddMessage then
     f:AddMessage("|cffffd100[Er Patto]|r " .. hex .. tostring(title) .. "|r" .. (sub and sub ~= "" and (" |cffffffff" .. tostring(sub) .. "|r") or ""))
   end
-  if big and RaidNotice_AddMessage and RaidWarningFrame then
-    pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(title), { r = c[1], g = c[2], b = c[3] })
-    if sub and sub ~= "" then pcall(RaidNotice_AddMessage, RaidWarningFrame, tostring(sub), { r = 1, g = 1, b = 1 }) end
+  if big then
+    local o = type(big) == "table" and big or {}
+    N.Annuncio({ head = o.head, title = title, sub = sub, color = c, icon = o.icon, secs = o.secs })
   end
   Ping(big and "big" or sound)
+end
+
+----------------------------------------------------------------------
+-- the announcements on screen: never letters across the screen (the raid warning, the red error line), always
+-- a box like the duel's and the death's: the dialog border, the plate with what it is, an icon, the title and a
+-- line or two. In the middle, under the HUD; it goes by itself; one after the other, never on top of each other.
+-- o = { head, title, sub, icon, color = { r, g, b }, secs, force (shown even with the announcements off) }
+-- Cost: one frame, built the first time; a timer while one is up.
+----------------------------------------------------------------------
+N.ANN_SECONDS = 7
+N.Seen = {}            -- the last ones shown (title, sub), for who wants to look back
+local annBox, annQueue = nil, {}
+local ShowAnn
+local function NextAnn()
+  table.remove(annQueue, 1)
+  if annQueue[1] then ShowAnn(annQueue[1]) elseif annBox then annBox:Hide() end
+end
+local function BuildAnn()
+  local f = CreateFrame("Frame", "ErPattoAnnuncio", UIParent, "BackdropTemplate")
+  f:SetSize(340, 90)
+  f:SetFrameStrata("DIALOG")
+  f:EnableMouse(true)
+  H.Chrome(f)
+  f.head = H.DialogHeader(f, "Er Patto", 220)
+  local x = H.CloseX(f)
+  if x and x.SetScript then x:SetScript("OnClick", function() f.token = nil NextAnn() end) end
+  f.icon = f:CreateTexture(nil, "ARTWORK")
+  f.icon:SetSize(36, 36)
+  f.icon:SetPoint("TOPLEFT", 18, -26)
+  f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  f.title = H.Text(f, "GameFontNormal", "", 260, "LEFT")
+  f.title:SetPoint("TOPLEFT", f.icon, "TOPRIGHT", 10, -1)
+  f.sub = H.Text(f, "GameFontHighlightSmall", "", 260, "LEFT")
+  f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
+  if f.sub.SetWordWrap then f.sub:SetWordWrap(true) end
+  annBox = f
+  return f
+end
+ShowAnn = function(o)
+  local f = annBox or BuildAnn()
+  local c = o.color or { 1, 0.82, 0 }
+  f.head:SetText(o.head or "Er Patto")
+  f.icon:SetTexture(o.icon or "Interface\\Icons\\INV_Misc_Note_01")
+  f.title:SetText(string.format("|cff%02x%02x%02x", math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255)) .. tostring(o.title or "") .. "|r")
+  f.sub:SetText(o.sub or "")
+  -- as tall as its lines (the small font wraps at ~48 letters in 260 px)
+  local lines = 0
+  for part in tostring(o.sub or ""):gmatch("[^\n]+") do lines = lines + math.max(1, math.ceil(#part / 48)) end
+  local sh = f.sub.GetStringHeight and tonumber(f.sub:GetStringHeight()) or 0
+  local th = f.title.GetStringHeight and tonumber(f.title:GetStringHeight()) or 0
+  f:SetHeight(math.max(84, 26 + math.max(th, 14) + 4 + math.max(sh, lines * 12) + 20))
+  N.PlaceTop(f, 90)
+  f:Show()
+  local token = {}
+  f.token = token
+  if C_Timer then C_Timer.After(o.secs or N.ANN_SECONDS, function() if f.token == token then NextAnn() end end) end
+end
+function N.Annuncio(o)
+  if type(o) ~= "table" or ns.alt then return end
+  if not o.force and not (ns.db and ns.db.opts.toasts) then return end
+  table.insert(N.Seen, 1, { title = tostring(o.title or ""), sub = tostring(o.sub or ""), head = o.head })
+  while #N.Seen > 20 do table.remove(N.Seen) end
+  -- the same one twice in a row (two records saying it) once
+  local last = annQueue[#annQueue]
+  if last and last.title == o.title and last.sub == o.sub then return end
+  if #annQueue >= 4 then table.remove(annQueue, 2) end
+  annQueue[#annQueue + 1] = o
+  if #annQueue == 1 then ShowAnn(o) end
 end
 
 ----------------------------------------------------------------------
@@ -97,7 +166,7 @@ local function T0(rec, k) return rec.stats and rec.stats.t and rec.stats.t[k] or
 
 local function Snapshot(rec)
   local s = { lv = rec.lv, le = T0(rec, "le"), em = T0(rec, "em"), rk = T0(rec, "rk"), dg = T0(rec, "dg"), dt = T0(rec, "dt"),
-    ed = rec.ed and rec.ed.at, fe = rec.fe and rec.fe.at, lr = rec.lr and rec.lr.at, nk = {} }
+    ed = rec.ed and rec.ed.at, fe = rec.fe and rec.fe.at, lr = rec.lr and rec.lr.at, wp = rec.wp and rec.wp.at, nk = {} }
   for _, x in ipairs(rec.nkl or {}) do s.nk[x.n] = x.c end
   if ns.Tombola then
     local sc = ns.Tombola.Score(rec)
@@ -106,41 +175,26 @@ local function Snapshot(rec)
   return s
 end
 
--- wipes: two or more members dying within 20 seconds in the same zone
-local function Wipe(rec, quiet)
+-- wipes: a member saw his whole group dead (Tracker, rec.wp). Everyone of the group may say it: one wipe per zone
+-- within a minute and a half
+local function Wipe(rec, old, quiet)
+  local w = rec.wp
+  if type(w) ~= "table" or not w.at or w.at == old.wp then return end
   local s = Store()
-  if not (s and rec.dat) then return end
-  s.deaths = s.deaths or {}
-  s.wipes = s.wipes or {}
-  table.insert(s.deaths, 1, { g = rec.guid, at = rec.dat, z = rec.dz })
-  while #s.deaths > 60 do table.remove(s.deaths) end
-  local group, seen = {}, {}
-  for _, d in ipairs(s.deaths) do
-    if math.abs(d.at - rec.dat) <= 20 and (d.z == rec.dz or not d.z or not rec.dz) and not seen[d.g] then
-      seen[d.g] = true
-      group[#group + 1] = d
-    end
+  if not s then return end
+  s.wipes = type(s.wipes) == "table" and s.wipes or {}
+  for _, x in ipairs(s.wipes) do
+    if type(x) == "table" and math.abs((x.at or 0) - w.at) <= 90 and (x.z == w.z or not x.z or not w.z) then return end
   end
-  if #group < 2 then return end
-  -- one wipe per cluster: keyed by the earliest death in it
-  local first = rec.dat
-  for _, d in ipairs(group) do first = math.min(first, d.at) end
-  local key = tostring(math.floor(first / 30))
-  local names = {}
-  for _, d in ipairs(group) do
-    local m = ns.state.members[d.g]
-    names[#names + 1] = m and Short(m) or "?"
-  end
-  if s.wipes[key] then
-    -- a later death joins a wipe already told: just count it
-    if not s.wipes[key][rec.guid] then s.wipes[key][rec.guid] = true end
-    return
-  end
-  s.wipes[key] = {}
-  for _, d in ipairs(group) do s.wipes[key][d.g] = true end
+  table.insert(s.wipes, 1, { at = w.at, z = w.z })
+  while #s.wipes > 20 do table.remove(s.wipes) end
   s.wipeCount = (s.wipeCount or 0) + 1
-  N.Add("|cffff4040Wipe|r" .. (rec.dz and (" a " .. rec.dz) or "") .. ": " .. table.concat(names, ", "))
-  if not quiet then N.Banner("WIPE!", table.concat(names, ", ") .. (rec.dz and (" a " .. rec.dz) or ""), { 1, 0.3, 0.3 }, "evento", true) end
+  local who = w.n or Short(rec)
+  N.Add("|cffff4040Wipe|r" .. (w.z and (" a " .. w.z) or "") .. ": " .. who)
+  if not quiet and N.Live and N.Live(w.at) then
+    N.Banner("WIPE!", "Tutto er gruppo a tera" .. (w.z and (" a " .. w.z) or "") .. ": " .. who .. ".", { 1, 0.3, 0.3 }, "evento",
+      { head = "Wipe", icon = "Interface\\Icons\\INV_Misc_Bone_ElfSkull_01" })
+  end
 end
 
 function N.WipeCount()
@@ -341,7 +395,7 @@ end
 N.Live = Live
 
 local function Diff(rec, old, quiet)
-  if T0(rec, "dt") > (old.dt or 0) then Wipe(rec, quiet or not Live(nil)) end
+  pcall(Wipe, rec, old, quiet)
   local you = rec.guid == ns.recordGuid
   local name = Hex(rec)
   local st = ns.state
@@ -395,7 +449,7 @@ local function Diff(rec, old, quiet)
     if sc and sc.wk == old.tw then
       if sc.full and (old.tf or 0) == 0 then
         N.Add(name .. " ha fatto |cffffd100TOMBOLA|r!")
-        if not quiet and Live(nil) then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento", true) end
+        if not quiet and Live(nil) then N.Banner(Short(rec) .. " ha fatto TOMBOLA!", "Tutta la cartella de la settimana.", nil, "evento", { head = "Tombola", icon = "Interface\\Icons\\INV_Misc_Ticket_Darkmoon_01" }) end
       elseif sc.lines > (old.tl or 0) then
         N.Add(name .. " ha fatto terno a la tombola")
         if not quiet and Live(nil) then N.Banner(Short(rec) .. " ha fatto terno!", "'Na riga de la tombola completa.", nil, "evento") end

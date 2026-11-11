@@ -48,13 +48,16 @@ function T.MyCap()
   return st and st.cap, st
 end
 
-local function Alert(text, key)
+-- quiet: no box of its own (the quest warning has one, over the quest window)
+local function Alert(text, key, quiet)
   if key then
     if warned[key] then return end
     warned[key] = true
   end
   U.Say("|cffff4040" .. text .. "|r")
-  if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage(text, 1, 0.25, 0.25, 1, 5) end
+  if not quiet and ns.News and ns.News.Annuncio then
+    ns.News.Annuncio({ head = "Occhio ar cap!", title = text, color = { 1, 0.3, 0.3 }, icon = "Interface\\Icons\\INV_Misc_PocketWatch_01", secs = 8, force = true })
+  end
   if PlaySound and SOUNDKIT and SOUNDKIT.RAID_WARNING then pcall(PlaySound, SOUNDKIT.RAID_WARNING) end
   ns.Fire("Alert", text)
 end
@@ -423,7 +426,7 @@ function T.OnQuestComplete()
     text = "Se consegni 'sta quest fai ding ar " .. (lv + 1) .. ", sopra er cap " .. cap .. "! Tienila pe' la settimana dopo."
   end
   if text then
-    Alert(text)
+    Alert(text, nil, true)
     ns.Fire("QuestWarning", text)
   else
     ns.Fire("QuestWarning", nil)
@@ -641,6 +644,76 @@ function T.OnDeath()
   local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
   rec.dz = (z and z ~= "") and z or nil
   Bump("dt")
+  T.WatchWipe()
+end
+
+-- a wipe: everyone of my group who's there dead at the same time (two out of five isn't one). Seen from inside the
+-- group, where the game says who is dead: after my death, a look every second for half a minute (the others may
+-- die after me). Who's there: connected and in sight (the game draws them, ~100 yards), or dead. A hunter faking
+-- his death counts as dead. Written in my record (wp): everyone hears it from there, once even when five say it.
+-- Cost: at most 30 looks at the group after a death of mine, nothing else.
+T.WIPE_WATCH = 30
+local function DeadUnit(u)
+  local ok, dead = pcall(UnitIsDeadOrGhost, u)
+  if ok and U.Plain(dead, "boolean") then return true end
+  if UnitIsFeignDeath then
+    local okf, fd = pcall(UnitIsFeignDeath, u)
+    if okf and U.Plain(fd, "boolean") then return true end
+  end
+  return false
+end
+function T.GroupDead()
+  if not (IsInGroup and UnitIsDeadOrGhost and UnitName) then return nil end
+  local ok, grouped = pcall(IsInGroup)
+  if not ok or U.IsSecret(grouped) or not grouped then return nil end
+  local raid = IsInRaid and IsInRaid()
+  local units = raid and {} or { "player" }
+  for i = 1, raid and 40 or 4 do units[#units + 1] = (raid and "raid" or "party") .. i end
+  local names, there = {}, 0
+  for _, u in ipairs(units) do
+    local okE, exists = pcall(UnitExists or function() return true end, u)
+    local n = U.Plain(UnitName(u), "string")
+    if okE and U.Plain(exists, "boolean") ~= false and n and n ~= "" and n ~= UNKNOWNOBJECT then
+      local okC, on = pcall(UnitIsConnected or function() return true end, u)
+      if not (okC and U.Plain(on, "boolean") == false) then
+        local dead = DeadUnit(u)
+        local seen = true
+        if not dead and UnitIsVisible then
+          local okV, vis = pcall(UnitIsVisible, u)
+          seen = okV and U.Plain(vis, "boolean") == true
+        end
+        if dead or seen then
+          there = there + 1
+          if not dead then return false end
+          names[#names + 1] = U.Short(n)
+        end
+      end
+    end
+  end
+  if there < 2 then return false end
+  return true, names
+end
+local wipeWatch
+function T.WatchWipe()
+  if not C_Timer then return end
+  local id = {}
+  wipeWatch = id
+  local tries = 0
+  local function look()
+    if wipeWatch ~= id or not Ready() then return end
+    tries = tries + 1
+    local all, names = T.GroupDead()
+    if all then
+      wipeWatch = nil
+      local z = GetRealZoneText and U.Plain(GetRealZoneText(), "string")
+      table.sort(names)
+      P.UpdateSelf(state, me, { wp = { at = U.Now(), z = (z and z ~= "") and z or nil, n = table.concat(names, ", "):sub(1, 160), c = #names } }, "wipe")
+      return
+    end
+    if all == nil or tries >= T.WIPE_WATCH then wipeWatch = nil return end
+    C_Timer.After(1, look)
+  end
+  look()
 end
 
 -- in a party or raid with someone of the patto: how many of them, and how many right next to me (in range, ~40

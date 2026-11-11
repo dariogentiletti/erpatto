@@ -410,8 +410,10 @@ local function Told(key)
   return false
 end
 local function Say(text) if ns.News and ns.News.Banner then ns.News.Banner("Caciare:", text, { 1, 0.82, 0 }, "evento") end end
-local function Big(text)
-  if RaidNotice_AddMessage and RaidWarningFrame then pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 0.82, b = 0 }) end
+local function Big(e, title, sub)
+  if ns.News and ns.News.Annuncio then
+    ns.News.Annuncio({ head = "Caciare", title = title, sub = sub, icon = (L.KINDS[e.k] or L.KINDS.al).icon, secs = 9 })
+  end
 end
 function L.When(e)
   return U.Day(e.t) .. ", " .. U.HM(e.t) .. "-" .. U.HM(L.End(e))
@@ -451,7 +453,7 @@ function L.Daily(now)
     if i > 2 then break end
     local day = L.DayWord(e.t, now)
     Say(day .. " a le " .. U.HM(e.t) .. " " .. GOLD .. e.n .. "|r: tu ce stai (tra " .. U.Until(e.t - now) .. ").")
-    if i == 1 and day == "oggi" then Big("Oggi a le " .. U.HM(e.t) .. ": " .. e.n .. "!") end
+    if i == 1 and day == "oggi" then Big(e, "Oggi a le " .. U.HM(e.t) .. ": " .. e.n, "Tu ce stai: tra " .. U.Until(e.t - now) .. ". Nun mancà.") end
   end
   if #open > 0 then
     local names = {}
@@ -490,7 +492,7 @@ function L.Tick()
     end
     -- the start
     if st == "incorso" and now - e.t < 300 and (mine == 1 or mine == 2) and not Told("s:" .. e.id) then
-      Big("Comincia " .. e.n .. "!")
+      Big(e, "Comincia " .. e.n .. "!", (L.KINDS[e.k] or L.KINDS.al).name .. ", " .. L.When(e) .. ". Daje!")
       if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master") end
       Say("comincia " .. GOLD .. e.n .. "|r!")
     end

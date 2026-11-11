@@ -291,20 +291,20 @@ pick.Click(pick)
 sf.yes.Click(sf.yes)
 secs(5)
 check(TB.Balance() == before - 3 and any("t'ha sfottuto" in n and 'morti' in n for n in B.news()), "sfotto paid and delivered with the line chosen: " + str([n for n in B.news() if 'sfottuto' in n][:1]))
-# it lands big (raid warning letters) on his screen, even with the patto's announcements off, and comes back as received
+# it lands in a box on his screen, even with the patto's announcements off, and comes back as received
+def rw(c): return [str(x.title) for x in c.ns.News.Seen.values()]
 for c in (A, B):
-    c.lua.execute('RW = {} RaidWarningFrame = {} function RaidNotice_AddMessage(f, t) RW[#RW + 1] = t end')
-def rw(c): return [str(x) for x in c.g.RW.values()]
+    while len(list(c.ns.News.Seen.values())): c.lua.execute('table.remove(...)', c.ns.News.Seen)
 B.ns.db.opts.toasts = False
 A.ns.Sfide.OpenSfotti('Player-1-BBB')
 secs(31)
 sf.yes.Click(sf.yes)
 secs(3)
-check(any('te sfotte' in x for x in rw(B)) and len(rw(B)) == 2, 'sfottò: big in the middle of his screen, with the announcements off: ' + str(rw(B)))
+check(any('te sfotte' in x for x in rw(B)) and len(rw(B)) == 1 and B.g.ErPattoAnnuncio.shown, 'sfottò: a box in the middle of his screen, with the announcements off: ' + str(rw(B)))
 check(len(list(A.ns.Tombola.SfottoOutbox().values())) == 0, 'he said he got it: nothing left to send')
 # he's gone (the whisper is lost): it waits, and goes when he's back, once
 clients.remove(B)
-B.g.RW = B.lua.table_from([])
+B.lua.execute('local t = ... for i = #t, 1, -1 do t[i] = nil end', B.ns.News.Seen)
 secs(31)
 A.ns.Sfide.OpenSfotti('Player-1-BBB')
 sf.yes.Click(sf.yes)
@@ -322,7 +322,7 @@ check(before2 == before - 9, 'three sfottò, nine piotte (%s)' % (before - befor
 acks = A.ns.C.AcksSfotto
 A.lua.eval('function(ns) ns.C.AcksSfotto = function() return false end end')(A.ns)
 secs(31)
-B.g.RW = B.lua.table_from([])
+B.lua.execute('local t = ... for i = #t, 1, -1 do t[i] = nil end', B.ns.News.Seen)
 A.ns.Sfide.OpenSfotti('Player-1-BBB')
 sf.yes.Click(sf.yes)
 secs(200)
@@ -409,11 +409,45 @@ check(C.ns.P.HasSettings(C.ns.state), 'she got the settings from the others')
 A.ns.InviteFriend('Nessuno'); secs(10)
 check(any('nun risponne' in str(x) for x in A.g.CHAT.values()), 'nobody answers: told to give the code')
 
-# ---- wipes: Dario and Pietro die ten seconds apart in the same zone
-A.g.FIRE('PLAYER_DEAD'); secs(10)
-B.g.FIRE('PLAYER_DEAD'); secs(15)
-check(any('Wipe' in n and 'Dario' in n and 'Pietro' in n for n in A.news()), 'wipe in the news: ' + str([n for n in A.news() if 'Wipe' in n][:1]))
-check(A.ns.News.WipeCount() == 1 and B.ns.News.WipeCount() == 1, 'one wipe counted, on both sides')
+# ---- wipes: Dario, Pietro, Gina and Ugo (not of the patto) in a group. Two of four dying is no wipe; all four is
+GROUP = ['Dario', 'Pietro', 'Gina', 'Ugo']
+for c in (A, B, C):
+    c.lua.execute('''
+      GRP_DEAD = {} GRP_SAVE = { IsInGroup, IsInRaid, UnitName, UnitExists, UnitIsDeadOrGhost, UnitIsVisible, UnitIsConnected }
+      function GRP_ON(me, names)
+        local units = { player = me }
+        local i = 0
+        for _, n in ipairs(names) do if n ~= me then i = i + 1 units["party" .. i] = n end end
+        IsInGroup = function() return true end
+        IsInRaid = function() return false end
+        local old = GRP_SAVE[3]
+        UnitName = function(u) if units[u] then return units[u], nil end if type(u) == "string" and u:match("^party") then return nil end return old(u) end
+        UnitExists = function(u) return units[u] ~= nil end
+        UnitIsDeadOrGhost = function(u) return units[u] ~= nil and GRP_DEAD[units[u]] == true end
+        UnitIsVisible = function(u) return units[u] ~= nil end
+        UnitIsConnected = function(u) return true end
+      end
+      function GRP_OFF() IsInGroup, IsInRaid, UnitName, UnitExists, UnitIsDeadOrGhost, UnitIsVisible, UnitIsConnected = unpack(GRP_SAVE) end
+    ''')
+    c.g.GRP_ON(str(c.name), c.lua.table_from(GROUP))
+def dead(names):
+    for c in (A, B, C):
+        for n in GROUP: c.g.GRP_DEAD[n] = n in names
+dead(['Dario']); A.g.FIRE('PLAYER_DEAD'); secs(10)
+dead(['Dario', 'Pietro']); B.g.FIRE('PLAYER_DEAD'); secs(40)
+check(not any('Wipe' in n for n in A.news() + B.news() + C.news()) and A.ns.News.WipeCount() == 0, 'two of four dead (Gina and Ugo still standing): no wipe')
+dead([]); secs(20)
+dead(['Dario', 'Gina']); A.g.FIRE('PLAYER_DEAD'); C.g.FIRE('PLAYER_DEAD'); secs(5)
+dead(['Dario', 'Gina', 'Ugo']); secs(5)
+dead(GROUP); B.g.FIRE('PLAYER_DEAD'); secs(15)
+wn = [n for n in C.news() if 'Wipe' in n]
+check(len(wn) == 1 and all(x in wn[0] for x in GROUP), 'all four dead: a wipe, with the whole group: ' + str(wn))
+check(all(c.ns.News.WipeCount() == 1 for c in (A, B, C)), 'one wipe, though three of them saw it: %s' % [c.ns.News.WipeCount() for c in (A, B, C)])
+seen = [str(x.title) + ' ' + str(x.sub) for x in C.ns.News.Seen.values()]
+an = C.g.ErPattoAnnuncio
+check(an is not None and any('WIPE' in x and 'Ugo' in x for x in seen), 'on screen in a box (not letters across it): ' + str(seen[:1]))
+for c in (A, B, C): c.g.GRP_OFF()
+dead([])
 
 # ---- a death, on everyone's screen at once: up top like a ding (not in the chat): how, where, last words, in all
 secs(20)
