@@ -85,11 +85,20 @@ LB.OnCombatLine('SPELL_DAMAGE', 'Player-1-BBB', None, 300, None)
 LB.OnCombatLine('SPELL_HEAL', 'Player-1-BBB', None, 500, 100)
 LB.OnDeath()
 B.g.NOWV = B.g.NOWV + 1; LB.OnDeath()  # the second time the game says it: one death
+# the rest that's counted: what Pietro takes, the biggest hit, the jumps, the chat, the time on the ground
+LB.OnCombatLine('SWING_DAMAGE', 'Creature-0-1', 250, None, None, 'Player-1-BBB')
+LB.OnCombatLine('SPELL_DAMAGE', 'Creature-0-1', None, 150, None, 'Player-1-AAA')
+for _ in range(3): B.g.NOWV = B.g.NOWV + 1; LB.OnJump()
+LB.Count('c'); LB.Count('c')
+B.g.NOWV = B.g.NOWV + 40; LB.OnAlive()
 # ---- the end (two hours), and the three minutes for the records
 T[0] = t0 + 120 * 60 + 5; secs(40)
 ra = A.rec().er; rb = B.rec().er
 check(ra and ra[1].d == 1200 and ra[1].k == 1 and rb and rb[1].d == 300 and rb[1].h == 400 and rb[1].dt == 1,
       'each one wrote how it went: Dario %s/%s, Pietro %s/%s/%s' % (ra and ra[1].d, ra and ra[1].k, rb and rb[1].d, rb and rb[1].h, rb and rb[1].dt))
+check(ra[1].mx == 700 and rb[1].tk == 250 and rb[1].j == 3 and rb[1].c == 2 and rb[1].fd is not None and rb[1].fd > 0 and rb[1].td >= 40 and ra[1].fd is None,
+      'and the rest: Dario\'s biggest hit %s; Pietro took %s, jumped %s, said %s lines, first death after %s s, %s s on the ground' % (ra[1].mx, rb[1].tk, rb[1].j, rb[1].c, rb[1].fd, rb[1].td))
+check(next(iter(LA.Winners(LA.Find(eid), 'fd')[0].keys())) == 'Player-1-BBB' and next(iter(LA.Winners(LA.Find(eid), 'mx')[0].keys())) == 'Player-1-AAA', 'who died first: Pietro (the only one); the biggest hit: Dario')
 check(A.stat('ap') == 1 and B.stat('ap') == 1 and C.stat('ap') == 0, 'one appuntamento done for each of the two (A Presenzialista counts it)')
 T[0] += 200; secs(40)
 sm = B.g.ErPattoRiepilogo

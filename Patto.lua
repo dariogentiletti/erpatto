@@ -298,14 +298,18 @@ function P.CleanMember(r)
     if not (Str(x.i, 40) and (a == 0 or a == 1 or a == 2)) then return nil end
     return { i = Str(x.i, 40), a = a, at = Num(x.at, 0, 4e9) }
   end)
-  c.eb = List(r.eb, 10, function(x)
+  c.eb = List(r.eb, 14, function(x)
     if not (Str(x.i, 40) and Str(x.q, 3) and Str(x.p, 60) and Num(x.s, 1, 1e4)) then return nil end
     return { i = Str(x.i, 40), q = Str(x.q, 3), p = Str(x.p, 60), s = math.floor(Num(x.s, 1, 1e4)), at = Num(x.at, 0, 4e9) }
   end)
   c.er = List(r.er, 8, function(x)
     if not Str(x.i, 40) then return nil end
     local o = { i = Str(x.i, 40), ok = 1 }
-    for _, k in ipairs({ "d", "h", "k", "dt", "dw", "dl", "hk" }) do o[k] = math.floor(Num(x[k], 0, 1e9) or 0) end
+    -- (what's zero is left out)
+    for _, k in ipairs({ "d", "h", "k", "dt", "dw", "dl", "hk", "tk", "mx", "fd", "td", "j", "c", "em", "g", "q", "lt" }) do
+      local v = math.floor(Num(x[k], 0, 1e9) or 0)
+      if v > 0 then o[k] = v end
+    end
     return o
   end)
   -- (empty, they're left out: every record goes to everyone, a few bytes each count)

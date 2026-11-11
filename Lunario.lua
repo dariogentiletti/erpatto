@@ -21,18 +21,19 @@ local HL = "Interface\\Buttons\\UI-Listbox-Highlight2"
 local SEL = "Interface\\FriendsFrame\\UI-FriendsFrame-HighlightBar-Blue"
 
 L.KINDS = {
-  dg = { name = "Dungeon", icon = "Interface\\Icons\\INV_Misc_Key_03", max = 5, qs = { "d", "dt", "h" } },
-  du = { name = "Torneo de duelli", icon = "Interface\\Icons\\Ability_Warrior_Challange", max = 0, qs = { "dw", "dl" } },
-  bg = { name = "Battleground", icon = "Interface\\Icons\\INV_BannerPVP_01", max = 10, qs = { "hk", "dt", "d" } },
-  ca = { name = "Caccia grossa", icon = "Interface\\Icons\\Ability_Hunter_SniperShot", max = 5, qs = { "k", "d", "dt" } },
-  wp = { name = "Scorribanda", icon = "Interface\\Icons\\Ability_DualWield", max = 0, qs = { "hk", "dt", "d" } },
-  qu = { name = "Questona", icon = "Interface\\Icons\\INV_Scroll_03", max = 5, qs = { "k", "dt" } },
-  lv = { name = "Livellata insieme", icon = "Interface\\Icons\\Ability_Rogue_Sprint", max = 0, qs = { "k", "dt" } },
-  al = { name = "Rimpatriata", icon = "Interface\\Icons\\INV_Drink_05", max = 0, qs = { "k", "dt" } },
+  dg = { name = "Dungeon", icon = "Interface\\Icons\\INV_Misc_Key_03", max = 5, qs = { "d", "h", "tk", "mx", "dt", "fd", "j", "c" } },
+  du = { name = "Torneo de duelli", icon = "Interface\\Icons\\Ability_Warrior_Challange", max = 0, qs = { "dw", "dl", "mx", "j", "c" } },
+  bg = { name = "Battleground", icon = "Interface\\Icons\\INV_BannerPVP_01", max = 10, qs = { "hk", "d", "h", "mx", "dt", "td" } },
+  ca = { name = "Caccia grossa", icon = "Interface\\Icons\\Ability_Hunter_SniperShot", max = 5, qs = { "k", "d", "mx", "tk", "dt", "fd" } },
+  wp = { name = "Scorribanda", icon = "Interface\\Icons\\Ability_DualWield", max = 0, qs = { "hk", "d", "mx", "dt", "fd", "td" } },
+  qu = { name = "Questona", icon = "Interface\\Icons\\INV_Scroll_03", max = 5, qs = { "k", "q", "g", "dt", "fd", "j" } },
+  lv = { name = "Livellata insieme", icon = "Interface\\Icons\\Ability_Rogue_Sprint", max = 0, qs = { "q", "k", "g", "lt", "dt", "j" } },
+  al = { name = "Rimpatriata", icon = "Interface\\Icons\\INV_Drink_05", max = 0, qs = { "j", "em", "c", "dt" } },
 }
 -- ca: an elite, a boss, a rare to kill together; wp: world PvP (a raid on a town, an invasion); qu: a long quest
 L.ORDER = { "dg", "ca", "du", "wp", "bg", "qu", "lv", "al" }
--- the questions to bet on, and what each counts
+-- the questions to bet on, and what each counts (f: the field of the result; low: the lowest wins; fmt: how the
+-- number is said)
 L.Q = {
   d = { q = "Chi fa più danno?", f = "d", title = "Er macellaio", what = "danno" },
   h = { q = "Chi cura de più?", f = "h", title = "Er dottore", what = "cure" },
@@ -41,7 +42,29 @@ L.Q = {
   dw = { q = "Chi vince più duelli?", f = "dw", title = "Er re der torneo", what = "duelli vinti" },
   dl = { q = "Chi perde più duelli?", f = "dl", title = "Er sacco da boxe", what = "duelli persi" },
   hk = { q = "Chi fa più uccisioni?", f = "hk", title = "Er legionario", what = "uccisioni" },
+  tk = { q = "Chi ne pija de più?", f = "tk", title = "Er sacco de botte", what = "danno preso" },
+  mx = { q = "Chi tira la botta più grossa?", f = "mx", title = "Er cannone", what = "in una botta sola" },
+  fd = { q = "Chi more pe' primo?", f = "fd", title = "Er primo a cascà", what = "dar via", low = true, fmt = "time" },
+  td = { q = "Chi sta più tempo a tera?", f = "td", title = "Er tappeto", what = "da morto", fmt = "time" },
+  j = { q = "Chi zompa de più?", f = "j", title = "Er grillo", what = "zompi" },
+  c = { q = "Chi chiacchiera de più?", f = "c", title = "Er chiacchierone", what = "righe in chat" },
+  em = { q = "Chi fa più er pajaccio?", f = "em", title = "Er pajaccio", what = "emote" },
+  g = { q = "Chi se fa più sordi?", f = "g", title = "Er riccone", what = "", fmt = "money" },
+  q = { q = "Chi consegna più quest?", f = "q", title = "Er secchione", what = "quest" },
+  lt = { q = "Chi trova più robba bona?", f = "lt", title = "Er culone", what = "blu o epici" },
 }
+L.FIELDS = { "d", "h", "k", "dt", "dw", "dl", "hk", "tk", "mx", "fd", "td", "j", "c", "em", "g", "q", "lt" }
+function L.Amount(q, v)
+  local Q = L.Q[q] or {}
+  if Q.fmt == "time" then
+    v = math.floor(v or 0)
+    local txt = v >= 60 and (math.floor(v / 60) .. " min" .. (v % 60 > 0 and (" e " .. (v % 60) .. " s") or "")) or (v .. " s")
+    return (Q.low and "dopo " or "") .. txt .. (Q.low and "" or (" " .. Q.what))
+  elseif Q.fmt == "money" then
+    return ns.Money and ns.Money(v or 0, true) or (math.floor((v or 0) / 10000) .. " oro")
+  end
+  return (U.Thousands and U.Thousands(v) or tostring(v)) .. " " .. (Q.what or "")
+end
 L.DUNGEONS = { "Ragefire Chasm", "Wailing Caverns", "The Deadmines", "Shadowfang Keep", "Blackfathom Deeps", "The Stockade",
   "Gnomeregan", "Razorfen Kraul", "Scarlet Monastery", "Razorfen Downs", "Uldaman", "Zul'Farrak", "Maraudon",
   "The Temple of Atal'Hakkar", "Blackrock Depths", "Blackrock Spire", "Dire Maul", "Scholomance", "Stratholme" }
@@ -158,14 +181,19 @@ function L.ResultsReady(e, now)
   for _, m in ipairs(yes) do if not res[m.guid] then return false end end
   return true
 end
--- the winners of a question: who has the most (all of them on a tie); nobody when nobody did any
+-- the winners of a question: who has the most (the least, for who dies first); all of them on a tie; nobody when
+-- nobody did any
 function L.Winners(e, q, res)
   res = res or L.Results(e)
   local f = L.Q[q] and L.Q[q].f
+  local low = L.Q[q] and L.Q[q].low
   local best, out = 0, {}
   for guid, r in pairs(res) do
     local v = f and r[f] or 0
-    if v > best then best, out = v, { [guid] = true } elseif v == best and v > 0 then out[guid] = true end
+    if v > 0 then
+      if best == 0 or (low and v < best) or (not low and v > best) then best, out = v, { [guid] = true }
+      elseif v == best then out[guid] = true end
+    end
   end
   return out, best
 end
@@ -254,7 +282,7 @@ function L.Bet(id, q, pick, stake)
   local keep = { { i = id, q = q, p = pick, s = stake, at = Now() } }
   for _, x in ipairs(MyList("eb")) do
     local old = L.Find(x.i)
-    if #keep < 10 and (not old or Now() < L.End(old) + L.KEEP) then keep[#keep + 1] = x end
+    if #keep < 14 and (not old or Now() < L.End(old) + L.KEEP) then keep[#keep + 1] = x end
   end
   if ns.Sfide and ns.Sfide.Pay then ns.Sfide.Pay("ev:" .. id .. ":" .. q, stake, "ev", pick) end
   Save("eb", keep)
@@ -313,18 +341,26 @@ local myGUID, petGUID
 local cleu = CreateFrame("Frame")
 local function Base()
   local t = MyRec() and MyRec().stats and MyRec().stats.t or {}
-  return { dw = t.dw or 0, dl = t.dl or 0, hk = t.hk or 0 }
+  return { dw = t.dw or 0, dl = t.dl or 0, hk = t.hk or 0, g = t.g or 0, q = t.q or 0, lt = (t.lb or 0) + (t.le or 0) }
 end
 -- what I did in e, as my record says it (er)
+local deadAt
 local function Write(e, tr)
   local t = MyRec() and MyRec().stats and MyRec().stats.t or {}
   local b = tr.base or {}
+  local function delta(now, was) return math.max(0, (now or 0) - (was or now or 0)) end
+  local td = (tr.td or 0) + (deadAt and math.max(0, (GetTime and GetTime() or 0) - deadAt) or 0)
   local r = { i = e.id, ok = 1, d = math.floor(tr.d or 0), h = math.floor(tr.h or 0), k = tr.k or 0, dt = tr.dt or 0,
-    dw = math.max(0, (t.dw or 0) - (b.dw or 0)), dl = math.max(0, (t.dl or 0) - (b.dl or 0)), hk = math.max(0, (t.hk or 0) - (b.hk or 0)) }
+    dw = delta(t.dw, b.dw), dl = delta(t.dl, b.dl), hk = delta(t.hk, b.hk),
+    tk = math.floor(tr.tk or 0), mx = math.floor(tr.mx or 0), fd = tr.fd, td = math.floor(td), j = tr.j, c = tr.c, em = tr.em,
+    g = delta(t.g, b.g), q = delta(t.q, b.q), lt = delta((t.lb or 0) + (t.le or 0), b.lt) }
+  for _, k in ipairs(L.FIELDS) do if (r[k] or 0) <= 0 then r[k] = nil end end
   local keep = { r }
   for _, x in ipairs(MyList("er")) do if #keep < 8 and x.i ~= e.id then keep[#keep + 1] = x end end
   Save("er", keep)
 end
+-- what I say while one runs (er chiacchierone): the chats of who is with me
+local CHATS = { "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_SAY", "CHAT_MSG_YELL", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_INSTANCE_CHAT_LEADER" }
 function L.Track()
   if not Ready() then return end
   local now = Now()
@@ -336,7 +372,7 @@ function L.Track()
     local tr = tracks[e.id]
     if st == "incorso" and (mine == 1 or mine == 2) then
       if not tr then
-        tr = { base = Base(), d = 0, h = 0, k = 0, dt = 0 }
+        tr = { base = Base(), d = 0, h = 0, k = 0, dt = 0, t = e.t }
         tracks[e.id] = tr
         U.Log("Lunario", "comincia", e.n)
       end
@@ -362,38 +398,85 @@ function L.Track()
     myGUID = UnitGUID and U.Plain(UnitGUID("player"), "string")
     petGUID = UnitGUID and U.Plain(UnitGUID("pet"), "string")
     pcall(cleu.RegisterEvent, cleu, "COMBAT_LOG_EVENT_UNFILTERED")
+    for _, c in ipairs(CHATS) do pcall(cleu.RegisterEvent, cleu, c) end
   elseif not any and cleu.on then
     cleu.on = false
     pcall(cleu.UnregisterEvent, cleu, "COMBAT_LOG_EVENT_UNFILTERED")
+    for _, c in ipairs(CHATS) do pcall(cleu.UnregisterEvent, cleu, c) end
   end
 end
 -- one line of the combat log: mine (or my pet's) only
 local DMG15 = { SPELL_DAMAGE = true, SPELL_PERIODIC_DAMAGE = true, RANGE_DAMAGE = true, DAMAGE_SHIELD = true }
 local HEAL = { SPELL_HEAL = true, SPELL_PERIODIC_HEAL = true }
-function L.OnCombatLine(sub, src, a12, a15, a16)
+function L.OnCombatLine(sub, src, a12, a15, a16, dst)
   if not next(active) then return end
-  if src ~= myGUID and (not petGUID or src ~= petGUID) then return end
-  local dmg, heal, kill = 0, 0, 0
+  local mine = src == myGUID or (petGUID and src == petGUID)
+  local dmg, heal, kill, took = 0, 0, 0, 0
   if sub == "SWING_DAMAGE" then dmg = tonumber(a12) or 0
   elseif DMG15[sub] then dmg = tonumber(a15) or 0
   elseif HEAL[sub] then heal = math.max(0, (tonumber(a15) or 0) - (tonumber(a16) or 0))
   elseif sub == "PARTY_KILL" then kill = 1 end
-  if dmg == 0 and heal == 0 and kill == 0 then return end
-  for _, tr in pairs(active) do tr.d, tr.h, tr.k = (tr.d or 0) + dmg, (tr.h or 0) + heal, (tr.k or 0) + kill end
+  -- what I take (from anyone but me)
+  if dst and dst == myGUID and src ~= myGUID then took = dmg end
+  if not mine then dmg, heal, kill = 0, 0, 0 end
+  if dmg == 0 and heal == 0 and kill == 0 and took == 0 then return end
+  for _, tr in pairs(active) do
+    tr.d, tr.h, tr.k, tr.tk = (tr.d or 0) + dmg, (tr.h or 0) + heal, (tr.k or 0) + kill, (tr.tk or 0) + took
+    if dmg > (tr.mx or 0) then tr.mx = dmg end
+  end
 end
-cleu:SetScript("OnEvent", function()
+cleu:SetScript("OnEvent", function(_, event, ...)
+  if event ~= "COMBAT_LOG_EVENT_UNFILTERED" then
+    -- a line of chat: mine only (the author's guid is the twelfth argument)
+    local guid = select(12, ...)
+    if type(guid) == "string" and not U.IsSecret(guid) and guid == myGUID then L.Count("c") end
+    return
+  end
   if not CombatLogGetCurrentEventInfo then return end
-  local ok, _, sub, _, src, _, _, _, _, _, _, _, a12, _, _, a15, a16 = pcall(CombatLogGetCurrentEventInfo)
+  local ok, _, sub, _, src, _, _, _, dst, _, _, _, a12, _, _, a15, a16 = pcall(CombatLogGetCurrentEventInfo)
   if not ok or U.IsSecret(src) or U.IsSecret(sub) then return end
   if U.IsSecret(a12) or U.IsSecret(a15) or U.IsSecret(a16) then return end
-  L.OnCombatLine(sub, src, a12, a15, a16)
+  if U.IsSecret(dst) then dst = nil end
+  L.OnCombatLine(sub, src, a12, a15, a16, dst)
 end)
-local lastDeath = 0
+-- one more of something countable while one runs (zompi, chat, emote)
+function L.Count(key)
+  for _, tr in pairs(active) do tr[key] = (tr[key] or 0) + 1 end
+end
+local lastDeath, lastJump = 0, 0
 function L.OnDeath()
   local now = GetTime and GetTime() or 0
   if now - lastDeath < 10 then return end -- (hunters and warlocks: the game says it twice)
   lastDeath = now
-  for _, tr in pairs(active) do tr.dt = (tr.dt or 0) + 1 end
+  if next(active) then deadAt = now end
+  for _, tr in pairs(active) do
+    tr.dt = (tr.dt or 0) + 1
+    -- the first death: how long after the start
+    if not tr.fd then tr.fd = math.max(1, math.floor(Now() - (tr.t or Now()))) end
+  end
+end
+-- back on my feet: the time on the ground
+function L.OnAlive()
+  if not deadAt then return end
+  if UnitIsDeadOrGhost then
+    local ok, dead = pcall(UnitIsDeadOrGhost, "player")
+    if ok and U.Plain(dead, "boolean") then return end
+  end
+  local sec = math.max(0, (GetTime and GetTime() or 0) - deadAt)
+  deadAt = nil
+  for _, tr in pairs(active) do tr.td = (tr.td or 0) + sec end
+end
+function L.OnJump()
+  if not next(active) then return end
+  local now = GetTime and GetTime() or 0
+  if now - lastJump < 0.4 then return end
+  lastJump = now
+  L.Count("j")
+end
+if hooksecurefunc then
+  if JumpOrAscendStart then pcall(hooksecurefunc, "JumpOrAscendStart", function() pcall(L.OnJump) end) end
+  if C_ChatInfo and C_ChatInfo.PerformEmote then pcall(hooksecurefunc, C_ChatInfo, "PerformEmote", function() if next(active) then L.Count("em") end end)
+  elseif DoEmote then pcall(hooksecurefunc, "DoEmote", function() if next(active) then L.Count("em") end end) end
 end
 -- logging out in the middle: what I did so far goes in my record now
 function L.OnLogout()
@@ -529,14 +612,17 @@ function L.SummaryLines(e, res)
   local names = {}
   for i, m in ipairs(there) do if i <= 6 then names[#names + 1] = Colored(m) end end
   lines[#lines + 1] = "Ce so' stati (" .. #there .. "): " .. (#there > 0 and (table.concat(names, ", ") .. (#there > 6 and (GREY .. " e artri " .. (#there - 6) .. "|r") or "")) or (GREY .. "nessuno|r"))
-  local order = { "d", "h", "k", "hk", "dw", "dl", "dt" }
+  -- what the kind counts first, then anything else someone did
+  local order, seen = {}, {}
+  for _, q in ipairs((L.KINDS[e.k] or L.KINDS.al).qs) do order[#order + 1] = q seen[q] = true end
+  for _, q in ipairs(L.FIELDS) do if not seen[q] then order[#order + 1] = q end end
   for _, q in ipairs(order) do
     local win, best = L.Winners(e, q, res)
-    if best > 0 then
+    if best > 0 and #lines < 11 then
       local who = {}
       for guid in pairs(win) do who[#who + 1] = Colored(all[guid]) end
       table.sort(who)
-      lines[#lines + 1] = GOLD .. L.Q[q].title .. ":|r " .. table.concat(who, ", ") .. GREY .. "  " .. Thousands(best) .. " " .. L.Q[q].what .. "|r"
+      lines[#lines + 1] = GOLD .. L.Q[q].title .. ":|r " .. table.concat(who, ", ") .. GREY .. "  " .. L.Amount(q, best) .. "|r"
     end
   end
   return lines
@@ -574,7 +660,7 @@ function L.ShowSummary(e, net)
     f.when = H.Text(f, "GameFontDisableSmall", "", 300)
     f.when:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -2)
     f.lines = {}
-    for i = 1, 8 do
+    for i = 1, 11 do
       local l = H.Text(f, "GameFontHighlightSmall", "", 340)
       l:SetPoint("TOPLEFT", 22, -60 - (i - 1) * 15)
       if l.SetWordWrap then l:SetWordWrap(false) end
@@ -898,8 +984,9 @@ local function BuildDetail(v)
   v.dMaybe = H.Text(box, "GameFontHighlightSmall", "", 228)
   v.dMaybe:SetPoint("TOPLEFT", 12, -200)
   if v.dMaybe.SetWordWrap then v.dMaybe:SetWordWrap(false) end
-  local bt = H.Text(box, "GameFontNormal", "Le puntate", 200)
+  local bt = H.Text(box, "GameFontNormal", "Le puntate", 228)
   bt:SetPoint("TOPLEFT", 12, -222)
+  v.dBetTitle = bt
   v.dBets = {}
   for i = 1, 3 do
     local q = H.Text(box, "GameFontNormalSmall", "", 228)
@@ -975,8 +1062,17 @@ local function RefreshDetail(v)
   local my = {}
   for _, b in ipairs(MyList("eb")) do if b.i == e.id then my[b.q] = b end end
   local res = st == "finito" and L.ResultsReady(e) and L.Results(e) or nil
+  local qs = {}
+  for _, q in ipairs(kind.qs) do qs[#qs + 1] = q end
+  local function rank(q) return (my[q] and 2 or 0) + ((pools[q] and pools[q].total or 0) > 0 and 1 or 0) end
+  local pos = {}
+  for i, q in ipairs(qs) do pos[q] = i end
+  table.sort(qs, function(a, b) if rank(a) ~= rank(b) then return rank(a) > rank(b) end return pos[a] < pos[b] end)
+  local total = 0
+  for _, q in ipairs(kind.qs) do total = total + (pools[q] and pools[q].total or 0) end
+  if v.dBetTitle then v.dBetTitle:SetText("Le puntate " .. GREY .. "(" .. #kind.qs .. " domande, " .. total .. " in palio)|r") end
   for i, row in ipairs(v.dBets) do
-    local q = kind.qs[i]
+    local q = qs[i]
     if q then
       local pool = pools[q]
       row.q:SetText(L.Q[q].q .. GREY .. "  " .. pool.total .. " in palio|r")
@@ -1171,14 +1267,15 @@ function L.OpenBets(id)
   if not (SU and e) then return end
   local Choose = ns.Sfide.Choose
   if not betDlg then
-    local d = SU.Dialog("ErPattoPuntateEv", 440, 236, "Le puntate")
+    local d = SU.Dialog("ErPattoPuntateEv", 560, 300, "Le puntate")
     d.rows = {}
-    for i = 1, 3 do
+    for i = 1, 8 do
       local r = {}
-      local y = -36 - (i - 1) * 50
-      r.q = H.Text(d, "GameFontNormal", "", 380)
-      r.q:SetPoint("TOPLEFT", 24, y)
-      r.pick = H.Dropdown(d, 150, function(self)
+      local y = -34 - (i - 1) * 28
+      r.q = H.Text(d, "GameFontNormalSmall", "", 190)
+      r.q:SetPoint("TOPLEFT", 22, y - 6)
+      if r.q.SetWordWrap then r.q:SetWordWrap(false) end
+      r.pick = H.Dropdown(d, 130, function(self)
         local ev = L.Find(d.id)
         if not ev then return end
         local items = {}
@@ -1187,21 +1284,21 @@ function L.OpenBets(id)
         end
         Choose(self, items, function(g) d.picks[i] = g end)
       end)
-      r.pick:SetPoint("TOPLEFT", 30, y - 18)
-      r.stake = H.Input(d, 36, 2)
+      r.pick:SetPoint("TOPLEFT", 210, y)
+      r.stake = H.Input(d, 32, 2)
       if r.stake.SetNumeric then r.stake:SetNumeric(true) end
-      r.stake:SetPoint("TOPLEFT", 206, y - 22)
-      r.go = H.Btn(d, "Punta", 70, function()
+      r.stake:SetPoint("TOPLEFT", 366, y - 3)
+      r.go = H.Btn(d, "Punta", 60, function()
         local ok, msg = L.Bet(d.id, r.key, d.picks[i], r.stake:GetText())
         d.err:SetText(ok and "" or (msg or ""))
         if ok and PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.LOOT_WINDOW_COIN_SOUND) or 120) end
         if d.Sync then d.Sync() end
       end, 20)
-      r.go:SetPoint("TOPLEFT", 252, y - 20)
-      r.info = H.Text(d, "GameFontHighlightSmall", "", 100, "RIGHT")
-      r.info:SetPoint("TOPRIGHT", -24, y - 24)
-      r.mine = H.Text(d, "GameFontHighlightSmall", "", 300)
-      r.mine:SetPoint("TOPLEFT", 30, y - 22)
+      r.go:SetPoint("TOPLEFT", 406, y - 2)
+      r.info = H.Text(d, "GameFontHighlightSmall", "", 76, "RIGHT")
+      r.info:SetPoint("TOPRIGHT", -20, y - 6)
+      r.mine = H.Text(d, "GameFontHighlightSmall", "", 250)
+      r.mine:SetPoint("TOPLEFT", 216, y - 6)
       d.rows[i] = r
     end
     d.no = H.Btn(d, "Chiudi", 120, function() d:Hide() end)
@@ -1226,7 +1323,7 @@ function L.OpenBets(id)
           r.info:SetText(pool.total .. " in palio")
           local b = my[q]
           r.pick:SetShown(not b) r.stake:SetShown(not b) r.go:SetShown(not b) r.mine:SetShown(b ~= nil)
-          if b then r.mine:SetText("Hai puntato " .. Piotte(b.s) .. " su " .. Colored(all[b.p]) .. ".")
+          if b then r.mine:SetText("Tu: " .. Piotte(b.s) .. " su " .. Colored(all[b.p]))
           else
             r.pick:SetText(d.picks[i] and all[d.picks[i]] and Short(all[d.picks[i]]) or "Scegli")
             if not r.stake:HasFocus() and r.stake:GetText() == "" then r.stake:SetText("5") end
@@ -1235,7 +1332,7 @@ function L.OpenBets(id)
           r.pick:Hide() r.stake:Hide() r.go:Hide() r.mine:Hide()
         end
       end
-      d:SetHeight(76 + #kind.qs * 50)
+      d:SetHeight(100 + #kind.qs * 28)
     end
     betDlg = d
   end
@@ -1252,9 +1349,10 @@ if C_Timer then C_Timer.NewTicker(0.5, function() if betDlg and betDlg:IsShown()
 -- wiring
 ----------------------------------------------------------------------
 local ev = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_DEAD", "PLAYER_LOGOUT", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "UNIT_PET" }) do pcall(ev.RegisterEvent, ev, e) end
+for _, e in ipairs({ "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_LOGOUT", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "UNIT_PET" }) do pcall(ev.RegisterEvent, ev, e) end
 ev:SetScript("OnEvent", function(_, event, unit)
   if event == "PLAYER_DEAD" then pcall(L.OnDeath)
+  elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then pcall(L.OnAlive)
   elseif event == "PLAYER_LOGOUT" then pcall(L.OnLogout)
   elseif event == "UNIT_PET" then if unit == "player" and UnitGUID then petGUID = U.Plain(UnitGUID("pet"), "string") end
   elseif C_Timer then C_Timer.After(3, function() pcall(L.CheckInstance) end) end
