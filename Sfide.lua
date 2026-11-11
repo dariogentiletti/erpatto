@@ -2432,7 +2432,9 @@ function S.RefreshStrip()
   -- under the cap bar when it's there, else where the gogna icon used to be
   strip:ClearAllPoints()
   local hud = _G.ErPattoHUD
-  if hud and hud.IsShown and hud:IsShown() then strip:SetPoint("TOP", hud, "BOTTOM", 0, -16)
+  -- under the bar, and under the caciara line when the bar has one
+  local line = hud and hud.cac and hud.cac.IsShown and hud.cac:IsShown()
+  if hud and hud.IsShown and hud:IsShown() then strip:SetPoint("TOP", hud, "BOTTOM", 0, line and -30 or -16)
   else strip:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -205, -110) end
   strip:Show()
 end

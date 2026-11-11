@@ -2380,6 +2380,12 @@ function UI.RefreshHUD()
     hud.cac:Hide()
   end
   hud:Show()
+  -- the status icons sit under the line: when it comes or goes they move at once
+  local line = c ~= nil
+  if hud.cacWas ~= line then
+    hud.cacWas = line
+    if ns.Sfide and ns.Sfide.RefreshStrip then pcall(ns.Sfide.RefreshStrip) end
+  end
 end
 
 ----------------------------------------------------------------------

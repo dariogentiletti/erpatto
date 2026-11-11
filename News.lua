@@ -223,7 +223,9 @@ function N.PlaceTop(f, fallback)
     local hs = hud.GetEffectiveScale and Num(hud:GetEffectiveScale()) or 1
     local us = UIParent.GetEffectiveScale and Num(UIParent:GetEffectiveScale()) or 1
     local r = (hs > 0 and us > 0) and hs / us or 1
-    if top * r > h * 0.6 then y = bottom * r - h - 56 end
+    -- (lower when the bar has the caciara line under it)
+    local line = hud.cac and hud.cac.IsShown and hud.cac:IsShown()
+    if top * r > h * 0.6 then y = bottom * r - h - 56 - (line and 14 or 0) end
   end
   local s = f.GetScale and Num(f:GetScale()) or 1
   f:SetPoint("TOP", UIParent, "TOP", 0, y / ((s and s > 0) and s or 1))
