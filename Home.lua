@@ -67,15 +67,6 @@ local function Build()
   v.tip:SetPoint("TOPLEFT", 14, -106)
   v.tip:SetHeight(44)
   if v.tip.SetJustifyV then v.tip:SetJustifyV("TOP") end
-  -- the next appuntamento of my squadra (er Lunario): a click opens it
-  v.appt = CreateFrame("Button", nil, a)
-  v.appt:SetSize(344, 16)
-  v.appt:SetPoint("TOPLEFT", 12, -152)
-  v.appt:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
-  v.appt.text = H.Text(v.appt, "GameFontHighlightSmall", "", 340)
-  v.appt.text:SetPoint("LEFT", 2, 0)
-  if v.appt.text.SetWordWrap then v.appt.text:SetWordWrap(false) end
-  v.appt:SetScript("OnClick", function(self) if ns.Lunario then ns.Lunario.Show(self.id) end end)
 
   -- online now
   local b = H.Box(v, 368, 176)
@@ -95,12 +86,38 @@ local function Build()
     v.online[i] = r
   end
 
+  -- the caciare of my squadra still to come: when, how long to go, and if I'm in (a click opens it)
+  local k = H.Box(v, 368, 104)
+  k:SetPoint("TOPLEFT", 0, -184)
+  v.cacTitle = Title(k, "Caciare")
+  v.cacNew = H.Btn(k, "Nova", 60, function() if ns.Lunario then ns.Lunario.OpenNew() end end, 18)
+  v.cacNew:SetPoint("TOPRIGHT", -10, -7)
+  v.cac = {}
+  for i = 1, 4 do
+    local r = CreateFrame("Button", nil, k)
+    r:SetSize(346, 16)
+    r:SetPoint("TOPLEFT", 10, -28 - (i - 1) * 17)
+    r:SetHighlightTexture("Interface\\Buttons\\UI-Listbox-Highlight2", "ADD")
+    r.icon = r:CreateTexture(nil, "ARTWORK")
+    r.icon:SetSize(14, 14)
+    r.icon:SetPoint("LEFT", 2, 0)
+    r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    r.text = H.Text(r, "GameFontHighlightSmall", "", 210)
+    r.text:SetPoint("LEFT", 20, 0)
+    if r.text.SetWordWrap then r.text:SetWordWrap(false) end
+    r.right = H.Text(r, "GameFontHighlightSmall", "", 120, "RIGHT")
+    r.right:SetPoint("RIGHT", -2, 0)
+    if r.right.SetWordWrap then r.right:SetWordWrap(false) end
+    r:SetScript("OnClick", function(self) if ns.Lunario then ns.Lunario.Show(self.id) end end)
+    v.cac[i] = r
+  end
+
   -- news
-  local c = H.Box(v, 368, 268)
-  c:SetPoint("TOPLEFT", 0, -184)
+  local c = H.Box(v, 368, 156)
+  c:SetPoint("TOPLEFT", 0, -296)
   v.newsTitle = Title(c, "Notizie")
   v.news = {}
-  for i = 1, 13 do
+  for i = 1, 7 do
     local r = CreateFrame("Frame", nil, c)
     r:SetSize(344, 16)
     r:SetPoint("TOPLEFT", 12, -30 - (i - 1) * 17)
@@ -192,25 +209,44 @@ local function Refresh(v)
     v.next:SetText("")
   end
   v.tip:SetText(CapAdvice(st, rec))
-  -- the next appuntamento (er Lunario)
-  local L = ns.Lunario
-  local nextE
-  if L then
-    for _, e in ipairs(L.Events()) do
-      local s2 = L.State(e)
-      if L.Visible(e, "mine") and (s2 == "prossimo" or s2 == "incorso") then nextE = e break end
-    end
+  -- the caciare to come (a short count, to fit the column: "1g 20h", "23h 29m", "12 min")
+  local function Left(sec)
+    local m = math.max(0, math.floor(sec / 60))
+    local d, h, mm = math.floor(m / 1440), math.floor((m % 1440) / 60), m % 60
+    if d > 0 then return d .. "g" .. (h > 0 and (" " .. h .. "h") or "") end
+    if h > 0 then return h .. "h" .. (mm > 0 and (" " .. mm .. "m") or "") end
+    return mm .. " min"
   end
-  if nextE then
-    local yes, _, mine = L.Answers(nextE)
-    v.appt.id = nextE.id
-    v.appt.text:SetText("|cffffd100Caciare:|r " .. (L.State(nextE) == "incorso" and "|cff20ff20mo'|r" or (U.Day(nextE.t) .. ", " .. U.HM(nextE.t))) ..
-      " " .. nextE.n .. " |cff9d9d9d(" .. #yes .. " ce stanno" .. (mine == 1 and ", tu pure" or (mine == nil and ", tu?" or "")) .. ")|r")
-    v.appt:Show()
-  else
-    v.appt.id = nil
-    v.appt.text:SetText("|cffffd100Caciare:|r |cff9d9d9dgnente in programma|r")
-    v.appt:Show()
+  local L = ns.Lunario
+  local up = L and L.Upcoming() or {}
+  local open = 0
+  local now = U.Now()
+  for _, e in ipairs(up) do local _, _, mine = L.Answers(e) if mine == nil and L.State(e, now) == "prossimo" then open = open + 1 end end
+  v.cacTitle:SetText("Caciare" .. (open > 0 and (" |cffff8000(" .. open .. (open == 1 and " nova" or " nove") .. ")|r") or ""))
+  for i, r in ipairs(v.cac) do
+    local e = up[i]
+    if e then
+      local yes, _, mine = L.Answers(e)
+      local live = L.State(e, now) == "incorso"
+      r.id = e.id
+      r.icon:SetTexture((L.KINDS[e.k] or L.KINDS.al).icon)
+      r.icon:Show()
+      r.text:SetText(GREY .. L.DayWord(e.t, now) .. " " .. U.HM(e.t) .. "|r " .. (mine == 1 and "|cffffd100" or "|cffffffff") .. e.n .. "|r " .. GREY .. "(" .. #yes .. ")|r")
+      local right
+      if live then right = (mine == 1 or mine == 2) and "|cff20ff20mo'! vai|r" or "|cff20ff20mo'|r"
+      elseif mine == 1 then right = "|cff20ff20tra " .. Left(e.t - now) .. "|r"
+      elseif mine == 2 then right = "|cffffd100forse, tra " .. Left(e.t - now) .. "|r"
+      elseif mine == nil then right = "|cffff8000nova: ce stai?|r"
+      else right = GREY .. "nun ce vai|r" end
+      r.right:SetText(right)
+      r:Show()
+    else
+      r.id = nil
+      r.icon:Hide()
+      r.text:SetText(i == 1 and (GREY .. "Gnente in programma.|r") or "")
+      r.right:SetText("")
+      r:SetShown(i == 1)
+    end
   end
 
   -- online now: me first, then by level

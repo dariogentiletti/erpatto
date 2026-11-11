@@ -107,6 +107,22 @@ check(any('Finito' in n and 'Shadowfang' in n for n in A.news()), 'and a line in
 secs(60)
 check(C.ns.Tombola.Balance() == balC0 + 8, 'paid once')
 
+# ---- every day, a minute after the first look: what's coming that I'm in, and what waits for my answer
+p3 = A.ns.U.RomeParts(T[0] + 86400)
+ok, e4 = R(LB.Create(B.lua.table_from({'k': 'dg', 'n': 'Wailing Caverns', 't': A.ns.U.FromRome(p3.year, p3.month, p3.day, 21, 0), 'd': 120, 'tm': 't1', 'm': 5})))
+secs(40)
+n0 = len(list(A.g.CHAT.values()))
+T[0] = A.ns.U.FromRome(p3.year, p3.month, p3.day, 9, 0); secs(35)
+said = [str(m) for m in list(A.g.CHAT.values())[n0:]]
+check(any('aspetta la risposta tua' in m and 'Wailing Caverns' in m for m in said), 'the morning of the day: Dario is asked about Wailing Caverns (no answer yet): ' + str(said[-2:]))
+LA.Answer(str(e4.id), 1)
+n1 = len(list(A.g.CHAT.values())); secs(60)
+check(not any('aspetta la risposta' in str(m) for m in list(A.g.CHAT.values())[n1:]), 'once a day, not every minute')
+n2 = len(list(A.g.CHAT.values()))
+T[0] = A.ns.U.FromRome(p3.year, p3.month, p3.day, 20, 1); secs(35)
+check(any("tra 'n'ora" in str(m) and 'Wailing' in str(m) for m in list(A.g.CHAT.values())[n2:]), 'an hour before, who\'s in is called')
+T[0] = A.ns.U.FromRome(p3.year, p3.month, p3.day, 23, 30); secs(40)
+
 # ---- the window: Prossimi, Mese, the detail
 p2 = A.ns.U.RomeParts(T[0] + 2 * 86400)
 ok, e2 = LA.Create(A.lua.table_from({'k': 'du', 'n': 'Torneo ar Crossroads', 't': A.ns.U.FromRome(p2.year, p2.month, p2.day, 22, 30), 'd': 60, 'tm': ''}))
@@ -121,7 +137,9 @@ check(A.has('Ce stanno') and A.has('Le puntate'), 'the detail: who\'s in, the be
 check(not R(LC.Create(C.lua.table_from({'k': 'bg', 'n': 'X', 't': T[0] + 3600, 'tm': 't1'})))[0], 'Gina can\'t put one up for I Pazzi (only the capo)')
 # Baretto: the next one
 A.ns.UI.Show('casa')
-check(A.has('Caciare:') and A.has('Torneo ar Crossroads'), 'the Baretto shows the next appuntamento')
+check(A.has('Caciare') and A.has('Torneo ar Crossroads') and A.has('tra ') and A.has('Notizie'), 'the Baretto: the caciare to come, with how long to go')
+B.ns.UI.Toggle(); B.ns.UI.Show('casa')
+check(B.has('Torneo ar Crossroads') and B.has('nova: ce stai?') and B.has('(1 nova)'), 'Pietro hasn\'t answered the torneo: "nova: ce stai?", and the count in the title')
 
 # ---- called off: the bets given back
 R(LB.Bet(str(e2.id), 'dw', 'Player-1-AAA', 6))

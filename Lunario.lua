@@ -410,15 +410,65 @@ local function Told(key)
   return false
 end
 local function Say(text) if ns.News and ns.News.Banner then ns.News.Banner("Caciare:", text, { 1, 0.82, 0 }, "evento") end end
+local function Big(text)
+  if RaidNotice_AddMessage and RaidWarningFrame then pcall(RaidNotice_AddMessage, RaidWarningFrame, text, { r = 1, g = 0.82, b = 0 }) end
+end
 function L.When(e)
   return U.Day(e.t) .. ", " .. U.HM(e.t) .. "-" .. U.HM(L.End(e))
 end
+-- "oggi", "domani", else the day ("dom 8 nov")
+local function DayKey(t) local p = U.RomeParts(t) return p.year * 10000 + p.month * 100 + p.day end
+function L.DayWord(t, now)
+  now = now or Now()
+  local k = DayKey(t)
+  if k == DayKey(now) then return "oggi" end
+  if k == DayKey(now + 86400) then return "domani" end
+  return U.Day(t)
+end
+-- the ones of my squadra still to come or going on now, by time
+function L.Upcoming(now)
+  now = now or Now()
+  local out = {}
+  for _, e in ipairs(L.Events()) do
+    local st = L.State(e, now)
+    if L.Visible(e, "mine") and (st == "prossimo" or st == "incorso") then out[#out + 1] = e end
+  end
+  return out
+end
+-- once a day, at the first look: the ones I'm in today and tomorrow, and the ones I haven't answered yet
+function L.Daily(now)
+  now = now or Now()
+  if Told("g:" .. DayKey(now)) then return end
+  local mineSoon, open = {}, {}
+  for _, e in ipairs(L.Upcoming(now)) do
+    local _, _, mine = L.Answers(e)
+    if L.State(e, now) == "prossimo" then
+      if (mine == 1 or mine == 2) and e.t - now < 2 * 86400 then mineSoon[#mineSoon + 1] = e
+      elseif mine == nil then open[#open + 1] = e end
+    end
+  end
+  for i, e in ipairs(mineSoon) do
+    if i > 2 then break end
+    local day = L.DayWord(e.t, now)
+    Say(day .. " a le " .. U.HM(e.t) .. " " .. GOLD .. e.n .. "|r: tu ce stai (tra " .. U.Until(e.t - now) .. ").")
+    if i == 1 and day == "oggi" then Big("Oggi a le " .. U.HM(e.t) .. ": " .. e.n .. "!") end
+  end
+  if #open > 0 then
+    local names = {}
+    for i, e in ipairs(open) do if i <= 3 then names[#names + 1] = GOLD .. e.n .. "|r (" .. L.DayWord(e.t, now) .. ")" end end
+    Say((#open == 1 and "una caciara aspetta la risposta tua: " or (#open .. " caciare aspettano la risposta tua: ")) .. table.concat(names, ", ") .. (#open > 3 and "..." or "") .. ". Ce stai?")
+  end
+end
+local ticks = 0
 function L.Tick()
   if not Ready() then return end
   local now = Now()
   L.Track()
   local firstLook = not (ns.db and ns.db.evTold and ns.db.evTold["_"])
   if firstLook then Told("_") end
+  ticks = ticks + 1
+  -- the daily one a minute after login, when the others' records are in
+  if ticks >= 3 then pcall(L.Daily, now) end
   for _, e in ipairs(L.Events()) do
     local st = L.State(e, now)
     local _, _, mine = L.Answers(e)
@@ -429,6 +479,10 @@ function L.Tick()
       Say("caciara nova de " .. Short(by) .. ": " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. " (" .. TeamName(e.tm) .. ").")
       if ns.News then ns.News.Add("Caciara nova: " .. GOLD .. e.n .. "|r, " .. U.When(e.t) .. ".") end
     end
+    -- an hour before, for who's in
+    if me and st == "prossimo" and e.t - now <= 3600 and e.t - now > 20 * 60 and (mine == 1 or mine == 2) and not Told("h:" .. e.id) then
+      Say("tra 'n'ora " .. GOLD .. e.n .. "|r, a le " .. U.HM(e.t) .. ". Nun mancà.")
+    end
     -- fifteen minutes before
     if me and st == "prossimo" and e.t - now <= 15 * 60 and e.t - now > 60 and not Told("q:" .. e.id) then
       if mine == 1 or mine == 2 then Say("tra 15 minuti " .. GOLD .. e.n .. "|r. Preparate.")
@@ -436,9 +490,7 @@ function L.Tick()
     end
     -- the start
     if st == "incorso" and now - e.t < 300 and (mine == 1 or mine == 2) and not Told("s:" .. e.id) then
-      if RaidNotice_AddMessage and RaidWarningFrame then
-        pcall(RaidNotice_AddMessage, RaidWarningFrame, "Comincia " .. e.n .. "!", { r = 1, g = 0.82, b = 0 })
-      end
+      Big("Comincia " .. e.n .. "!")
       if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.READY_CHECK) or 8960, "Master") end
       Say("comincia " .. GOLD .. e.n .. "|r!")
     end
