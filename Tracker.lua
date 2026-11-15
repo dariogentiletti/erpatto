@@ -542,6 +542,15 @@ local function ReadPvP()
   return hk, honor
 end
 
+-- today's honorable kills: the game counts them at once (the lifetime total, on WoW Forever as in 1.12, moves
+-- only when the day's honor is worked out, all the battleground's kills in one go, wherever I am then)
+local function SessionKills()
+  if not GetPVPSessionStats then return nil end
+  local ok, a = pcall(GetPVPSessionStats)
+  return ok and U.Plain(a, "number") or nil
+end
+T.LUMP = 15 -- the lifetime total jumping this much at once outside a battleground: the day worked out, not kills now
+
 function T.CheckPvP()
   if not (Ready() and ns.db) then return end
   local hk, honor = ReadPvP()
@@ -551,13 +560,28 @@ function T.CheckPvP()
   -- where the kills were made: in a battleground or out in the world. Read when the game says a kill was made
   -- (and every minute); if the place changed since the last look, the kills were made where I was before
   local bg = U.InBattleground()
-  if hk then
+  local sk = SessionKills()
+  if sk then
+    -- counted from today's kills, as they happen: where I am is where they were made
+    if last.sk and sk > last.sk then
+      local n = sk - last.sk
+      local wasBG = last.bg
+      if wasBG == nil then wasBG = bg end
+      Bump("hk", n)
+      Bump(wasBG and "hb" or "hw", n)
+    end
+    -- (a new day starts again from zero: the kills already made in it count)
+    if last.sk and sk < last.sk and sk > 0 then Bump("hk", sk) Bump(bg and "hb" or "hw", sk) end
+    last.sk = sk
+    if hk then last.hk = hk end
+  elseif hk then
     if last.hk and hk > last.hk then
       local n = hk - last.hk
       local wasBG = last.bg
       if wasBG == nil then wasBG = bg end
       Bump("hk", n)
-      Bump(wasBG and "hb" or "hw", n)
+      -- a lump outside a battleground is the day's honor worked out: kills of before, made who knows where
+      if wasBG or n < T.LUMP then Bump(wasBG and "hb" or "hw", n) end
     end
     last.hk = hk
   end

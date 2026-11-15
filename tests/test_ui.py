@@ -381,6 +381,25 @@ A.g.PVP_HK = 15; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
 st_ = A.ns.MyRecord().stats.t
 check(st_.hb == 6 and st_.hw == hw0 + 1 and st_.hk == 15, 'battleground kills apart (6 in BG, 1 more pe\' strada, 15 in all): hb=%s hw=%s hk=%s' % (st_.hb, st_.hw, st_.hk))
 check(A.ns.Titles.BY_ID.legionario is not None and A.ns.Titles.BY_ID.attaccabrighe.value(A.ns.MyRecord(), None) == hw0 + 1, 'A Legionario for the BG kills, A Attaccabrighe for the ones pe\' strada')
+# ---- WoW Forever (as 1.12): the lifetime total moves only when the day's honor is worked out; today's kills
+# (GetPVPSessionStats) move at once. Kills in a battleground stay in the battleground, the day's lump changes nothing
+A.lua.execute('PVP_SK = 0 GetPVPSessionStats = function() return PVP_SK, 0 end')
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+st0 = A.ns.MyRecord().stats.t; hb0, hw1 = st0.hb or 0, st0.hw or 0
+A.lua.execute('IsInInstance = function() return true, "pvp" end')
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+for n in (4, 9, 30): A.g.PVP_SK = n; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.lua.execute('IsInInstance = _IsInInstance')
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_SK = 32; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_HK = 15 + 32; A.g.PVP_SK = 0; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')   # the day worked out: lifetime +32, today back to 0
+st_ = A.ns.MyRecord().stats.t
+check(st_.hb - hb0 == 30 and st_.hw - hw1 == 2, 'today\'s kills: 30 in the battleground, 2 pe\' strada; the day worked out adds none (hb +%s, hw +%s)' % (st_.hb - hb0, st_.hw - hw1))
+A.lua.execute('GetPVPSessionStats = nil')
+# without today's count (only the lifetime total): a lump of 40 outside a battleground isn't pe' strada
+hw2 = A.ns.MyRecord().stats.t.hw
+A.g.PVP_HK = A.g.PVP_HK + 40; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+check(A.ns.MyRecord().stats.t.hw == hw2, 'only the lifetime total: a lump of 40 at once outside a battleground isn\'t pe\' strada (%s)' % (A.ns.MyRecord().stats.t.hw - hw2))
 # ---- title menu closes when you click elsewhere or change tab
 A.ns.UI.Show('pg')
 tb2 = A.ns.UI._views.pg.titleBtn; tb2.Click(tb2)
