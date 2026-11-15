@@ -151,9 +151,27 @@ def scenario(guild):
         if got is not None and zones is not None: break
     known = [c for c in cl[1:] if any(o.online and o is not dario and o.state.members[c.guid].up == c.state.members[c.guid].up for o in cl)]
     have = sum(1 for c in known if dario.state.members[c.guid].up == c.state.members[c.guid].up)
+    LAST[:] = [cl, dario, br]
     return got, have, len(known), sum(c.ns.C.stats.sent for c in cl) - s0
 
+LAST = []
 gotG, haveG, knownG, msgG = scenario(True)
+cl_, dario_, br_ = LAST
+# ---- an older version had thrown away the caciare (fields it didn't know): Dario's copy of Er Brillante's record
+# has the same date as everyone's but no "ce sto". With the new version, once, every record is asked again whole
+dario_.logout()
+dario_.state.members[br_.guid].ea = None
+dario_.ns.P.MarkStale(dario_.state, dario_.guid)  # (what Main does at login when the version is new)
+secs(5)
+dario_.login()
+t0 = T[0]; back = None
+while T[0] - t0 < 300:
+    secs(1)
+    if dario_.state.members[br_.guid].ea is not None: back = T[0] - t0; break
+fails(back is not None and back <= 60, 'after updating, what the old version threw away comes back (%s s)' % back)
+def left_(): return len(list(dario_.state.stale.keys())) if dario_.state.stale else 0
+while T[0] - t0 < 300 and left_() > 0: secs(1)
+fails(left_() == 0, 'and all eleven records asked again come back whole (in %s s, %d left)' % (T[0] - t0, left_()))
 gotW, haveW, knownW, msgW = scenario(False)
 print('offline record: guild %s s (%d/%d, %d messages); whispers %s s (%d/%d, %d messages)' % (gotG, haveG, knownG, msgG, gotW, haveW, knownW, msgW))
 fails(gotG is not None and gotG <= 60, 'through the guild, the "ce sto" of one offline arrives within a minute (%s s)' % gotG)

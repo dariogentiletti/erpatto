@@ -746,7 +746,8 @@ local function OnHello(from, h, sender)
   end
   for g, up in pairs(d) do
     if type(up) == "number" and not P.IsBanned(state, g) and not P.HasLeft(state, g, up)
-      and (not state.members[g] or (state.members[g].up or 0) < up) then
+      and (not state.members[g] or (state.members[g].up or 0) < up
+        or (type(state.stale) == "table" and state.stale[g] and up > 0)) then
       theyNewer = true
     end
   end

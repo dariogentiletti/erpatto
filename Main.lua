@@ -73,6 +73,11 @@ local function Activate(state, recordGuid, isAlt)
   -- back and replaces it (base: how new mine was when I came in)
   local mine = not isAlt and state.members[recordGuid]
   if mine and not mine.fresh then mine.fresh, mine.base = true, mine.up or 0 end
+  -- a new version of the addon: everyone's record asked again whole, once (what an older one threw away)
+  if state.syncVer ~= ns.VERSION then
+    P.MarkStale(state, recordGuid)
+    state.syncVer = ns.VERSION
+  end
   C.Start(state, recordGuid, ns.myName)
   T.Start(state, recordGuid, ns.me, ns.myName, isAlt)
   U.Log("Patto", "attivo", state.code, isAlt and "alt" or "principale")

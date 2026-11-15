@@ -880,7 +880,9 @@ function P.MergeMember(state, incoming, myGuid)
   local cur = state.members[r.guid]
   -- a record started again from nothing never replaces a real copy: its owner is about to get the real one back
   if cur and not cur.fresh and r.fresh then return false end
-  if cur and (cur.up or 0) >= r.up then return false end
+  local stale = type(state.stale) == "table" and state.stale[r.guid]
+  if cur and ((cur.up or 0) > r.up or ((cur.up or 0) == r.up and not stale)) then return false end
+  if stale then state.stale[r.guid] = nil end
   -- newer but started again from zero: the old copy goes aside, for its owner to take back
   if cur and P.Behind(r, cur) then P.KeepPrev(state, cur) end
   -- an old life already given back: once the record of now has it all, it's done
@@ -925,8 +927,17 @@ end
 
 function P.Digest(state)
   local d = {}
-  for g, r in pairs(state.members) do d[g] = r.up or 0 end
+  local stale = type(state.stale) == "table" and state.stale or {}
+  for g, r in pairs(state.members) do d[g] = stale[g] and 0 or (r.up or 0) end
   return d
+end
+
+-- a new version of the addon keeps fields an older one threw away (the caciare came with 1.0.18): the others'
+-- records held here may lack them, though as new as the friends' copies. Once per version they're all asked
+-- again (the hello says "I have none"), and the same copy is taken again whole. Mine is mine.
+function P.MarkStale(state, myGuid)
+  state.stale = {}
+  for g in pairs(state.members) do if g ~= myGuid then state.stale[g] = true end end
 end
 
 function P.TeamName(state, teamId)
