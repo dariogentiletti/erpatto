@@ -604,9 +604,9 @@ function C.MarkSelfDirty(delay, urgent)
   if not selfDueAt or due < selfDueAt then selfDueAt = due end
 end
 
-local function Schedule(key, fn)
+local function Schedule(key, fn, after)
   for _, p in ipairs(pendingSends) do if p.key == key then return end end
-  pendingSends[#pendingSends + 1] = { key = key, created = Clock(), at = Clock() + 0.5 + math.random() * 2.5, fn = fn }
+  pendingSends[#pendingSends + 1] = { key = key, created = Clock(), at = Clock() + (after or (0.5 + math.random() * 2.5)), fn = fn }
 end
 
 -- to one player only (whispered): the answers to a hello on Forever go to who asked, not to everyone
@@ -678,21 +678,53 @@ local function OnHello(from, h, sender)
     end
   end
   local d = type(h.d) == "table" and h.d or {}
-  local count = 0
-  for g, rec in pairs(state.members) do
+  local count, more = 0, false
+  -- who's online now, as the guild knows it (a few dozen lines; the roster asked once a minute may be old)
+  if GuildOn() then pcall(C.ReadGuild) end
+  -- mine first, then the newest (what changed last is what they're most likely missing)
+  local order = {}
+  for g in pairs(state.members) do order[#order + 1] = g end
+  table.sort(order, function(a, b)
+    if (a == me) ~= (b == me) then return a == me end
+    return (state.members[a].up or 0) > (state.members[b].up or 0)
+  end)
+  -- whispered, the records of the ones not around go from one of us only (else each one online sends them all):
+  -- the one with the first guid among who's around, the way everyone sees it
+  local first = true
+  if to and not (GuildOn() and guildSet[from]) then
+    for g in pairs(state.members) do
+      if g ~= me and g ~= from and C.Around(g) and g < me then first = false break end
+    end
+  end
+  for _, g in ipairs(order) do
+    local rec = state.members[g]
     local theirs = type(d[g]) == "number" and d[g] or 0
     -- whispering, every record sent is 7-10 whispers: someone else's goes from me only when they aren't around
     -- to send it themselves (or nobody has it: they never had it at all)
     local mine = g == me
-    local relay = mine or not to or not C.IsOnline(g) or theirs == 0
+    local relay = mine or not to or theirs == 0 or (not C.Around(g) and first)
+    if (rec.up or 0) > theirs and relay and count >= 8 then more = true end
     if (rec.up or 0) > theirs and count < 8 and relay then
       count = count + 1
       local up = rec.up
-      Schedule("M:" .. g .. ":" .. up .. tag, function()
-        if not state.members[g] or state.members[g].up ~= up then return end
-        if mine then C.SendSelfTo(to, theirs) else C.SendTo("M", state.members[g], to) end
-      end)
+      if not mine and GuildOn() and guildSet[from] then
+        -- someone else's record, to one in the guild: through the guild, so whoever else was about to send the
+        -- same one hears it and doesn't (the first of us wins: a few seconds of chance each)
+        Schedule("M:" .. g .. ":" .. up, function()
+          if state.members[g] and state.members[g].up == up then C.SendTo("M", state.members[g], nil) end
+        end, 0.5 + math.random() * 6)
+      else
+        Schedule("M:" .. g .. ":" .. up .. tag, function()
+          if not state.members[g] or state.members[g].up ~= up then return end
+          if mine then C.SendSelfTo(to, theirs) else C.SendTo("M", state.members[g], to) end
+        end)
+      end
     end
+  end
+  -- more than eight to give: my hello to them once these are out, they answer with theirs and the next ones go
+  if more and type(from) == "string" then
+    -- (after the records: they're in the line first)
+    Schedule("H:more:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to) end, 4)
   end
   -- who left: gone here too (and their old record no more asked for)
   if type(h.lf) == "table" then
@@ -1162,6 +1194,15 @@ function C.OnZoneChanged()
   end
 end
 
+-- around to answer a hello himself: the guild roster says it when he's in it (it knows who logged off a minute
+-- ago); else heard from in the last two and a half minutes. A record of someone not around goes from whoever has
+-- it newest: the others get it without waiting for its owner to come back.
+C.AROUND = 150
+function C.Around(guid)
+  if guid == me then return true end
+  if GuildOn() and guildSet[guid] then return guildOnline[guid] == true end
+  return seen[guid] ~= nil and Clock() - seen[guid] < C.AROUND
+end
 function C.IsOnline(guid)
   if guid == me then return true end
   return seen[guid] ~= nil and Clock() - seen[guid] < ONLINE_WINDOW

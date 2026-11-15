@@ -102,4 +102,61 @@ fails(all(m == 'gilda' for m in m2), 'the mode says gilda: ' + str(m2))
 k3, took3, sent3, ding3, dsent3, e3, m3 = run(True, outside=7)
 print('guild, Er Barajin outside: knew %d; back in %s s; ding in %s s (%d messages)' % (k3, took3, ding3, dsent3))
 fails(k3 == 12 and took3 is not None and ding3 is not None and ding3 <= 5, 'one outside the guild still has and gets everything (%s, %s)' % (took3, ding3))
+
+# ---- the record of one who's offline, from one who's online: Er Brillante says "ce sto" and logs off; Dario
+# (away meanwhile) comes in with only three of the patto online: he gets it from them, quickly, and every other
+# change the three have
+def scenario(guild):
+    clients.clear()
+    T[0] = START + 86400
+    cl = []
+    for i, n in enumerate(NAMES):
+        c = Client(n, 'G-%02d' % i); c.g.NOWV = T[0]; c.g.REFUSE_CHANNEL = True
+        if guild: c.g.GUILDNAME = 'Alien Racers'
+        clients[n] = c; cl.append(c)
+    capo = cl[0]
+    opts = capo.lua.eval('''function(start) return { name = "Alien Racers", start = start, h20 = 25, h60 = 190, guid = "G-00", playerName = "Er Gnomo",
+      teams = { { name = "Er Gnomi", hours = 12 }, { name = "Li Morti", hours = 12 } }, teamIndex = 1 } end''')(START)
+    capo.state = capo.ns.P.Create(opts); code = capo.state.code
+    capo.login(); capo.g.JOINED = 'isola-0'; secs(3)
+    for i, c in enumerate(cl[1:], 1):
+        c.state = c.ns.P.Join(code, c.guid, c.name); c.login(); c.g.JOINED = 'isola-%d' % i
+        c.ns.C.AddSeed('Er Gnomo'); secs(2)
+    for i, c in enumerate(cl):
+        c.lua.eval(FILL)(c.state.members[c.guid], i); c.ns.C.MarkSelfDirty(1)
+    secs(300)
+    dario = cl[0]
+    dario.logout(); secs(60)
+    # everyone else changes something while Dario is away (many records newer than his copies)
+    for c in cl[1:]:
+        c.ns.P.UpdateSelf(c.state, c.guid, c.lua.table_from({'zone': 'Barrens ' + c.name}), 'zone'); c.ns.C.MarkSelfDirty(0.3, True)
+    secs(60)
+    # Er Brillante says "ce sto" (a field), then everyone but Re Puma (cl[5]) logs off
+    br = cl[10]
+    br.ns.P.UpdateSelf(br.state, br.guid, br.lua.table_from({'ea': br.lua.table_from([br.lua.table_from({'i': 'X1', 'a': 1, 'at': T[0]})])}), 'lunario'); br.ns.C.MarkSelfDirty(0.3, True)
+    secs(60)
+    puma = cl[5]
+    for c in cl[1:]:
+        if c is not puma and c is not cl[6] and c is not cl[7]: c.logout()
+    secs(30)
+    s0 = sum(c.ns.C.stats.sent for c in cl)
+    dario.login()
+    t0 = T[0]; got = None; zones = None
+    while T[0] - t0 < 900:
+        secs(1)
+        m = dario.state.members[br.guid]
+        if m and m.ea is not None and got is None: got = T[0] - t0
+        z = sum(1 for c in cl[1:] if dario.state.members[c.guid] and str(dario.state.members[c.guid].zone).startswith('Barrens'))
+        if z == 11 and zones is None: zones = T[0] - t0
+        if got is not None and zones is not None: break
+    known = [c for c in cl[1:] if any(o.online and o is not dario and o.state.members[c.guid].up == c.state.members[c.guid].up for o in cl)]
+    have = sum(1 for c in known if dario.state.members[c.guid].up == c.state.members[c.guid].up)
+    return got, have, len(known), sum(c.ns.C.stats.sent for c in cl) - s0
+
+gotG, haveG, knownG, msgG = scenario(True)
+gotW, haveW, knownW, msgW = scenario(False)
+print('offline record: guild %s s (%d/%d, %d messages); whispers %s s (%d/%d, %d messages)' % (gotG, haveG, knownG, msgG, gotW, haveW, knownW, msgW))
+fails(gotG is not None and gotG <= 60, 'through the guild, the "ce sto" of one offline arrives within a minute (%s s)' % gotG)
+fails(gotW is not None and gotW <= 300, 'by whispers, within five minutes (%s s)' % gotW)
+fails(haveG == knownG and haveW == knownW, 'and every change the ones online have (%d/%d, %d/%d)' % (haveG, knownG, haveW, knownW))
 print('errori:', e1, e2, e3)
