@@ -54,11 +54,16 @@ local function Clock() return GetTime() end
 ----------------------------------------------------------------------
 -- lockdown: Midnight rules block addon messages in instances, encounters and PvP matches
 ----------------------------------------------------------------------
+-- Only there: the game says it (InChatMessagingLockdown) and that's all we ask. Without that call, an old
+-- client (Forever, classic: interface under 12) sends from a dungeon as from anywhere; holding everything there
+-- left who logged in inside one with nothing (no caciare, no deaths: their hello never went out)
 function C.InLockdown()
   if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
     local ok, locked = pcall(C_ChatInfo.InChatMessagingLockdown)
-    if ok and (U.IsSecret(locked) or locked) then return true end
+    return ok and (U.IsSecret(locked) or locked == true) or false
   end
+  local toc = GetBuildInfo and select(4, GetBuildInfo())
+  if type(toc) == "number" and toc < 120000 then return false end
   if IsInInstance then
     local inInstance = IsInInstance()
     if U.IsSecret(inInstance) then return true end

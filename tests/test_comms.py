@@ -107,6 +107,13 @@ B.ns.P.UpdateSelf(B.state, 'G-PIETRO', B.lua.table_from({'lv': 9})); B.ns.C.Mark
 print('5) Pietro in dungeon fa ding al 9: Dario vede lv', A.state.members['G-PIETRO'].lv, '| coda trattenuta:', B.ns.C.stats.held)
 B.g.INSTANCE = False; B.ns.C.OnZoneChanged(); secs(10)
 print('   Pietro esce: Dario vede lv', A.state.members['G-PIETRO'].lv)
+def fails(ok, what): print(('OK   ' if ok else 'FAIL ') + what)
+# WoW Forever (interface 1.6x): the game blocks nothing in a dungeon, so nothing is held there
+B.lua.execute('GetBuildInfo = function() return "1.60.1", "70500", "Nov 1 2026", 16001 end')
+B.g.INSTANCE = True
+B.ns.P.UpdateSelf(B.state, 'G-PIETRO', B.lua.table_from({'lv': 10})); B.ns.C.MarkSelfDirty(); secs(10)
+fails(A.state.members['G-PIETRO'].lv == 10 and B.ns.C.stats.held == 0, 'su Forever, da drento a \'n dungeon: Dario vede subito er 10 de Pietro (%s), gnente trattenuto' % A.state.members['G-PIETRO'].lv)
+B.g.INSTANCE = False; B.lua.execute('GetBuildInfo = nil')
 # fallback: Petra's channel join fails
 D.g.CHANNEL_OK = False
 D.state = D.ns.P.Join(code, 'G-PETRA', 'Petra Blu')

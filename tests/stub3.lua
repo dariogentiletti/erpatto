@@ -25,7 +25,8 @@ Enum = { SendAddonMessageResult = { Success = 0, AddonMessageThrottle = 3, NotIn
 C_ChatInfo = { RegisterAddonMessagePrefix = function() return true end,
   SendAddonMessage = function(prefix, text, kind, target)
     if #text > 255 then error("message too long " .. #text) end
-    if INSTANCE then return 11 end
+    -- (retail blocks addon messages in instances; an old client, Forever, does not)
+    if INSTANCE and not (GetBuildInfo and select(4, GetBuildInfo()) < 120000) then return 11 end
     table.insert(OUTBOX, { prefix = prefix, text = text, kind = kind, target = target })
     table.insert(SENDLOG, NOWV)
     return 0
