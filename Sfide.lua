@@ -42,6 +42,9 @@ S.DUEL_WINDOW = 600       -- the duel after the request counts if it ends within
 -- (x = 3, written by one of the two) the patto hears at once that it was accepted; WoW Forever doesn't tell it,
 -- so there the duel itself says so. (Rounds before ACCEPT_SINCE, 1.0.12, keep the old rule: their results stay.)
 S.ACCEPT_WIN = 90
+-- a request nobody answered (no countdown, no duel, no "no": he wasn't there, or let it run out) stops being in
+-- ballo after three minutes: the two are free for another (a duel fought later in its window still counts)
+S.NO_ANSWER = 180
 S.ACCEPT_SINCE = 1794089000
 S.RV_ASK = 600            -- the loser has ten minutes to ask for la rivincita (or la bella)
 S.RV_FIGHT = 600          -- and it's fought within ten minutes
@@ -478,9 +481,10 @@ function S.Series(all)
         if not d then
           -- the duel request turned down (x = 2, written by either of the two), or never fought in its time
           if off then s.refused = { n = n, id = cur.id, from = cur.from, to = cur.to, at = off.at } end
-          if not off and now - t0 <= fightWin then s.state, s.cur, s.n, s.acc = "incorso", cur, n, acc
+          if not off and now - t0 <= fightWin and (acc or not newRule or now - t0 <= S.NO_ANSWER) then
+            s.state, s.cur, s.n, s.acc = "incorso", cur, n, acc
           elseif n == 1 then s.state = "nunfatto"
-          else Close(off and off.at or (t0 + fightWin), "no") end
+          else Close(off and off.at or math.min(t0 + fightWin, now), "no") end
           break
         end
         s.duels[n] = { w = d.w, l = d.l, at = d.at, asker = cur.from }

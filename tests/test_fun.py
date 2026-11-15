@@ -1166,6 +1166,16 @@ ok, frm2 = A.ns.P.SetPace(A.ns.state, A.ns.me, 't1', 70)
 secs(10)
 check(frm2 == wk0 and B.ns.MyStatus().cap >= capA, 'changed again the same week: still this week (%s), cap %s' % (frm2, B.ns.MyStatus().cap))
 
+# ---- a gogna nobody answers: three minutes after, the two are free (Gina calls Pietro, he lets it run out)
+secs(700)
+okq = SC.Gogna('Player-1-BBB')
+secs(30)
+def blk(x): return str(x.ns.Sfide.Block('Player-1-BBB', x.ns.Sfide.Series())[0]) if isinstance(x.ns.Sfide.Block('Player-1-BBB', x.ns.Sfide.Series()), tuple) else str(x.ns.Sfide.Block('Player-1-BBB', x.ns.Sfide.Series()))
+b1 = blk(C)
+secs(160)
+b2 = blk(C)
+check(first(okq) is True and b1 == 'aperto' and b2 == 'None', 'Pietro let Gina\'s gogna run out: in ballo at first (%s), free three minutes after (%s)' % (b1, b2))
+
 # ---- the bulletins of the weeks before: the one of the week just ended is kept, and can be opened again later
 A.ns.db.opts.testMode = False
 BL = A.ns.Bollettino
