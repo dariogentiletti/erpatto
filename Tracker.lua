@@ -231,12 +231,18 @@ end
 -- back makes nothing), while buying new things and repairs are spending, like a trainer or a flight, and take
 -- nothing off. Each window (mail, trade, merchant) counts as open until 2 s after it closes, for the money that
 -- lands late; one whose closing never arrived is taken as closed once the game says it isn't open.
+-- Net: of a thing bought at the auction and sold again (at the auction or to a vendor) only the gain counts: what
+-- it sold for, less the auction's cut, less what it cost. The deposit an auction gives back was mine already. A
+-- loss is owed: it comes off the next gold made.
 ----------------------------------------------------------------------
 local lastMoney
 local win = {}        -- mail, trade, merchant: { at = opened, closed = closed at }
-local pendingAH = 0   -- auction sale money taken from the mailbox, still to land
+local sales = {}      -- auction sales taken from the mailbox, their money still to land: { m, at, name, k, net }
+local buys = {}       -- things won at the auction taken from the mailbox, still to land in the bags
+local seen = {}       -- how many of each of those the bags held when last looked
 local sold = {}       -- this session's sales to a vendor, newest last (the buyback tab keeps 12)
-local debt = 0        -- bought back after it was counted: comes off the next gold made
+local vendCost = {}   -- this session's vendor sales of things bought at the auction: { id, name, n, c }
+local debt = 0        -- owed, when there's no account store to keep it in
 
 local function AuctionCounts()
   return not (state and state.settings and state.settings.noAh)
@@ -278,7 +284,7 @@ T.IsOpen = IsOpen
 function T.SetWindow(source, open)
   if open then
     win[source] = { at = GetTime() }
-    if source == "mail" then pendingAH = 0 end
+    if source == "mail" then sales = {} end
   elseif win[source] and not win[source].closed then
     win[source].closed = GetTime()
   end
@@ -303,10 +309,91 @@ local function Note(key, n)
   if s then s[key] = math.max(0, (s[key] or 0) + n) end
 end
 
+-- owed: gold lost (sold back, sold for less than it cost) comes off the next gold made; kept across sessions.
+-- "oweA" the same for the auction's own count
+local function Owed(key) local s = Sources() if s then return s[key or "owe"] or 0 end return key and 0 or debt end
+local function Owe(n, key)
+  local s = Sources()
+  if s then s[key or "owe"] = (s[key or "owe"] or 0) + n elseif not key then debt = debt + n end
+end
+T.Owed = function() return math.max(0, Owed()) end
+
 local function Made(n, key)
   Note(key, n)
-  if debt > 0 then local k = math.min(debt, n) debt, n = debt - k, n - k end
+  local o = Owed()
+  if o > 0 then local k = math.min(o, n) Owe(-k) n = n - k end
   if n > 0 then Bump("g", n) end
+end
+
+-- what an auction brought in: its gain (< 0 a loss), and the money that landed
+local function MadeAH(net, gross)
+  local oa = Owed("oweA")
+  if net > 0 then
+    local k = math.max(0, math.min(oa, net))
+    Owe(-k, "oweA")
+    if net - k > 0 then Bump("ga", net - k) end
+  elseif net < 0 then Owe(-net, "oweA") end
+  if not AuctionCounts() then Note("x", gross) return end
+  if net >= 0 then Made(net, "a") else Note("a", net) Owe(-net) end
+end
+
+-- what I paid at the auction for things still to sell, per character, by name (the mail of a sale only names it)
+local function Bought()
+  if not (ns.db and myGuid) then return nil end
+  ns.db.ahcost = ns.db.ahcost or {}
+  ns.db.ahcost[myGuid] = ns.db.ahcost[myGuid] or {}
+  return ns.db.ahcost[myGuid]
+end
+T.Bought = function() return ns.db and ns.db.ahcost and myGuid and ns.db.ahcost[myGuid] end
+local function AddCost(name, id, n, c)
+  local b = Bought()
+  if not (b and type(name) == "string" and type(n) == "number" and n > 0 and type(c) == "number" and c >= 0) then return end
+  local e = b[name] or { n = 0, c = 0 }
+  e.n, e.c, e.id, e.at = e.n + n, e.c + c, id or e.id, U.Now()
+  b[name] = e
+  -- kept small: what was bought over 90 days ago goes, and past 400 things the oldest
+  local count, oldest, oldAt = 0, nil, nil
+  for k, v in pairs(b) do
+    if U.Now() - (v.at or 0) > 90 * 86400 then b[k] = nil
+    else
+      count = count + 1
+      if not oldAt or (v.at or 0) < oldAt then oldest, oldAt = k, v.at or 0 end
+    end
+  end
+  if count > 400 and oldest then b[oldest] = nil end
+end
+-- what `n` of it cost (0 when it wasn't bought at the auction); they leave the store. By name, or by item id
+local function TakeCost(name, n, id)
+  local b = Bought()
+  if not b then return 0, 0 end
+  if not (name and b[name]) and id then
+    for k, v in pairs(b) do if v.id == id then name = k break end end
+  end
+  local e = name and b[name]
+  if not e or e.n <= 0 then return 0, 0 end
+  n = math.min(n or 1, e.n)
+  local c = math.floor(e.c * n / e.n + 0.5)
+  e.n, e.c = e.n - n, e.c - c
+  if e.n <= 0 then b[name] = nil end
+  return c, n, name
+end
+
+local function ItemName(id)
+  local f = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if type(f) ~= "function" or not id then return nil end
+  local ok, name = pcall(f, id)
+  return ok and U.Plain(name, "string") or nil
+end
+-- "Linen Cloth (20)": the name, and how many
+local function NameCount(s)
+  if type(s) ~= "string" then return nil end
+  local n, k = string.match(s, "^(.-) %((%d+)%)$")
+  if n then return n, tonumber(k) end
+  return s, nil
+end
+local function BagCount(id)
+  local bags = ns.J and ns.J.Bags and ns.J.Bags()
+  return bags and bags[id] or 0
 end
 
 local soldPat
@@ -331,15 +418,114 @@ local function MailMoney(index)
   return ok and U.Plain(money, "number") or 0
 end
 
--- called right after the game takes the money of a mail (by hand or with "open all")
+-- what the auction's paper says: kind ("seller", "buyer"), the thing, the price, deposit, cut, how many
+local function Invoice(index)
+  if not GetInboxInvoiceInfo then return nil end
+  local ok, kind, name, _, bid, _, dep, cut, _, _, _, count = pcall(GetInboxInvoiceInfo, index)
+  if not ok then return nil end
+  return U.Plain(kind, "string"), U.Plain(name, "string"), U.Plain(bid, "number"), U.Plain(dep, "number"),
+    U.Plain(cut, "number"), U.Plain(count, "number")
+end
+local function SoldName(index)
+  if not (GetInboxHeaderInfo and AUCTION_SOLD_MAIL_SUBJECT) then return nil end
+  local ok, _, _, _, subject = pcall(GetInboxHeaderInfo, index)
+  soldPat = soldPat or T.PatternFrom(AUCTION_SOLD_MAIL_SUBJECT)
+  return ok and type(subject) == "string" and soldPat and string.match(subject, soldPat.pattern) or nil
+end
+
+-- called right after the game takes the money or the things of a mail (by hand or with "open all")
 function T.OnTakeMail(index)
   if type(index) ~= "number" then return end
   local m = MailMoney(index)
-  if m > 0 and IsAuctionSale(index) then pendingAH = pendingAH + m end
+  local kind, name, bid, _, cut, count = Invoice(index)
+  if m > 0 and IsAuctionSale(index) then
+    local nm, k = NameCount(name or SoldName(index))
+    sales[#sales + 1] = { m = m, at = GetTime(), name = nm, k = count or k, net = bid and bid - (cut or 0) or nil }
+  elseif kind == "buyer" and bid and bid > 0 then
+    -- won at the auction: what it cost counts once it lands in the bags (a second click on the mail lands nothing)
+    local ok, iname, id, _, n = false, nil, nil, nil, nil
+    if GetInboxItem then ok, iname, id, _, n = pcall(GetInboxItem, index, 1) end
+    local nm, k = NameCount(name)
+    nm = ok and U.Plain(iname, "string") or nm
+    id, n = ok and U.Plain(id, "number") or nil, ok and U.Plain(n, "number") or count or k or 1
+    if not id then AddCost(nm, nil, n, bid) return end
+    local waiting = false
+    for _, b in ipairs(buys) do if b.id == id then waiting = true end end
+    if not waiting then seen[id] = BagCount(id) end
+    buys[#buys + 1] = { name = nm, id = id, n = n, c = bid, at = GetTime() }
+  end
+end
+
+-- the bags changed: what came from the auction's mail is mine now, at what it cost
+function T.OnBags()
+  if #buys == 0 then return end
+  local now = GetTime()
+  for i = #buys, 1, -1 do if now - buys[i].at > 30 then table.remove(buys, i) end end
+  local came = {}
+  for _, b in ipairs(buys) do
+    if not came[b.id] then
+      local have = BagCount(b.id)
+      came[b.id] = have - (seen[b.id] or have)
+      seen[b.id] = have
+    end
+  end
+  local i = 1
+  while buys[i] do
+    local b = buys[i]
+    if (came[b.id] or 0) >= b.n then
+      came[b.id] = came[b.id] - b.n
+      AddCost(b.name, b.id, b.n, b.c)
+      table.remove(buys, i)
+    else
+      i = i + 1
+    end
+  end
+  for id in pairs(seen) do
+    local still = false
+    for _, b in ipairs(buys) do if b.id == id then still = true end end
+    if not still then seen[id] = nil end
+  end
+end
+
+-- sold to a vendor (the diary saw what left the bags): if it came from the auction, what it cost comes off
+function T.OnVendorSold(id, n)
+  local c, k, name = TakeCost(ItemName(id), n, id)
+  if c <= 0 then return end
+  Owe(c) Note("v", -c)
+  vendCost[#vendCost + 1] = { id = id, name = name, n = k, c = c }
+  while #vendCost > 12 do table.remove(vendCost, 1) end
+end
+-- bought back from the vendor: it's mine again, at what it cost
+function T.OnVendorBack(id, n)
+  for i = #vendCost, 1, -1 do
+    local v = vendCost[i]
+    if n <= 0 then break end
+    if v.id == id then
+      local k = math.min(n, v.n)
+      local c = math.floor(v.c * k / v.n + 0.5)
+      AddCost(v.name, id, k, c) Owe(-c) Note("v", c)
+      v.n, v.c, n = v.n - k, v.c - c, n - k
+      if v.n <= 0 then table.remove(vendCost, i) end
+    end
+  end
+end
+
+-- the auction sales whose money is `d`: the one with just that money, or the oldest few together
+local function SalesFor(d)
+  local now = GetTime()
+  for i = #sales, 1, -1 do if now - sales[i].at > 30 then table.remove(sales, i) end end
+  for i, s in ipairs(sales) do if s.m == d then table.remove(sales, i) return { s } end end
+  local got, sum = {}, 0
+  while sales[1] and sum + sales[1].m <= d do
+    local s = table.remove(sales, 1)
+    sum = sum + s.m
+    got[#got + 1] = s
+  end
+  return got
 end
 
 if type(hooksecurefunc) == "function" then
-  for _, fn in ipairs({ "TakeInboxMoney", "AutoLootMailItem" }) do
+  for _, fn in ipairs({ "TakeInboxMoney", "AutoLootMailItem", "TakeInboxItem" }) do
     if type(_G[fn]) == "function" then hooksecurefunc(fn, function(index) T.OnTakeMail(index) end) end
   end
 end
@@ -357,7 +543,7 @@ function T.OnMoney()
     for i = #sold, 1, -1 do
       if sold[i] == -d then
         table.remove(sold, i)
-        debt = debt - d
+        Owe(-d)
         Note("v", d)
         return
       end
@@ -366,13 +552,13 @@ function T.OnMoney()
   end
   if IsOpen("trade") then Note("x", d) return end
   if IsOpen("mail") then
-    -- only the part that came from auction sales
-    local credit = math.min(d, pendingAH)
-    pendingAH = pendingAH - credit
-    if credit > 0 then
-      Bump("ga", credit)
-      if AuctionCounts() then Made(credit, "a") else Note("x", credit) end
+    -- only the part that came from auction sales, at its gain
+    local credit, net = 0, 0
+    for _, s in ipairs(SalesFor(d)) do
+      credit = credit + s.m
+      net = net + (s.net or s.m) - (TakeCost(s.name, s.k or 1))
     end
+    if credit > 0 then MadeAH(net, credit) end
     if d > credit then Note("x", d - credit) end
     return
   end
@@ -1096,7 +1282,13 @@ function T.Start(st, recordGuid, guid, playerName, isAlt)
   myShort = playerName and U.Short(playerName) or playerName
   bg = nil
   lastMoney = U.Plain(GetMoney and GetMoney(), "number")
-  win, pendingAH, sold, debt = {}, 0, {}, 0
+  win, sales, buys, seen, sold, vendCost, debt = {}, {}, {}, {}, {}, {}, 0
+  -- (what was owed back by a buyback whose taking-off never came: forgotten)
+  local s = ns.db and ns.db.gsrc and ns.db.gsrc[me]
+  if s then
+    if (s.owe or 0) < 0 then s.owe = 0 end
+    if (s.oweA or 0) < 0 then s.oweA = 0 end
+  end
   T.RefreshSelf("login")
   T.RefreshProfessions()
   T.CheckPvP()

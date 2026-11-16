@@ -550,6 +550,51 @@ A.g.FIRE('MAIL_SHOW'); A.g.TakeInboxMoney(1); A.g.P_MONEY = A.g.P_MONEY + 50000;
 check(A.ns.MyRecord().stats.t.g == g1, 'with the switch off, auction money is not counted')
 ahc.Click(ahc)
 check(not A.ns.state.settings.noAh, 'switched back on')
+# net: of what was bought at the auction and sold again, only the gain counts
+A.lua.execute('BAGS[0][5] = { id = 2589, n = 0 }; BAGS[0][6] = { id = 2772, n = 0 }')
+def won(name, iid, n, paid):
+    A.g.MAILS[1] = A.lua.eval('{ sender = "Casa d\'aste", subject = "Auction won: %s", money = 0, invoice = { "buyer", "%s", "Tizio", %d, %d }, item = { name = "%s", id = %d, n = %d } }' % (name, name, paid, paid, name, iid, n))
+def sale(name, n, bid, dep, cut):
+    A.g.MAILS[1] = A.lua.eval('{ sender = "Casa d\'aste", subject = "Auction successful: %s (%d)", money = %d, invoice = { "seller", "%s", "Caio", %d, %d, %d, %d, 0, 0, 0, %d } }' % (name, n, bid + dep - cut, name, bid, bid, dep, cut, n))
+    return bid + dep - cut
+st = lambda: A.ns.MyRecord().stats.t
+A.g.FIRE('MAIL_SHOW')
+won('Linen Cloth', 2589, 20, 10000); A.g.TakeInboxItem(1, 1); A.lua.execute('BAGS[0][5].n = 20'); A.g.FIRE('BAG_UPDATE_DELAYED')
+won('Iron Ore', 2772, 5, 5000); A.g.TakeInboxItem(1, 1); A.g.AutoLootMailItem(1); A.lua.execute('BAGS[0][6].n = 5'); A.g.FIRE('BAG_UPDATE_DELAYED')
+bought = A.ns.T.Bought()
+check(bought['Linen Cloth'].n == 20 and bought['Linen Cloth'].c == 10000 and bought['Iron Ore'].n == 5 and bought['Iron Ore'].c == 5000,
+      'won at the auction: what it cost is kept, once even when the mail is clicked twice (%s %s)' % (bought['Iron Ore'].n, bought['Iron Ore'].c))
+g0, ga0 = st().g, st().ga
+A.g.TakeInboxMoney(1) if False else None
+m = sale('Linen Cloth', 20, 15000, 500, 750); A.g.TakeInboxMoney(1); A.g.P_MONEY = A.g.P_MONEY + m; A.g.FIRE('PLAYER_MONEY')
+check(st().g - g0 == 15000 - 750 - 10000 and st().ga - ga0 == 4250 and A.ns.T.Bought()['Linen Cloth'] is None,
+      'bought for 1g, sold for 1g50s: only the gain counts, less the cut, and the deposit back is not made (%s, ga %s)' % (st().g - g0, st().ga - ga0))
+g1 = st().g
+m = sale('Iron Ore', 5, 3000, 100, 150); A.g.TakeInboxMoney(1); A.g.P_MONEY = A.g.P_MONEY + m; A.g.FIRE('PLAYER_MONEY')
+check(st().g == g1 and A.ns.T.Owed() == 5000 - 2850, 'sold for less than it cost: nothing made, the loss owed (%s)' % A.ns.T.Owed())
+m = sale('Copper Bar', 1, 4000, 0, 200); A.g.TakeInboxMoney(1); A.g.P_MONEY = A.g.P_MONEY + m; A.g.FIRE('PLAYER_MONEY')
+check(st().g == g1 + 3800 - 2150 and A.ns.T.Owed() == 0, 'something made by me and sold: all its gain counts, and pays the loss back first (%s)' % (st().g - g1))
+A.g.FIRE('MAIL_CLOSED'); secs(3)
+# bought at the auction, sold to a vendor: the vendor's gold, less what it cost
+A.g.FIRE('MAIL_SHOW')
+won('Maglio', 4570, 1, 500); A.g.TakeInboxItem(1, 1); bag(3, 1); A.g.FIRE('BAG_UPDATE_DELAYED')
+A.g.FIRE('MAIL_CLOSED'); secs(3)
+g2 = st().g
+A.g.FIRE('MERCHANT_SHOW')
+bag(3, 0); A.g.FIRE('BAG_UPDATE_DELAYED'); gold(922)
+A.g.FIRE('MERCHANT_CLOSED'); secs(3)
+gold(1000)
+check(st().g - g2 == 922 - 500 + 1000, 'bought at the auction for 5s, sold to a vendor for 9s22c: 4s22c made (%s)' % (st().g - g2))
+# sold to the vendor and bought back: nothing made, nothing owed, and its cost is kept again
+A.g.FIRE('MAIL_SHOW'); won('Maglio', 4570, 1, 500); A.g.TakeInboxItem(1, 1); bag(3, 1); A.g.FIRE('BAG_UPDATE_DELAYED'); A.g.FIRE('MAIL_CLOSED'); secs(3)
+g3 = st().g
+A.g.FIRE('MERCHANT_SHOW')
+bag(3, 0); A.g.FIRE('BAG_UPDATE_DELAYED'); gold(922)
+bag(3, 1); gold(-922); A.g.FIRE('BAG_UPDATE_DELAYED')
+A.g.FIRE('MERCHANT_CLOSED'); secs(3)
+gold(1000)
+check(st().g - g3 == 1000 and A.ns.T.Bought()['Maglio'] and A.ns.T.Bought()['Maglio'].n == 1,
+      'sold to the vendor and bought back: only the loot after counts, and it still cost 5s (%s)' % (st().g - g3))
 
 # on-screen bar: blue behind (partly full), green at the cap, red above
 hudf = A.g.ErPattoHUD

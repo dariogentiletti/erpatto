@@ -177,7 +177,14 @@ function hooksecurefunc(name, fn)
 end
 MAILS = {}
 GetInboxHeaderInfo = function(i) local m = MAILS[i] if not m then return nil end return nil, nil, m.sender, m.subject, m.money end
-GetInboxInvoiceInfo = function(i) local m = MAILS[i] return m and m.invoice or nil end
+GetInboxInvoiceInfo = function(i)
+  local m = MAILS[i]
+  if not m then return nil end
+  if type(m.invoice) == "table" then return unpack(m.invoice) end
+  return m.invoice
+end
+GetInboxItem = function(i, a) local m = MAILS[i] if m and m.item then return m.item.name, m.item.id, nil, m.item.n end end
+TakeInboxItem = function(i, a) end
 TakeInboxMoney = function(i) end
 AutoLootMailItem = function(i) end
 AUCTION_SOLD_MAIL_SUBJECT = "Auction successful: %s"

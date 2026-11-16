@@ -741,12 +741,13 @@ local function RefreshStats(v, rec, list)
   if rec.ld then dtip[#dtip + 1] = "Urtimo: " .. rec.ld .. "." end
   Stat(v, "dg", dt, dtip)
   local gt, gtip = counted("g", "Sordi fatti", function(x) return Money(x, true) end)
-  gtip[#gtip + 1] = T.AuctionCounts() and "L'asta conta." or "L'asta nun conta."
+  gtip[#gtip + 1] = T.AuctionCounts() and "L'asta conta ar netto: quello che rivenni, meno quanto l'avevi pagato." or "L'asta nun conta."
   -- mine: where it came from, and what came in without counting (gifts, trades)
   local src = rec.guid == ns.recordGuid and T.Sources and T.Sources()
   if src then
     gtip[#gtip + 1] = "Da " .. U.Day(src.since or U.Now()) .. ": monno " .. Money(src.w) .. ", mercanti " .. Money(src.v) .. ", asta " .. Money(src.a) .. "."
     if (src.x or 0) > 0 then gtip[#gtip + 1] = "Nun contano, so' de l'antri (regali, posta, scambi): " .. Money(src.x) .. "." end
+    if T.Owed and T.Owed() > 0 then gtip[#gtip + 1] = "Da ripijà (perso o ricomprato): " .. Money(T.Owed()) .. ", se leva dai prossimi sordi." end
   end
   Stat(v, "g", gt, gtip)
   local w, l, rival, rh = PattoDuels(rec, idx)

@@ -315,6 +315,8 @@ local function Bags()
 end
 
 -- what a vendor pays for one (nil: the client doesn't know yet)
+J.Bags = Bags
+
 local function VendorPrice(id)
   local f = (C_Item and C_Item.GetItemInfo) or GetItemInfo
   if type(f) ~= "function" then return nil end
@@ -328,7 +330,10 @@ local function Settle()
   for i = #pending, 1, -1 do if now - pending[i].at > 5 then table.remove(pending, i) end end
   if now - credit.at > 5 then credit.n = 0 end
   if not j or credit.n <= 0 or #pending == 0 then return end
-  local function Log(s, p) Push(j.vend, { at = s.at, id = s.id, n = s.n, p = p }, CAP.vend) end
+  local function Log(s, p)
+    Push(j.vend, { at = s.at, id = s.id, n = s.n, p = p }, CAP.vend)
+    if ns.T and ns.T.OnVendorSold then ns.T.OnVendorSold(s.id, s.n) end
+  end
   for i, s in ipairs(pending) do
     if s.p == credit.n or (not s.p and #pending == 1) then
       table.remove(pending, i)
@@ -377,6 +382,7 @@ function J.OnBags()
       if s.id == id then
         local k, unit = math.min(back, s.n), s.p / s.n
         s.n, s.p, back = s.n - k, s.p - math.floor(unit * k + 0.5), back - k
+        if ns.T and ns.T.OnVendorBack then ns.T.OnVendorBack(id, k) end
         if s.n <= 0 then table.remove(j.vend, i) end
       end
     end
@@ -582,7 +588,7 @@ local handlers = {
   PLAYER_LEVEL_UP = function(level) J.OnLevel(level) J.OnXp() end,
   PLAYER_MONEY = function() J.OnMoney() end,
   MERCHANT_SHOW = function() J.OnMerchantShow() end,
-  BAG_UPDATE_DELAYED = function() J.OnBags() end,
+  BAG_UPDATE_DELAYED = function() J.OnBags() if ns.T and ns.T.OnBags then ns.T.OnBags() end end,
   ZONE_CHANGED_NEW_AREA = function() J.OnZone() end,
   PLAYER_DEAD = function() J.OnDeath() end,
   UNIT_SPELLCAST_SUCCEEDED = function(...) J.OnSpell(...) end,
