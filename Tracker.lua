@@ -551,6 +551,39 @@ local function SessionKills()
 end
 T.LUMP = 15 -- the lifetime total jumping this much at once outside a battleground: the day worked out, not kills now
 
+-- what's counted can't be more than the game's own total: every kill of a lifetime is in it (the ones before the
+-- addon too: they came in with the catch-up), plus today's not worked out yet. More than that was counted twice
+-- (a 0 read at login, then the real total: a lifetime again, pe' strada): it comes off, from the kills pe' strada
+-- and from the newest week first. Cost: a few additions at every look.
+function T.RepairPvP(life, today)
+  local rec = state.members[me]
+  local t = rec and rec.stats and rec.stats.t
+  if not (t and life and life > 0) then return 0 end
+  local extra = (t.hk or 0) - (life + (today or 0))
+  if extra <= 0 then return 0 end
+  t.hk = (t.hk or 0) - extra
+  -- (pe' strada first: a total read at login lands there; what's left, from the battlegrounds)
+  local fromW = math.min(extra, t.hw or 0)
+  t.hw = (t.hw or 0) - fromW
+  t.hb = math.max(0, (t.hb or 0) - (extra - fromW))
+  local weeks = {}
+  for wk in pairs(rec.stats.w or {}) do weeks[#weeks + 1] = wk end
+  table.sort(weeks, function(a, b) return a > b end)
+  for _, key in ipairs({ "hw", "hb" }) do
+    local left = key == "hw" and fromW or (extra - fromW)
+    for _, wk in ipairs(weeks) do
+      if left <= 0 then break end
+      local w = rec.stats.w[wk]
+      local take = math.min(left, w[key] or 0)
+      if take > 0 then w[key], w.hk, left = w[key] - take, math.max(0, (w.hk or 0) - take), left - take end
+    end
+  end
+  rec.up = U.Now()
+  U.Log("PvP", "uccisioni contate due vorte levate:", extra)
+  ns.Fire("SelfChanged", state, "pvpfix")
+  return extra
+end
+
 function T.CheckPvP()
   if not (Ready() and ns.db) then return end
   local hk, honor = ReadPvP()
@@ -595,6 +628,7 @@ function T.CheckPvP()
     if hk > (last.hk or -1) then last.hk = hk end
   end
   last.bg = bg
+  if hk and hk > 0 then pcall(T.RepairPvP, hk, sk or 0) end
   -- (a 0 is the game without its numbers yet, as for the kills: the honor already counted would count again)
   if honor and (honor > 0 or last.hn == nil) then
     if last.hn and honor > last.hn then Bump("hn", honor - last.hn) end

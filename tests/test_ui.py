@@ -402,6 +402,14 @@ A.g.PVP_SK = 0; A.g.PVP_HK = 0; A.g.PVP_HONOR = 0; A.g.FIRE('PLAYER_PVP_KILLS_CH
 A.g.PVP_SK = skw; A.g.PVP_HK = hkw; A.g.PVP_HONOR = hnw; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
 st1 = A.ns.MyRecord().stats.t
 check(st1.hk == hk1 and st1.hw == hw3 and st1.hn == hn1, 'a 0 from the game at login, then the real numbers: nothing counted again (hk %s, hw %s, hn %s)' % (st1.hk - hk1, st1.hw - hw3, st1.hn - hn1))
+# Er Canaro's case: counted far more than the game's total (a lifetime counted again): the extra comes off pe' strada
+st2 = A.ns.MyRecord().stats.t
+st2.hk = st2.hk + 1500; st2.hw = st2.hw + 1500
+wk_ = A.ns.MyRecord().stats.w; k_ = max(wk_.keys()); wk_[k_].hw = (wk_[k_].hw or 0) + 1500; wk_[k_].hk = (wk_[k_].hk or 0) + 1500
+hk3, hw3 = st2.hk, st2.hw
+A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+st2 = A.ns.MyRecord().stats.t
+check(hk3 - st2.hk == 1500 and hw3 - st2.hw == 1500 and st2.hk <= A.g.PVP_HK + A.g.PVP_SK, 'more kills counted than the game has: the 1500 extra come off pe\' strada (%s)' % (hk3 - st2.hk))
 A.lua.execute('GetPVPSessionStats = nil')
 # without today's count (only the lifetime total): a lump of 40 outside a battleground isn't pe' strada
 hw2 = A.ns.MyRecord().stats.t.hw
