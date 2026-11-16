@@ -570,11 +570,20 @@ function T.CheckPvP()
       Bump("hk", n)
       Bump(wasBG and "hb" or "hw", n)
     end
-    -- (a new day starts again from zero: the kills already made in it count)
-    if last.sk and sk < last.sk and sk > 0 then Bump("hk", sk) Bump(bg and "hb" or "hw", sk) end
-    last.sk = sk
-    if hk then last.hk = hk end
-  elseif hk then
+    if last.sk and sk < last.sk then
+      -- lower: a new day (the lifetime total has just taken the day's kills in) starts again from zero, and the
+      -- kills already made in it count; else the game hasn't its numbers yet (0 at login): the old one stays
+      if hk and last.hk and hk > last.hk then
+        if sk > 0 then Bump("hk", sk) Bump(bg and "hb" or "hw", sk) end
+        last.sk = sk
+      end
+    else
+      last.sk = sk
+    end
+    if hk and hk > 0 and hk > (last.hk or 0) then last.hk = hk end
+  elseif hk and (hk > 0 or last.hk == nil) then
+    -- the lifetime total never goes down: a 0 or a lower one (once it had a number) is the game not having its
+    -- numbers yet (at login). Taken as true, the next real reading counted every kill of a lifetime again
     if last.hk and hk > last.hk then
       local n = hk - last.hk
       local wasBG = last.bg
@@ -583,10 +592,11 @@ function T.CheckPvP()
       -- a lump outside a battleground is the day's honor worked out: kills of before, made who knows where
       if wasBG or n < T.LUMP then Bump(wasBG and "hb" or "hw", n) end
     end
-    last.hk = hk
+    if hk > (last.hk or -1) then last.hk = hk end
   end
   last.bg = bg
-  if honor then
+  -- (a 0 is the game without its numbers yet, as for the kills: the honor already counted would count again)
+  if honor and (honor > 0 or last.hn == nil) then
     if last.hn and honor > last.hn then Bump("hn", honor - last.hn) end
     last.hn = honor -- spending honor lowers it: only gains count
   end

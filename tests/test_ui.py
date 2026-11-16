@@ -395,9 +395,19 @@ A.g.PVP_SK = 32; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
 A.g.PVP_HK = 15 + 32; A.g.PVP_SK = 0; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')   # the day worked out: lifetime +32, today back to 0
 st_ = A.ns.MyRecord().stats.t
 check(st_.hb - hb0 == 30 and st_.hw - hw1 == 2, 'today\'s kills: 30 in the battleground, 2 pe\' strada; the day worked out adds none (hb +%s, hw +%s)' % (st_.hb - hb0, st_.hw - hw1))
+# at login the game may say 0 before it has its numbers: then the real ones again. Nothing counts twice
+st1 = A.ns.MyRecord().stats.t; hk1, hw3, hn1 = st1.hk, st1.hw, st1.hn
+skw, hkw, hnw = A.g.PVP_SK, A.g.PVP_HK, A.g.PVP_HONOR
+A.g.PVP_SK = 0; A.g.PVP_HK = 0; A.g.PVP_HONOR = 0; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_SK = skw; A.g.PVP_HK = hkw; A.g.PVP_HONOR = hnw; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+st1 = A.ns.MyRecord().stats.t
+check(st1.hk == hk1 and st1.hw == hw3 and st1.hn == hn1, 'a 0 from the game at login, then the real numbers: nothing counted again (hk %s, hw %s, hn %s)' % (st1.hk - hk1, st1.hw - hw3, st1.hn - hn1))
 A.lua.execute('GetPVPSessionStats = nil')
 # without today's count (only the lifetime total): a lump of 40 outside a battleground isn't pe' strada
 hw2 = A.ns.MyRecord().stats.t.hw
+A.g.PVP_HK = 0; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+A.g.PVP_HK = 47; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
+check(A.ns.MyRecord().stats.t.hw == hw2, 'only the lifetime total: a 0 then the real total again counts nothing (%s)' % (A.ns.MyRecord().stats.t.hw - hw2))
 A.g.PVP_HK = A.g.PVP_HK + 40; A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
 check(A.ns.MyRecord().stats.t.hw == hw2, 'only the lifetime total: a lump of 40 at once outside a battleground isn\'t pe\' strada (%s)' % (A.ns.MyRecord().stats.t.hw - hw2))
 # ---- title menu closes when you click elsewhere or change tab
