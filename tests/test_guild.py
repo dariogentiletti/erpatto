@@ -33,6 +33,7 @@ def play(cl, seconds, skip=None, every=5):
                 c.ns.C.MarkSelfDirty(60)
         secs(every)
 
+DEATH = [None]
 def run(guild, outside=None):
     global clients
     clients.clear()
@@ -85,6 +86,14 @@ def run(guild, outside=None):
             ding = T[0] - t1; break
     secs(30)
     dingSent = sum(c.ns.C.stats.sent for c in cl) - s0
+    # a death with everyone online: the stone (with its count) on every screen
+    dead = cl[8]
+    stone = dead.lua.eval('function(at, n) return { at = at, lv = 12, k = "mostro", by = "Lightning Hide", z = "Durotar", n = n, w = "tranquilli, ce l\'ho" } end')(int(T[0]), 99)
+    dead.ns.P.UpdateSelf(dead.state, dead.guid, dead.lua.table_from({'lr': stone}), 'rip'); dead.ns.C.MarkSelfDirty(0.3, True)
+    t2 = T[0]; DEATH[0] = None
+    while T[0] - t2 < 300:
+        step(1)
+        if all(c.state.members[dead.guid].lr is not None and c.state.members[dead.guid].lr.n == 99 for c in cl): DEATH[0] = T[0] - t2; break
     errs_ = {c.name: errs(c) for c in cl if errs(c)}
     return known, took, sent, ding, dingSent, errs_, [str(c.ns.C.stats.mode) for c in cl[:3]]
 
@@ -96,6 +105,7 @@ fails(k2 == 12, 'with the guild everyone knows all twelve')
 fails(took2 is not None and took2 <= 30, 'with the guild, back after a while: every level of now within 30 seconds (%s)' % took2)
 fails(took1 is None or took2 < took1, 'faster than with whispers (%s against %s)' % (took2, took1))
 fails(ding2 is not None and ding2 <= 5, 'a ding reaches all eleven within 5 seconds (%s)' % ding2)
+fails(DEATH[0] is not None and DEATH[0] <= 5, 'a death (its stone, with how many in all) reaches all eleven within 5 seconds (%s)' % DEATH[0])
 fails(dsent2 < dsent1, 'and costs fewer messages (%d against %d)' % (dsent2, dsent1))
 fails(all(m == 'gilda' for m in m2), 'the mode says gilda: ' + str(m2))
 # one of them not in the guild (yet): he still gets everything, by whisper

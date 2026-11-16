@@ -159,7 +159,7 @@ sent = [m for m in []]
 secs(2)
 # (the first one after coming in goes whole: answers to one friend aren't the "last whole one" for the others)
 F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 5})); F.ns.C.MarkSelfDirty(0.1); secs(8)
-fails(E.state.members['G-NIA'].lv == 5 and G.state.members['G-NIA'].zone == 'Mulgore' and (E.ns.C.stats.deltas or 0) >= 1, 'Forever: a ding arrives to both as a change of the record (changes applied: %s)' % E.ns.C.stats.deltas)
+fails(E.state.members['G-NIA'].lv == 5 and G.state.members['G-NIA'].zone == 'Mulgore' and (E.ns.C.stats.pieces or 0) >= 1, 'Forever: a ding arrives to both as a piece of the record (pieces taken: %s)' % E.ns.C.stats.pieces)
 fails(F.ns.U.Short('Er Nia-Realm') == 'Er Nia' and F.ns.U.Short('Dario (prova)') == 'Dario', 'names: realm and test mark go, the surname stays')
 F.ns.state = F.state
 fails(str(F.ns.U.Surnames('|cffc69b6dEr Nia|r 40')) == '|cffc69b6dNia|r 40', 'names: a narrow column keeps the surname, not the first name')
@@ -184,7 +184,7 @@ LOSS[0] = 0
 secs(130)
 got = {k: (c.state.members['G-SCHIZO'].lv if c.state.members['G-SCHIZO'] else None) for k, c in (('E', E), ('F', F), ('G', G))}
 fails(all(v == 4 for v in got.values()), 'lost whispers: everyone ends with Er Schizo at level 4: ' + str(got))
-print('   cambi usati', {k: c.ns.C.stats.deltas for k, c in (('E', E), ('F', F), ('G', G))}, 'cambi vecchi', {k: c.ns.C.stats.stale for k, c in (('E', E), ('F', F), ('G', G))})
+print('   pezzi presi', {k: c.ns.C.stats.pieces for k, c in (('E', E), ('F', F), ('G', G))})
 print('errori 10-11:', {k: errs(c) for k, c in (('E', E), ('F', F), ('G', G), ('H', H))})
 
 # 12) islands: on Forever each internal realm has its own copy of the channel. Er Lontano is on another one: the
@@ -209,7 +209,7 @@ fails(E.state.members['G-NIA'].pts is not None and E.state.members['G-NIA'].pts.
 F.logout(); secs(5)
 F.state = F.ns.P.Join(code2, 'G-NIA', 'Er Nia')  # everything gone: a new record from nothing
 F.ns.P.UpdateSelf(F.state, 'G-NIA', F.lua.table_from({'lv': 5}))
-F.login(); secs(40)
+F.login(); F.ns.C.SentSums(F.lua.table()); secs(40)  # (the WTF folder lost: nothing given from this PC)
 mine = F.state.members['G-NIA']
 fails(mine.pts is not None and mine.pts.t == 57 and mine.team == 't1' and mine.lv == 5 and not mine.fresh,
       'lost WTF: her record came back from the friends (57 piotte, her squadra), with her level of now (5): %s %s %s' % (mine.pts and mine.pts.t, mine.team, mine.lv))
@@ -286,7 +286,8 @@ def setstat(c, guid, **kw):
     if rec.stats.w[wk] is None: rec.stats.w[wk] = c.lua.table()
     for k, v in kw.items(): rec.stats.t[k] = v; rec.stats.w[wk][k] = v
     rec.up = rec.up + 5
-    c.ns.C.Send('M', rec)
+    # (as the addon does after a change: the pieces that changed get a new version and go)
+    c.ns.C.SendSelf()
 setstat(K, 'G-CORT', rk=1, q=12, nk=1); secs(20)
 fails(E.state.members['G-CORT'].stats.t.rk == 1, 'his rare reaches the capo')
 E.ns.P.Ban(E.state, 'G-GNOMO', 'G-CORT'); E.ns.C.Send('B', E.state.bans); secs(10)
@@ -334,6 +335,7 @@ for c in clients.values():
 K.lua.eval('function(st) st.members["G-CORT"].pts = { t = 5, w = 0, wk = 1 } end')(K.state)
 setstat(K, 'G-CORT', rk=1, q=5); secs(20)
 pc1 = K.ns.U.Serialize(K.state)              # what PC1's WTF folder keeps
+pc1sums = K.ns.U.Serialize(K.ns.C.SentSums())
 K.lua.eval('function(st) st.members["G-CORT"].pts = { t = 50, w = 0, wk = 1 } end')(K.state)
 setstat(K, 'G-CORT', rk=4, q=40); secs(20)    # played a lot on PC2
 fails(E.state.members['G-CORT'].stats.t.rk == 4, 'PC2: the capo has his 4 rari')
@@ -343,7 +345,7 @@ del clients['K']
 K1.state = K1.ns.U.Deserialize(pc1)
 # what Main's Activate does at login: the record of this PC is provisional until the friends are heard
 K1.lua.eval('function(st) local m = st.members["G-CORT"] m.fresh, m.base = true, m.up or 0 end')(K1.state)
-K1.login(); K1.g.JOINED = 'isola-cortello'; K1.ns.C.AddSeed('Er Gnomo')
+K1.login(); K1.ns.C.SentSums(K1.ns.U.Deserialize(pc1sums)); K1.g.JOINED = 'isola-cortello'; K1.ns.C.AddSeed('Er Gnomo')
 secs(20)
 # a ding while his record is still provisional: level 14
 K1.state.members['G-CORT'].lv = 14; K1.state.members['G-CORT'].up = int(T[0]); K1.ns.C.MarkSelfDirty(0.5, True)
@@ -363,6 +365,7 @@ others = [c for c in clients.values() if c.online and c is not K1]
 for c in others: c.logout()
 setstat(K1, 'G-CORT', rk=9); secs(5)
 snap = K1.ns.U.Serialize(K1.state)
+snapsums = K1.ns.U.Serialize(K1.ns.C.SentSums())
 K1.logout(); secs(5)
 for c in others: c.login()
 secs(30)
@@ -370,7 +373,7 @@ K2 = Client('Er Cortello', 'G-CORT'); K2.g.NOWV = T[0]; K2.g.REFUSE_CHANNEL = Tr
 del clients['K1']
 K2.state = K2.ns.U.Deserialize(snap)
 K2.lua.eval('function(st) local m = st.members["G-CORT"] m.fresh, m.base = true, m.up or 0 end')(K2.state)
-K2.login(); K2.g.JOINED = 'isola-cortello'; K2.ns.C.AddSeed('Er Gnomo')
+K2.login(); K2.ns.C.SentSums(K2.ns.U.Deserialize(snapsums)); K2.g.JOINED = 'isola-cortello'; K2.ns.C.AddSeed('Er Gnomo')
 secs(150)
 fails(K2.state.members['G-CORT'].stats.t.rk == 9 and E.state.members['G-CORT'].stats.t.rk == 9, 'played alone: his PC had the newest, it stays and reaches the capo (%s, %s)' % (K2.state.members['G-CORT'].stats.t.rk, E.state.members['G-CORT'].stats.t.rk))
 print('errori 20:', {k: errs(c) for k, c in (('E', E), ('K2', K2))})

@@ -223,7 +223,7 @@ function P.CleanMember(r)
     ti = Str(r.ti, 24), fresh = r.fresh == true or nil, abt = type(r.abt) == "table" and CleanStats(r.abt) or nil, abw = CleanWeeksTaken(r.abw), lp = Num(r.lp, 0, 1e9),
     dl = type(r.dl) == "table" and Num(r.dl.lv, 1, 100) and { lv = Num(r.dl.lv, 1, 100), s = Num(r.dl.s, 0, 1e8), at = Num(r.dl.at, 0, 4e9) } or nil,
     zq = CleanCounts(r.zq, 6), zqw = CleanCounts(r.zqw, 6), dgw = CleanCounts(r.dgw, 8), wk = Num(r.wk, 0, 260), dgl = CleanCounts(r.dgl, 8), lq = {}, pr = {}, ms = {}, rl = {},
-    nkl = {},
+    nkl = {}, sv = P.CleanVersions and P.CleanVersions(r.sv) or nil,
   }
   if not (c.guid and c.name and c.up) then return nil end
   -- the fun boards: nemesis, famous mobs killed, first epic, last silly death, points, predictions
@@ -347,7 +347,8 @@ function P.CleanMember(r)
   -- the last death alone (small: it travels in the flash, so everyone is told at once)
   if type(r.lr) == "table" and Num(r.lr.at, 0, 4e9) then
     local x = r.lr
-    c.lr = { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12) }
+    c.lr = { at = Num(x.at, 0, 4e9), lv = Num(x.lv, 0, 100), by = Plain(x.by, 40), z = Str(x.z, 40), w = Plain(x.w, 80), k = Str(x.k, 12),
+      n = Num(x.n, 0, 1e6), m = Num(x.m, 0, 1e6) }
   end
   c.rip = List(r.rip, 10, function(x)
     if not Num(x.at, 0, 4e9) then return nil end
@@ -453,7 +454,12 @@ local function NewMember(guid, name)
   -- fresh: made on this PC just now; until the friends have been heard, it may be a lost record coming back
   -- the real level from the start: a record born at 1 and corrected a second later looked like a ding
   local lv = UnitLevel and U.Plain(UnitLevel("player"), "number")
-  return { guid = guid, name = name, up = U.Now(), lv = lv and lv >= 1 and lv or 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION, fresh = true }
+  -- (its pieces at version zero: whatever a friend holds of it is newer, and comes back to it)
+  local sv = {}
+  for _, p in ipairs(P.PIECE_ORDER or {}) do sv[p] = 0 end
+  local fsv = {}
+  for k, v in pairs(sv) do fsv[k] = v end
+  return { guid = guid, name = name, up = U.Now(), lv = lv and lv >= 1 and lv or 1, stats = { t = {}, w = {} }, h2h = {}, alts = {}, ver = ns.VERSION, fresh = true, sv = sv, fsv = fsv }
 end
 
 -- opts: name, start (epoch), h20, h60, teams = { {name=, hours=}, ... }, guid, playerName, teamIndex
@@ -736,6 +742,7 @@ local function Total(rec, k) return rec and rec.stats and rec.stats.t and rec.st
 -- the honorable kills too: the addon itself takes out the ones counted twice (Tracker.RepairPvP), so a friend's
 -- copy with more of them is the old wrong number, not an old life to give back (it went round every few minutes)
 local DOWN = { dt = true, em = true, hk = true, hw = true, hb = true }
+P.ABSORB_FOR = 2 * 3600
 P.STAT_DOWN = DOWN
 function P.Behind(now, old)
   if type(now) ~= "table" or type(old) ~= "table" then return false end
@@ -855,15 +862,20 @@ end
 -- what the game says about me right now: kept when my old record comes back from a friend
 LIVE = { "lv", "xp", "xpm", "rest", "zone", "eq", "il", "ver", "name", "cls", "race", "rid", "sex", "alts" }
 
+-- a whole record (an old life given back, a lost record coming back to a new PC, or from an addon before sync 2)
 function P.MergeMember(state, incoming, myGuid)
   local r = P.CleanMember(incoming)
   if not r or P.IsBanned(state, r.guid) then return false end
+  -- (whole and without versions: every piece of it as new as the record)
+  if not r.sv then P.InitVersions(r, r.up) end
   if r.guid == myGuid then
     -- my own record from a friend: taken back only when mine is new on this PC (the WTF folder lost, a new
     -- computer) and theirs is a real one; then it's mine again, with what the game says now on top
     local mine = state.members[myGuid]
     -- or an old life of mine (I left, was cacciato, came back): what it counted is mine again
-    if mine and not mine.fresh and not r.fresh and P.HasMore(mine, r, state.joinedAt) then
+    -- (only just after joining again: later, a friend's copy with more in it is an old number, not a lost life)
+    if mine and not mine.fresh and not r.fresh and U.Now() - (state.joinedAt or 0) < P.ABSORB_FOR
+      and P.HasMore(mine, r, state.joinedAt) then
       P.Absorb(mine, r, state.joinedAt)
       mine.up = math.max(U.Now(), (mine.up or 0) + 1)
       ns.Fire("SelfRestored", mine)
@@ -871,20 +883,37 @@ function P.MergeMember(state, incoming, myGuid)
     end
     -- (base: a record I came in with from this PC; only a copy newer than it is taken, the rest is older news)
     if not (mine and mine.fresh and not r.fresh and (r.up or 0) > (tonumber(mine.base) or 0)) then return false end
-    for _, k in ipairs(LIVE) do if mine[k] ~= nil then r[k] = mine[k] end end
-    r.fresh = nil
-    r.up = math.max(U.Now(), (mine.up or 0) + 1)
-    state.members[myGuid] = r
-    ns.Fire("SelfRestored", r)
+    -- piece by piece: the friend's where it's newer than mine (what I changed since coming in stays mine); the
+    -- counters each the bigger of the two; what the game says of me now stays mine
+    local took = false
+    for _, p in ipairs(P.PIECE_ORDER) do
+      local theirs = r.sv and r.sv[p] or 0
+      local ok = P.MergePiece(state, myGuid, p, theirs, P.PieceData(r, p), myGuid)
+      if ok then took = true end
+    end
+    if not took then return false end
+    -- (a whole copy taken: it's mine again, not new any more)
+    state.members[myGuid].fresh, state.members[myGuid].fsv = nil, nil
+    ns.Fire("SelfRestored", state.members[myGuid])
     return true
   end
   if P.HasLeft(state, r.guid, r.up) then return false end
   local cur = state.members[r.guid]
   -- a record started again from nothing never replaces a real copy: its owner is about to get the real one back
   if cur and not cur.fresh and r.fresh then return false end
-  local stale = type(state.stale) == "table" and state.stale[r.guid]
-  if cur and ((cur.up or 0) > r.up or ((cur.up or 0) == r.up and not stale)) then return false end
-  if stale then state.stale[r.guid] = nil end
+  if cur and (cur.up or 0) >= r.up then return false end
+  -- (a piece of it I already have newer stays mine)
+  if cur and type(cur.sv) == "table" then
+    for _, p in ipairs(P.PIECE_ORDER) do
+      if (cur.sv[p] or 0) > (r.sv[p] or 0) then
+        if p ~= "t" and p ~= "w" then for k in pairs(r) do if type(k) == "string" and P.PieceOf(k) == p then r[k] = nil end end end
+        for k, v in pairs(P.PieceData(cur, p)) do
+          if p == "t" then r.stats.t = v elseif p == "w" then r.stats.w = v else r[k] = v end
+        end
+        r.sv[p] = cur.sv[p]
+      end
+    end
+  end
   -- newer but started again from zero: the old copy goes aside, for its owner to take back
   if cur and P.Behind(r, cur) then P.KeepPrev(state, cur) end
   -- an old life already given back: once the record of now has it all, it's done
@@ -927,19 +956,229 @@ function P.HasLeft(state, guid, up)
   return t and (up or 0) <= t or false
 end
 
-function P.Digest(state)
+----------------------------------------------------------------------
+-- the pieces of a record (sync 2): a record is 6-9 KB, 30-40 messages at the game's pace; it travels in pieces,
+-- each with its own version (rec.sv[piece] = when its owner last changed it). A "Ce sto" is one small piece, a
+-- death another: they go at once and alone. The owner gives the versions; the others only keep and pass them on.
+-- The order is the order they go in: what must be known at once first.
+----------------------------------------------------------------------
+P.PIECES = {
+  { "b", { "name", "lv", "xp", "xpm", "rest", "zone", "team", "tat", "ver", "il", "ti", "dl", "cls", "race", "rid", "sex" } }, -- who, level
+  -- the last death, the last silly one, a wipe; then the counters; then the first epic, the rares, the nemesis.
+  -- What changes together goes in the same message (they're next to each other, and all go at once), so the news
+  -- says them whole: a death with how many in all, a rare with its name
+  { "r", { "lr", "ed", "wp", "dat", "dz" } },
+  { "t", { "stats.t" } },                                      -- the counters
+  { "f", { "fe", "rl", "ne" } },
+  { "d", { "dd" } },                                           -- the last duels
+  { "a", { "ea" } },                                           -- answers to the caciare
+  { "e", { "ev" } },                                           -- the caciare put up
+  { "y", { "eb", "er" } },                                     -- bets on them, how they went
+  { "g", { "gd", "gp" } },                                     -- er duello a la gogna, the pegni
+  { "s", { "sf", "sk", "tg", "gf" } },                         -- sfide, answers, taje, gufate
+  { "w", { "stats.w" } },                                      -- the counters of the weeks
+  { "v", { "vt", "vp", "pts" } },                              -- la schedina
+  { "c", { "rip" } },                                          -- er cimitero
+  { "o", { "lg" } },                                           -- li scontrini
+  { "q", { "lq", "nkl" } },                                    -- the diary
+  { "z", { "zq", "zqw", "dgw", "dgl", "pr", "tt" } },          -- zones, dungeons, professions, titles met
+  { "k", { "eq", "alts", "h2h" } },                            -- gear, alts, head to head
+  { "n", { "na", "nv" } },                                     -- la guardia
+  { "x", {} },                                                 -- everything else
+}
+-- what the pieces are: a new one (or a field moved) bumps it, and every copy is asked again once
+P.SCHEMA = "pezzi-2"
+P.PIECE_ORDER, P.PIECE_OF, P.PIECE_FIELDS = {}, {}, {}
+for _, p in ipairs(P.PIECES) do
+  P.PIECE_ORDER[#P.PIECE_ORDER + 1] = p[1]
+  P.PIECE_FIELDS[p[1]] = p[2]
+  for _, f in ipairs(p[2]) do P.PIECE_OF[f] = p[1] end
+end
+-- not in any piece: the envelope (guid, versions, date) and what is only this PC's
+local NOT_SENT = { guid = true, up = true, sv = true, fresh = true, base = true, stats = true, fsv = true }
+function P.PieceOf(field)
+  if NOT_SENT[field] then return nil end
+  return P.PIECE_OF[field] or "x"
+end
+-- the fields of one piece of rec, as they travel (stats.t and stats.w as "t" and "w")
+function P.PieceData(rec, piece)
+  local out = {}
+  if piece == "t" then out.t = rec.stats and rec.stats.t or {} return out end
+  if piece == "w" then out.w = rec.stats and rec.stats.w or {} return out end
+  for k, v in pairs(rec) do
+    if type(k) == "string" and P.PieceOf(k) == piece then out[k] = v end
+  end
+  return out
+end
+-- a record without versions (made before sync 2, or come whole from an older addon): every piece as new as it
+function P.InitVersions(rec, at)
+  if type(rec) ~= "table" then return end
+  rec.sv = type(rec.sv) == "table" and rec.sv or {}
+  for _, p in ipairs(P.PIECE_ORDER) do
+    if type(rec.sv[p]) ~= "number" then rec.sv[p] = at or rec.up or 0 end
+  end
+end
+function P.CleanVersions(sv)
+  local out = {}
+  if type(sv) ~= "table" then return nil end
+  for _, p in ipairs(P.PIECE_ORDER) do
+    local v = sv[p]
+    if type(v) == "number" and v == v and v >= 0 and v <= 4e9 then out[p] = math.floor(v) end
+  end
+  return out
+end
+-- a piece from someone (a member's or its copy): on my copy of the record when newer than what I have of it.
+-- Returns changed, the record now, the record before; "nobase" when I don't know the member yet and it isn't the
+-- piece that says who they are (it waits for it)
+function P.MergePiece(state, guid, piece, ver, data, myGuid)
+  if type(guid) ~= "string" or type(piece) ~= "string" or not P.PIECE_FIELDS[piece] or type(ver) ~= "number"
+    or type(data) ~= "table" or P.IsBanned(state, guid) then return false end
+  -- (a goodbye of mine noted here is my past: I'm in now)
+  if guid ~= myGuid and P.HasLeft(state, guid, ver) then return false end
+  local cur = state.members[guid]
+  local own, mineHere = guid == myGuid, false
+  if own then
+    -- my own record is mine: a friend's copy of a piece of it only while mine is "fresh" (just come in: lost on
+    -- this PC, or played on another one since), newer than what I came in with (fsv), not my own echo. A piece
+    -- I changed since coming in stays mine (its counters, and who I am, merged)
+    if not (cur and cur.fresh) then return false end
+    local now = type(cur.sv) == "table" and cur.sv[piece] or 0
+    local came = type(cur.fsv) == "table" and cur.fsv[piece] or now
+    if ver <= came or ver == now then return false end
+    mineHere = now > came
+    if mineHere and piece ~= "t" and piece ~= "w" and piece ~= "b" then return false end
+  elseif cur and type(cur.sv) == "table" and (cur.sv[piece] or 0) >= ver then
+    return false
+  end
+  if not cur and piece ~= "b" then return "nobase" end
+  if not cur then
+    local n = 0
+    for _ in pairs(state.members) do n = n + 1 end
+    if n >= P.MAX_MEMBERS then return false end
+  end
+  local new = {}
+  for k, v in pairs(cur or {}) do new[k] = v end
+  new.guid = guid
+  new.stats = { t = cur and cur.stats and cur.stats.t or {}, w = cur and cur.stats and cur.stats.w or {} }
+  new.sv = {}
+  for k, v in pairs(cur and cur.sv or {}) do new.sv[k] = v end
+  local merge = guid == myGuid
+  if piece == "t" and merge then
+    -- my counters coming back: each the bigger of the two (what I did since coming in stays)
+    new.stats.t = {}
+    for k, v in pairs(cur.stats and cur.stats.t or {}) do new.stats.t[k] = v end
+    for k, v in pairs(type(data.t) == "table" and data.t or {}) do
+      if type(v) == "number" and v > (new.stats.t[k] or 0) then new.stats.t[k] = v end
+    end
+  elseif piece == "w" and merge then
+    new.stats.w = {}
+    for wk, kv in pairs(cur.stats and cur.stats.w or {}) do
+      new.stats.w[wk] = {}
+      for k, v in pairs(kv) do new.stats.w[wk][k] = v end
+    end
+    for wk, kv in pairs(type(data.w) == "table" and data.w or {}) do
+      if type(kv) == "table" then
+        new.stats.w[wk] = new.stats.w[wk] or {}
+        for k, v in pairs(kv) do if type(v) == "number" and v > (new.stats.w[wk][k] or 0) then new.stats.w[wk][k] = v end end
+      end
+    end
+  elseif piece == "t" then new.stats.t = type(data.t) == "table" and data.t or {}
+  elseif piece == "w" then new.stats.w = type(data.w) == "table" and data.w or {}
+  elseif piece == "b" and own then
+    -- who I am: the game says it now (level, zone...); the squadra the newer of the two; the rest where I have none
+    for k, v in pairs(data) do
+      if P.PieceOf(k) == "b" then
+        if k == "team" or k == "tat" then
+          if (tonumber(data.tat) or 0) > (tonumber(cur.tat) or 0) or cur.team == nil then new.team, new.tat = data.team, data.tat end
+        elseif new[k] == nil then new[k] = v end
+      end
+    end
+  else
+    -- this piece's fields, all of them (one gone in it is gone here); nothing of another piece rides in it
+    for k in pairs(new) do if type(k) == "string" and P.PieceOf(k) == piece then new[k] = nil end end
+    for k, v in pairs(data) do if type(k) == "string" and P.PieceOf(k) == piece then new[k] = v end end
+  end
+  new.sv[piece] = math.max(ver, own and (cur.sv and cur.sv[piece]) or 0)
+  new.up = math.max(cur and cur.up or 0, ver)
+  -- my lost record coming back piece by piece: what the game says of me now stays mine
+  if own then for _, k in ipairs(LIVE) do if cur[k] ~= nil then new[k] = cur[k] end end end
+  local r = P.CleanMember(new)
+  if not r then return false end
+  r.sv = P.CleanVersions(new.sv)
+  if not cur then P.InitVersions(r, 0) r.sv[piece] = ver end
+  -- started again from zero (left and back, a new PC): the old copy goes aside, for its owner to take back
+  -- (its date: when its counters were last its own, not the pieces of the new life already come before them)
+  if cur and piece == "t" and P.Behind(r, cur) then
+    local old = {}
+    for k, v in pairs(cur) do old[k] = v end
+    old.up = cur.sv and cur.sv.t or cur.up
+    P.KeepPrev(state, old)
+  end
+  if cur and cur.team ~= r.team then LogSwitch(state, r, cur.team, r.team, r.tat) end
+  if own then r.fresh, r.base, r.fsv = cur.fresh, cur.base, cur.fsv end
+  -- an old life already given back: once the record of now has it all, it's done
+  local pv = type(state.prev) == "table" and state.prev[guid]
+  if pv and piece == "t" and not P.Behind(r, pv) then state.prev[guid] = nil end
+  state.members[guid] = r
+  return true, r, cur
+end
+-- what I hold of each member, piece by piece, in a few characters: "<newest>:<how much older each piece is>"
+-- (base 36; empty = as new as the newest, "-" = none)
+local B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
+local function To36(n)
+  n = math.floor(n)
+  if n <= 0 then return "0" end
+  local s = ""
+  while n > 0 do local d = n % 36 s = B36:sub(d + 1, d + 1) .. s n = math.floor(n / 36) end
+  return s
+end
+P.To36 = To36
+function P.Vector(rec)
+  local sv = type(rec.sv) == "table" and rec.sv or {}
+  local top = 0
+  for _, p in ipairs(P.PIECE_ORDER) do top = math.max(top, sv[p] or 0) end
+  local parts = {}
+  for i, p in ipairs(P.PIECE_ORDER) do
+    local v = sv[p] or 0
+    parts[i] = (v <= 0 and top > 0) and "-" or (v == top and "" or To36(top - v))
+  end
+  return To36(top) .. ":" .. table.concat(parts, ",")
+end
+function P.Unvector(s)
+  if type(s) ~= "string" then return nil end
+  local top, rest = s:match("^([0-9a-z]+):(.*)$")
+  top = top and tonumber(top, 36)
+  if not top then return nil end
+  local out, i = {}, 0
+  for part in (rest .. ","):gmatch("([^,]*),") do
+    i = i + 1
+    local p = P.PIECE_ORDER[i]
+    if not p then break end
+    if part == "-" then out[p] = 0
+    elseif part == "" then out[p] = top
+    else local d = tonumber(part, 36) out[p] = d and math.max(0, top - d) or 0 end
+  end
+  return out
+end
+function P.Vectors(state)
   local d = {}
-  local stale = type(state.stale) == "table" and state.stale or {}
-  for g, r in pairs(state.members) do d[g] = stale[g] and 0 or (r.up or 0) end
+  for g, r in pairs(state.members) do d[g] = P.Vector(r) end
   return d
 end
 
--- a new version of the addon keeps fields an older one threw away (the caciare came with 1.0.18): the others'
--- records held here may lack them, though as new as the friends' copies. Once per version they're all asked
--- again (the hello says "I have none"), and the same copy is taken again whole. Mine is mine.
+-- a new version of the addon (or the first with pieces): the others' copies may lack what an older one threw
+-- away. Their versions go to zero: the owners, when they come, give everything again (once); the copies stay
+-- meanwhile. Mine is mine.
 function P.MarkStale(state, myGuid)
-  state.stale = {}
-  for g in pairs(state.members) do if g ~= myGuid then state.stale[g] = true end end
+  for g, r in pairs(state.members) do
+    if g ~= myGuid then
+      r.sv = {}
+      for _, p in ipairs(P.PIECE_ORDER) do r.sv[p] = 0 end
+    else
+      P.InitVersions(r)
+    end
+  end
+  state.stale = nil
 end
 
 function P.TeamName(state, teamId)

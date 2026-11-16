@@ -73,11 +73,18 @@ local function Activate(state, recordGuid, isAlt)
   -- back and replaces it (base: how new mine was when I came in)
   local mine = not isAlt and state.members[recordGuid]
   if mine and not mine.fresh then mine.fresh, mine.base = true, mine.up or 0 end
-  -- a new version of the addon: everyone's record asked again whole, once (what an older one threw away)
-  if state.syncVer ~= ns.VERSION then
-    P.MarkStale(state, recordGuid)
-    state.syncVer = ns.VERSION
+  -- (the versions it came in with: a friend's piece of it newer than these, and not changed here since, is taken)
+  if mine and mine.fresh then
+    P.InitVersions(mine)
+    mine.fsv = {}
+    for k, v in pairs(mine.sv) do mine.fsv[k] = v end
   end
+  -- the pieces of a record changed (sync 2, or new fields since): the others' copies are asked again, once
+  if state.syncVer ~= P.SCHEMA then
+    P.MarkStale(state, recordGuid)
+    state.syncVer = P.SCHEMA
+  end
+  for _, r in pairs(state.members) do P.InitVersions(r) end
   C.Start(state, recordGuid, ns.myName)
   T.Start(state, recordGuid, ns.me, ns.myName, isAlt)
   U.Log("Patto", "attivo", state.code, isAlt and "alt" or "principale")

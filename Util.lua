@@ -7,7 +7,7 @@ do
   local ok, v = pcall(get or function() end, ADDON, "Version")
   ns.VERSION = (ok and type(v) == "string" and v ~= "" and not v:find("@", 1, true)) and v:gsub("^v", "") or "dev"
 end
-ns.PROTO = 1
+ns.PROTO = 2
 local U = {}
 ns.U = U
 

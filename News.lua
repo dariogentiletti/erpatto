@@ -380,7 +380,8 @@ end
 -- "Urtime parole: "aiuto" (16 morti in tutto, 3 ridicole)"
 function N.DeathSub(rec)
   local g = rec.lr or {}
-  local dt, em = T0(rec, "dt"), T0(rec, "em")
+  -- (the stone says how many in all when it went: it arrives before the counters)
+  local dt, em = math.max(T0(rec, "dt"), tonumber(g.n) or 0), math.max(T0(rec, "em"), tonumber(g.m) or 0)
   local count = "(" .. dt .. (dt == 1 and " morte" or " morti") .. " in tutto" .. (em > 0 and (", " .. em .. (em == 1 and " ridicola" or " ridicole")) or "") .. ")"
   if g.w and g.w ~= "" then return "Urtime parole: \"" .. g.w .. "\"\n" .. count end
   return count
@@ -421,12 +422,15 @@ local function Diff(rec, old, quiet)
   end
   -- first epic, any epic
   if T0(rec, "le") > (old.le or 0) then
-    local first = rec.fe and rec.fe.at ~= old.fe and rec.fe.n
+    -- (the first epic: its name, when it's of now; it may have come a moment before the counter)
+    local first = type(rec.fe) == "table" and rec.fe.at and U.Now() - rec.fe.at < 900 and rec.fe.n
     N.Add(name .. " ha trovato 'n |cffa335eeepico|r" .. (first and (": " .. first) or ""))
     if not quiet and Live(first and rec.fe.at or nil) then N.Banner(Short(rec) .. " ha trovato 'n epico!", first or "Che culo.", { 0.75, 0.4, 1 }, "evento") end
   end
   -- silly death: in the list (the chat line is the death's own, below)
-  local silly = rec.ed and rec.ed.at ~= old.ed and T0(rec, "em") > (old.em or 0)
+  -- (the last silly death is written only by one: a new date is a new one; its counter may come a moment later,
+  -- in another piece of the record)
+  local silly = type(rec.ed) == "table" and rec.ed.at and rec.ed.at ~= old.ed
   if silly then
     local fmt = SILLY[rec.ed.k] or "%s è morto male"
     local txt = fmt:format(Short(rec), rec.ed.by or "pischello")

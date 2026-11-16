@@ -682,7 +682,11 @@ ba = B.ns.state.members[A.guid].alts
 check(not (ba and ba[1]), "an unlinked alt leaves the friends' copy of the main at the main's next session")
 # another character of A's account: out of the patto until the player links it or joins with it
 D = Client('Player-1-DDD', 'Dariolo')
-D.g.ErPattoDB = D.ns.U.Deserialize(A.ns.U.Serialize(A.g.ErPattoDB))
+def copy_(dst, v):
+    if hasattr(v, 'items') and not isinstance(v, (str, bytes)):
+        return dst.lua.table_from({k: copy_(dst, x) for k, x in v.items()})
+    return v
+D.g.ErPattoDB = copy_(D, A.g.ErPattoDB)  # (the account's saved data, as another character of it finds it)
 D.login(T[0])
 for _ in range(40): D.g.RUN_TIMERS()
 D.ns.UI.Toggle()

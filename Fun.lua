@@ -188,7 +188,10 @@ local function Grave(kind, killer)
   local rec = ns.MyRecord and ns.MyRecord()
   if not rec then return end
   local words = lastWords and U.Now() - lastWords.at <= F.WORDS_FRESH and lastWords.t or nil
-  local stone = { at = U.Now(), lv = Plain(Safe(UnitLevel, "player"), "number"), by = killer, z = Zone(), w = words, k = kind }
+  -- (with how many deaths in all, and silly ones: the stone goes alone at once, the counters a moment after)
+  local t = rec.stats and rec.stats.t or {}
+  local stone = { at = U.Now(), lv = Plain(Safe(UnitLevel, "player"), "number"), by = killer, z = Zone(), w = words, k = kind,
+    n = t.dt, m = (t.em or 0) + (F.SILLY[kind] and 1 or 0) }
   local rip = { stone }
   -- (a stone a few seconds from the one before it is the same death told twice by the game: it goes)
   for _, g in ipairs(rec.rip or {}) do

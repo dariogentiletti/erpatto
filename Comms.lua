@@ -5,7 +5,8 @@
 -- The guild: when the patto's members are in my guild, the guild carries the addon messages to all of them at
 -- once (one message instead of a whisper each, on any internal realm); only the members outside the guild still
 -- get whispers. Who is in it comes from the guild roster, by character guid.
--- Sync: everyone keeps a copy of everything and passes on what others are missing ("passaparola").
+-- Sync: everyone keeps a copy of everything and passes on what others are missing ("passaparola"), a record in
+-- pieces with their own versions (see "sync protocol" below).
 -- Limits respected: 255-byte messages (chunked), ~1 message/s per prefix (token bucket), no sends inside instances.
 local ADDON, ns = ...
 local U, P = ns.U, ns.P
@@ -37,7 +38,6 @@ local roster, rosterOK, displayIdx = {}, false, nil -- guid -> name of who is in
 local seeds = {}
 local recent = {}
 local helloReplyAt = {}
-local askedFull = {}
 local lastHelloAt = 0
 local firstHeardAt -- the first message from a friend this session
 local pendingSends = {}
@@ -105,7 +105,7 @@ function C.JoinChannel()
     chanId = CurrentChannelId()
     if chanId then
       HideChannel()
-      C.stats.mode = chanBlocked and "sussurri" or "canale"
+      C.stats.mode = (C.GuildOn and C.GuildOn()) and "gilda" or (chanBlocked and "sussurri" or "canale")
       U.Log("Comms", "canale pronto", chanId, chanBlocked and "(solo pe' trovasse: li messaggi vanno a sussurri)" or "")
       C.RefreshRoster()
     else
@@ -258,7 +258,6 @@ local function Enqueue(kind, target, body, urgent, key)
   local at
   if key then
     -- a whole record also makes the changes still waiting useless
-    if key:sub(1, 2) == "M:" then at = Supersede("D:" .. key:sub(3) .. ">" .. tostring(target)) end
     key = key .. ">" .. tostring(target)
     at = Supersede(key) or at
   end
@@ -297,13 +296,13 @@ function C.ReadGuild()
     end
   end
   local had = next(guildSet) ~= nil
+  -- who spoke through the guild lately is in it, even before the roster knows him as one of the patto
+  for g, t in pairs(guildHeard) do if g ~= me and Clock() - t < ONLINE_WINDOW then set[g] = true on[g] = true end end
   guildSet, guildOnline = set, on
   local count = 0
   for _ in pairs(set) do count = count + 1 end
-  if not had and count > 0 then
-    U.Log("Comms", "gilda: " .. count .. " der patto ce stanno, li messaggi passano da la gilda")
-    C.stats.mode = "gilda"
-  end
+  if not had and count > 0 then U.Log("Comms", "gilda: " .. count .. " der patto ce stanno, li messaggi passano da la gilda") end
+  if count > 0 and not guildFail then C.stats.mode = "gilda" end
 end
 -- the guild's roster: asked at the start and once a minute (the answer comes as GUILD_ROSTER_UPDATE)
 function C.AskGuild()
@@ -402,16 +401,13 @@ end
 -- what can be replaced by a newer copy while it waits: a member's record, the settings, the capi, the bans, a hello
 local function KeyOf(kind, data)
   if kind == "M" then return type(data) == "table" and type(data.guid) == "string" and ("M:" .. data.guid) or nil end
-  if kind == "D" then return type(data) == "table" and type(data.g) == "string" and ("D:" .. data.g) or nil end
-  if kind == "H" or kind == "S" or kind == "A" or kind == "B" then return kind end
+  if kind == "Y" or kind == "S" or kind == "A" or kind == "B" then return kind end
   return nil
 end
 
 function C.Send(kind, data, urgent)
   if not state then return end
   Broadcast(Body(kind, data), kind == "X" or urgent == true, KeyOf(kind, data))
-  -- my own whole record went out (from SendSelf or as an answer to a hello): the changes start from here
-  if kind == "M" and type(data) == "table" and data.guid == me then C.NoteFull(data) end
 end
 
 local function ResultIsThrottle(res)
@@ -491,12 +487,31 @@ local function Tick()
 end
 
 ----------------------------------------------------------------------
--- sync protocol
+-- sync protocol (sync 2). A record travels in pieces (Patto.lua, P.PIECES), each with its own version, given
+-- by its owner when it changes:
+--   Y  hello: who I am, the versions of the patto's rules, and for each member what I hold of each piece
+--   P  pieces: some pieces of one member's record with their versions; taken by any copy holding them older
+--   M  a whole record: an old life given back, a lost record to a new PC, or from an addon before sync 2
+-- My changes go out as pieces as they happen: the ones to know at once (a ding, a death, a duel, a "Ce sto")
+-- first in the line, in a second; the rest within a minute. A hello (at login, every few minutes, after a
+-- loading screen) finds what anyone missed: whoever holds a piece newer than the asker's sends it, through the
+-- guild, the owner first; the others hear it go and stay quiet. Nothing else: no deltas, no flashes, no relays.
 ----------------------------------------------------------------------
+local selfUrgent
+local Responder
+local stillMissing = {} -- "asker>guid" -> when first seen missing from their hello
+local heard = {}    -- "guid:piece" -> { v, at }: the newest of a piece that went by (mine included)
+local pending = {}  -- guid -> { at, pieces }: pieces of someone not known yet, waiting for the one saying who
+local function NoteHeard(g, p, v)
+  local k = g .. ":" .. p
+  local h = heard[k]
+  if not h or v >= h.v then heard[k] = { v = v, at = Clock() } end
+end
+
 local function HelloData()
   local mine = state.members[me]
   return { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
-    bv = state.bans.v or 0, d = P.Digest(state), fr = mine and mine.fresh and true or nil,
+    bv = state.bans.v or 0, m = P.Vectors(state), fr = mine and mine.fresh and true or nil,
     fb = mine and mine.fresh and tonumber(mine.base) or nil, sk = 1,
     lf = type(state.left) == "table" and next(state.left) and state.left or nil }
 end
@@ -504,7 +519,7 @@ end
 function C.Hello()
   if not state then return end
   lastHelloAt = Clock()
-  C.Send("H", HelloData())
+  C.Send("Y", HelloData())
 end
 
 -- someone just came into the patto's channel: a hello to them alone (they answer with what we miss, and the other way)
@@ -516,90 +531,131 @@ newPeer = function(guid, name, urgent)
   if introduced[guid] and Clock() - introduced[guid] < 60 then return end
   introduced[guid] = Clock()
   U.Log("Comms", urgent and "novo ner patto:" or "ner canale c'è", name)
-  Enqueue("WHISPER", name, Body("H", HelloData()), urgent == true, "H")
+  Enqueue("WHISPER", name, Body("Y", HelloData()), urgent == true, "Y")
 end
 
--- my record goes whole at most every half hour; in between only what changed since the last whole one ("D").
--- Whispered to each member one by one (WoW Forever), a whole record is 7-10 messages, a change 1-2.
-C.FULL_EVERY = 1800
-local fullSer, fullUp, fullAt -- my record as last sent whole, field by field
-local selfUrgent
-function C.NoteFull(rec)
-  fullSer, fullUp, fullAt = {}, rec.up, Clock()
-  for k, v in pairs(rec) do fullSer[k] = U.Serialize(v) end
+-- my pieces as I last gave them (a checksum each), kept between sessions: what changed while nothing could go
+-- (logged out first) still goes at the next login
+-- (keys in order: the same piece read back from the saved file, its tables rebuilt, gives the same checksum)
+local function Canon(v, depth)
+  if type(v) ~= "table" then return U.Serialize(v) end
+  if (depth or 0) > 6 then return "N" end
+  local keys = {}
+  for k, x in pairs(v) do if (type(k) == "string" or type(k) == "number") and type(x) ~= "function" then keys[#keys + 1] = k end end
+  table.sort(keys, function(a, b)
+    if type(a) ~= type(b) then return type(a) == "number" end
+    return a < b
+  end)
+  local parts = {}
+  for i, k in ipairs(keys) do parts[i] = U.Serialize(k) .. "=" .. Canon(v[k], (depth or 0) + 1) end
+  return "{" .. table.concat(parts, ",") .. "}"
 end
-
--- what changed since my last whole record, or nil when a whole one is due (none sent, too old, or too much changed)
-local function SelfDelta(rec)
-  if not (fullSer and fullUp and rec.up and rec.up > fullUp and fullAt and Clock() - fullAt < C.FULL_EVERY) then return nil end
-  local ch, gone, size, total = {}, {}, 0, 0
-  for k, v in pairs(rec) do
-    local ser = U.Serialize(v)
-    total = total + #ser
-    if k ~= "up" and ser ~= fullSer[k] then ch[k] = v size = size + #ser end
-  end
-  for k in pairs(fullSer) do if rec[k] == nil then gone[#gone + 1] = k end end
-  if size >= total * 0.6 then return nil end
-  return { g = me, b = fullUp, up = rec.up, c = ch, r = #gone > 0 and gone or nil }
+local function Sum(piece)
+  local str = Canon(piece)
+  local h = 5381
+  for i = 1, #str do h = (h * 33 + str:byte(i)) % 4294967296 end
+  return h .. ":" .. #str
 end
-
--- something the others must see now (a ding, a death, a squadra): a "flash" of just those fields, one message,
--- first in the queue, good on any copy of my record; the record itself follows at its pace
-local sentT, sentW, sentTop = {}, {}, {}
-local FLASH_FIELD = 160
-local FLASH_BIG = { lr = 260, dd = 420 } -- the last death, with its last words; the duels (bets, gogna wait on them)
-local FLASH_MAX = MAXLEN * 2
-local function Flash(rec)
-  local wk = 0
-  if P.HasSettings(state) and ns.M and ns.M.WeekIndex then wk = ns.M.WeekIndex(state.settings, U.Now()) or 0 end
-  local e = { g = me, up = rec.up, c = {}, t = {}, w = {} }
-  local any = false
-  for k, v in pairs(rec) do
-    if k ~= "up" and k ~= "guid" and k ~= "stats" and k ~= "fresh" and k ~= "abt" then
-      local ser = U.Serialize(v)
-      if ser ~= sentTop[k] and #ser <= (FLASH_BIG[k] or FLASH_FIELD) then e.c[k] = v any = true end
+local sumsHere = {}
+local function Sums()
+  local k = tostring(state.code) .. ":" .. tostring(me)
+  if not ns.db then sumsHere[k] = sumsHere[k] or {} return sumsHere[k] end
+  ns.db.sentSum = type(ns.db.sentSum) == "table" and ns.db.sentSum or {}
+  ns.db.sentSum[k] = type(ns.db.sentSum[k]) == "table" and ns.db.sentSum[k] or {}
+  return ns.db.sentSum[k]
+end
+-- (the tests move them from one PC to another, as a WTF folder would)
+function C.SentSums(t)
+  if t and state then local s = Sums() for k in pairs(s) do s[k] = nil end for k, v in pairs(t) do s[k] = v end end
+  return state and Sums() or nil
+end
+-- what can't wait (who and what level, a death, a duel, the caciare, la gogna, le sfide)
+-- (the counters right after, not ahead of the others' urgent pieces: a death carries its count on the stone)
+C.URGENT_PIECE = { b = true, r = true, f = true, d = true, a = true, e = true, y = true, g = true, s = true }
+-- while my record is fresh (a friend may hold it newer): what's mine for sure goes; never the counters, which a
+-- record started on a new PC would send back at zero
+local FRESH_OK = { b = true, r = true, f = true, d = true, a = true, e = true, y = true, g = true, s = true }
+-- the pieces of my record that changed since I last gave them, each with a new version. only: just those pieces
+local function ChangedPieces(only)
+  local rec = state.members[me]
+  if not rec then return {} end
+  P.InitVersions(rec)
+  local sums = Sums()
+  local out = {}
+  for _, p in ipairs(P.PIECE_ORDER) do
+    if not only or only[p] then
+      -- (the checksum with the version it went with: a record started again, at version zero, goes again)
+      local sum = Sum(P.PieceData(rec, p)) .. "@" .. tostring(rec.sv[p] or 0)
+      -- never given from this PC (a new one, or the first time with sync 2) while fresh: what it holds now is the
+      -- starting point, not a change (a blank record on a new PC must not go over the friends' real copies)
+      -- (and once it's no more fresh: a piece never given a version, that nobody has, goes now)
+      if sums[p] == nil and rec.fresh then sums[p] = sum
+      elseif sums[p] ~= sum or (not rec.fresh and (rec.sv[p] or 0) == 0) then
+        rec.sv[p] = math.max(math.floor(U.Now()), (rec.sv[p] or 0) + 1)
+        rec.up = math.max(rec.up or 0, rec.sv[p])
+        sums[p] = Sum(P.PieceData(rec, p)) .. "@" .. tostring(rec.sv[p])
+        out[#out + 1] = p
+      end
     end
   end
-  local t = rec.stats and rec.stats.t or {}
-  for k, v in pairs(t) do if v ~= sentT[k] then e.t[k] = v any = true end end
-  local w = rec.stats and rec.stats.w and rec.stats.w[wk] or {}
-  local ww = {}
-  for k, v in pairs(w) do if v ~= sentW[k] then ww[k] = v any = true end end
-  if next(ww) then e.w[wk] = ww end
-  if not any then return end
-  local body = Body("E", e)
-  if #body <= FLASH_MAX then Broadcast(body, true, nil) end
-end
--- what the others have of me now, to tell a flash what's new
-local function NoteSent(rec)
-  sentTop = {}
-  for k, v in pairs(rec) do if k ~= "stats" then sentTop[k] = U.Serialize(v) end end
-  sentT = {}
-  for k, v in pairs(rec.stats and rec.stats.t or {}) do sentT[k] = v end
-  sentW = {}
-  local wk = P.HasSettings(state) and ns.M and ns.M.WeekIndex and ns.M.WeekIndex(state.settings, U.Now()) or 0
-  for k, v in pairs(rec.stats and rec.stats.w and rec.stats.w[wk] or {}) do sentW[k] = v end
+  return out
 end
 
+-- pieces of one member's record, in messages of about a kilobyte (the small ones together, in their order)
+-- (who, a death, the counters: one message, so whoever hears it has them all at once)
+local PACK = 1400
+local function SendPieces(g, list, to, urgent)
+  local rec = state.members[g]
+  if not rec or #list == 0 then return end
+  local batches, cur, size = {}, nil, 0
+  for _, p in ipairs(list) do
+    local item = { v = rec.sv and rec.sv[p] or 0, d = P.PieceData(rec, p) }
+    local n = #U.Serialize(item)
+    if cur and size + n > PACK then batches[#batches + 1] = cur cur, size = nil, 0 end
+    cur = cur or { g = g, p = {}, k = {} }
+    cur.p[p] = item
+    cur.k[#cur.k + 1] = p
+    size = size + n
+    NoteHeard(g, p, item.v)
+  end
+  if cur then batches[#batches + 1] = cur end
+  for _, data in ipairs(batches) do
+    local key = "P:" .. g .. ":" .. table.concat(data.k)
+    data.k = nil
+    if to then Enqueue("WHISPER", to, Body("P", data), urgent == true, key)
+    else Broadcast(Body("P", data), urgent == true, key) end
+  end
+end
+C.SendPieces = SendPieces
+
+-- my changes: the urgent pieces at the head of the line, the rest after. While my record is "fresh" (just come
+-- in: a friend may hold it newer, played on another computer) only the urgent ones go; the rest waits for them
 function C.SendSelf()
   if not state or not state.members[me] then return end
   local rec = state.members[me]
-  recent["M:" .. me .. ":" .. (rec.up or 0)] = Clock()
-  if selfUrgent then pcall(Flash, rec) end
+  local list = ChangedPieces(rec.fresh and FRESH_OK or nil)
+  -- while fresh, the others (the counters...) go too, but "weak": with the version they had, never a new one
+  -- (at least 1). A friend holding a real copy keeps his; one who has none takes them. A new one when fresh ends
+  if rec.fresh then
+    local weak = {}
+    local sums = Sums()
+    for _, p in ipairs(P.PIECE_ORDER) do
+      local sum = Sum(P.PieceData(rec, p)) .. "@" .. tostring(rec.sv[p] or 0)
+      if sums[p] == nil then sums[p] = sum
+      elseif not FRESH_OK[p] and sums[p] ~= sum then
+        if (rec.sv[p] or 0) < 1 then rec.sv[p] = 1 end
+        weak[#weak + 1] = p
+      end
+    end
+    SendPieces(me, weak, nil, false)
+  end
+  local now, later = {}, {}
+  for _, p in ipairs(list) do
+    if selfUrgent and C.URGENT_PIECE[p] then now[#now + 1] = p else later[#later + 1] = p end
+  end
   selfUrgent = nil
-  NoteSent(rec)
-  local d = SelfDelta(rec)
-  if d then C.Send("D", d) return end
-  C.Send("M", rec)
-end
-
--- my record to one who asked (their copy is from `theirUp`): only the changes when they have my last whole one
-function C.SendSelfTo(to, theirUp)
-  local rec = state and state.members[me]
-  if not rec then return end
-  local d = (theirUp or 0) >= (fullUp or math.huge) and SelfDelta(rec)
-  -- someone who never had me (just come in): first in the line
-  if d then C.SendTo("D", d, to) else C.SendTo("M", rec, to, (theirUp or 0) == 0) end
+  SendPieces(me, now, nil, true)
+  SendPieces(me, later, nil, false)
 end
 
 -- Send my record after `delay` seconds (XP ticks wait longer than dings or team changes).
@@ -619,12 +675,11 @@ function C.SendTo(kind, data, who, urgent)
   if not state then return end
   if not who then C.Send(kind, data, urgent) return end
   Enqueue("WHISPER", who, Body(kind, data), urgent == true, KeyOf(kind, data))
-  -- (a whole record to one friend isn't "the last whole one" for everyone else: the changes stay counted from that)
 end
 
 function C.HelloTo(who, urgent)
   if not state then return end
-  if who then Enqueue("WHISPER", who, Body("H", HelloData()), urgent == true, "H") else C.Hello() end
+  if who then Enqueue("WHISPER", who, Body("Y", HelloData()), urgent == true, "Y") else C.Hello() end
 end
 
 -- the patto's rules: small, rare, and without them who just came in can't start: first in the line
@@ -632,6 +687,25 @@ local function SendPiece(kind, to)
   if kind == "S" then C.SendTo("S", state.settings, to, true)
   elseif kind == "A" then C.SendTo("A", state.admins, to, true)
   elseif kind == "B" then C.SendTo("B", state.bans, to, true) end
+end
+
+-- who answers for member g to one asking: the owner when he's here with this addon, else one of those here with it
+-- (me among them), picked by g. Everyone sees the same ones here (the guild's list, and who was heard), so one
+-- answers; when two see it differently, two answer (the second goes for nothing), when none, the next hello asks
+-- again
+local sync2 = {} -- guid -> clock: heard speak sync 2 (an older addon can't answer)
+local function Here(g)
+  return g == me or (C.Around(g) and sync2[g] ~= nil and Clock() - sync2[g] < ONLINE_WINDOW)
+end
+Responder = function(g, asker, notOwner)
+  if not notOwner and g ~= asker and Here(g) then return g end
+  local list = {}
+  for x in pairs(state.members) do if x ~= asker and x ~= g and Here(x) then list[#list + 1] = x end end
+  if #list == 0 then return nil end
+  table.sort(list)
+  local hsh = 0
+  for i = 1, #g do hsh = (hsh * 31 + g:byte(i)) % 1000003 end
+  return list[(hsh % #list) + 1]
 end
 
 local prevSentAt = {}
@@ -642,9 +716,10 @@ local function OnHello(from, h, sender)
     U.Say("quarcuno usa 'na versione più nova. Aggiorna l'addon su CurseForge.")
   end
   local theyNewer = false
-  -- whispering (Forever), or through the guild: what they miss goes to them alone (whispered, each friend his own
-  -- record: they come in parallel, none twice); in a real channel everyone hears the answers
-  local to = (Whispering() or GuildOn()) and type(sender) == "string" and sender or nil
+  -- the answers go through the guild when they're in it (everyone hears them: one answer for all); by whisper
+  -- to them alone otherwise (on Forever without the guild, or one outside it)
+  local viaGuild = GuildOn() and guildSet[from]
+  local to = (not viaGuild and (Whispering() or GuildOn()) and type(sender) == "string") and sender or nil
   local tag = to and (">" .. to) or ""
   local function cmp(kind, mine, theirs)
     theirs = type(theirs) == "number" and theirs or 0
@@ -657,10 +732,9 @@ local function OnHello(from, h, sender)
   cmp("S", state.settings.v or 0, h.sv)
   cmp("A", state.admins.v or 0, h.av)
   cmp("B", state.bans.v or 0, h.bv)
-  -- "my record is new on this PC": if I hold a real copy of it, it goes back to them, whatever its date
+  -- "my record is new on this PC" and I hold a real copy of it, newer than theirs: it goes back to them whole
   if h.fr == true then
     local theirs = state.members[from]
-    -- (fb: how new their own copy is; mine goes only if newer: they played on another computer)
     if theirs and not theirs.fresh and (theirs.up or 0) > (tonumber(h.fb) or 0) then
       Schedule("R:" .. from .. tag, function()
         if state.members[from] and not state.members[from].fresh then C.SendTo("M", state.members[from], to) end
@@ -674,62 +748,12 @@ local function OnHello(from, h, sender)
     if not last or Clock() - last > 120 then
       prevSentAt[from] = Clock()
       U.Log("Comms", "rimanno a", sender or from, "li dati de prima")
-      Schedule("P:" .. from .. tag, function()
+      Schedule("PV:" .. from .. tag, function()
         local p = type(state.prev) == "table" and state.prev[from]
-        -- its own key: it mustn't take the place of their record of now in the queue
-        if p and to then Enqueue("WHISPER", to, Body("M", p), false, "P:" .. from)
-        elseif p then Broadcast(Body("M", p), false, "P:" .. from) end
+        if p and to then Enqueue("WHISPER", to, Body("M", p), false, "PV:" .. from)
+        elseif p then Broadcast(Body("M", p), false, "PV:" .. from) end
       end)
     end
-  end
-  local d = type(h.d) == "table" and h.d or {}
-  local count, more = 0, false
-  -- who's online now, as the guild knows it (a few dozen lines; the roster asked once a minute may be old)
-  if GuildOn() then pcall(C.ReadGuild) end
-  -- mine first, then the newest (what changed last is what they're most likely missing)
-  local order = {}
-  for g in pairs(state.members) do order[#order + 1] = g end
-  table.sort(order, function(a, b)
-    if (a == me) ~= (b == me) then return a == me end
-    return (state.members[a].up or 0) > (state.members[b].up or 0)
-  end)
-  -- whispered, the records of the ones not around go from one of us only (else each one online sends them all):
-  -- the one with the first guid among who's around, the way everyone sees it
-  local first = true
-  if to and not (GuildOn() and guildSet[from]) then
-    for g in pairs(state.members) do
-      if g ~= me and g ~= from and C.Around(g) and g < me then first = false break end
-    end
-  end
-  for _, g in ipairs(order) do
-    local rec = state.members[g]
-    local theirs = type(d[g]) == "number" and d[g] or 0
-    -- whispering, every record sent is 7-10 whispers: someone else's goes from me only when they aren't around
-    -- to send it themselves (or nobody has it: they never had it at all)
-    local mine = g == me
-    local relay = mine or not to or theirs == 0 or (not C.Around(g) and first)
-    if (rec.up or 0) > theirs and relay and count >= 8 then more = true end
-    if (rec.up or 0) > theirs and count < 8 and relay then
-      count = count + 1
-      local up = rec.up
-      if not mine and GuildOn() and guildSet[from] then
-        -- someone else's record, to one in the guild: through the guild, so whoever else was about to send the
-        -- same one hears it and doesn't (the first of us wins: a few seconds of chance each)
-        Schedule("M:" .. g .. ":" .. up, function()
-          if state.members[g] and state.members[g].up == up then C.SendTo("M", state.members[g], nil) end
-        end, 0.5 + math.random() * 6)
-      else
-        Schedule("M:" .. g .. ":" .. up .. tag, function()
-          if not state.members[g] or state.members[g].up ~= up then return end
-          if mine then C.SendSelfTo(to, theirs) else C.SendTo("M", state.members[g], to) end
-        end)
-      end
-    end
-  end
-  -- more than eight to give: my hello to them once these are out, they answer with theirs and the next ones go
-  if more and type(from) == "string" then
-    -- (after the records: they're in the line first)
-    Schedule("H:more:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to) end, 4)
   end
   -- who left: gone here too (and their old record no more asked for)
   if type(h.lf) == "table" then
@@ -744,11 +768,65 @@ local function OnHello(from, h, sender)
       end
     end
   end
-  for g, up in pairs(d) do
-    if type(up) == "number" and not P.IsBanned(state, g) and not P.HasLeft(state, g, up)
-      and (not state.members[g] or (state.members[g].up or 0) < up
-        or (type(state.stale) == "table" and state.stale[g] and up > 0)) then
-      theyNewer = true
+  -- the pieces: mine as of now first (what changed and waited gets its version), then piece by piece
+  if selfDueAt then selfDueAt = nil C.SendSelf() end
+  local m = type(h.m) == "table" and h.m or {}
+  for g, rec in pairs(state.members) do
+    local theirs = m[g] and P.Unvector(m[g])
+    local mine = g == me
+    local list = {}
+    for _, p in ipairs(P.PIECE_ORDER) do
+      local v = rec.sv and rec.sv[p] or 0
+      if not theirs or v > (theirs[p] or 0) then list[#list + 1] = p end
+    end
+    -- one of us answers for each member: its owner when he's here, else one picked by the member (so a whole
+    -- patto to give is shared out among all who are online, each sending some, at the same time)
+    -- (through the guild, the others too, a few seconds later, if nobody did: two who see the patto differently
+    -- could each think it's the other's turn)
+    local picked = #list > 0 and g ~= from and Responder(g, from) == me
+    -- (and by whisper, where nobody hears the others: when the same asker still lacks it a minute and a half
+    -- after asking the first time, whoever has it gives it)
+    local k = from .. ">" .. g
+    if #list == 0 then stillMissing[k] = nil elseif not stillMissing[k] then stillMissing[k] = Clock() end
+    local late = stillMissing[k] and Clock() - stillMissing[k] > 90
+    -- (by whisper, a member they don't have at all also goes from one of us besides its owner: the owner may not
+    -- reach them, as one only on Battle.net)
+    local backup = #list > 0 and g ~= from and not picked
+      and (not to or late or (not theirs and g ~= me and Responder(g, from, true) == me))
+    if picked or backup then
+      local delay = picked and (mine and (0.2 + math.random() * 0.8) or (0.5 + math.random() * 1.5)) or (15 + math.random() * 10)
+      local asked = Clock()
+      Schedule("Y>" .. g .. tag .. ":" .. math.floor(asked / 10), function()
+        local r = state.members[g]
+        if not r then return end
+        local still = {}
+        for _, p in ipairs(list) do
+          local v = r.sv and r.sv[p] or 0
+          local hp = heard[g .. ":" .. p]
+          -- through the guild: someone else gave it meanwhile, as new as mine (or newer): it's done
+          if to or not (hp and hp.at >= asked and hp.v >= v) then still[#still + 1] = p end
+        end
+        -- (who and what level, the counters... at the head of my line: someone is waiting for them; the rest after)
+        local now, later = {}, {}
+        for _, p in ipairs(still) do if C.URGENT_PIECE[p] then now[#now + 1] = p else later[#later + 1] = p end end
+        SendPieces(g, now, to, true)
+        SendPieces(g, later, to, false)
+      end, delay)
+    end
+  end
+  for g, s in pairs(m) do
+    if g ~= me and not P.IsBanned(state, g) then
+      local rec = state.members[g]
+      local theirs = P.Unvector(s)
+      if theirs and not rec then
+        local top = 0
+        for _, v in pairs(theirs) do top = math.max(top, v) end
+        if not P.HasLeft(state, g, top) then theyNewer = true end
+      elseif theirs then
+        for _, p in ipairs(P.PIECE_ORDER) do
+          if (theirs[p] or 0) > (rec.sv and rec.sv[p] or 0) then theyNewer = true break end
+        end
+      end
     end
   end
   if theyNewer then
@@ -757,9 +835,57 @@ local function OnHello(from, h, sender)
       helloReplyAt[from] = Clock()
       -- someone I never heard of (just come in): my hello goes first, so their record comes at once
       local stranger = not state.members[from]
-      Schedule("H:" .. from .. ":" .. math.floor(Clock() / 20), function() C.HelloTo(to, stranger) end)
+      Schedule("H:" .. (to or "guild") .. ":" .. math.floor(Clock() / 20), function()
+        -- (through the guild everyone hears my hello and answers it: one every half minute is enough for all)
+        if not to and Clock() - lastHelloAt < 30 then return end
+        C.HelloTo(to, stranger)
+      end, 1 + math.random() * 3)
     end
   end
+end
+
+-- pieces arrived: on my copies, in their order (the one saying who they are first); the events once per message
+local function OnPieces(from, data, sender)
+  if type(data) ~= "table" or type(data.g) ~= "string" or type(data.p) ~= "table" then return false end
+  local g = data.g
+  local before = state.members[g]
+  local got = false
+  local function take(p, item)
+    if type(item) ~= "table" or type(item.v) ~= "number" then return end
+    NoteHeard(g, p, item.v)
+    local ok = P.MergePiece(state, g, p, item.v, type(item.d) == "table" and item.d or {}, me)
+    if ok == "nobase" then
+      local w = pending[g]
+      if not w or Clock() - w.at > 120 then w = { at = Clock(), pieces = {} } pending[g] = w end
+      w.pieces[p] = item
+    elseif ok then
+      got = true
+      C.stats.pieces = (C.stats.pieces or 0) + 1
+    end
+  end
+  for _, p in ipairs(P.PIECE_ORDER) do take(p, data.p[p]) end
+  if state.members[g] and pending[g] then
+    local w = pending[g]
+    pending[g] = nil
+    for _, p in ipairs(P.PIECE_ORDER) do if w.pieces[p] then take(p, w.pieces[p]) end end
+  end
+  if not got then return false end
+  local rec = state.members[g]
+  if g == me then
+    -- my record, lost on this PC, coming back from the friends (and from me it goes on as mine)
+    if before and before.base == nil then ns.Fire("SelfRestored", rec) end
+    C.MarkSelfDirty(1)
+    return true
+  end
+  if before and before.lv and rec.lv and rec.lv > before.lv then ns.Fire("MemberDing", rec, before.lv) end
+  if before and rec.team ~= before.team then ns.Fire("MemberSwitched", rec, before.team) end
+  if not before and not seen[g] then newPeer(g, nameOf[g] or rec.name) end
+  -- someone new, heard from them directly: the others online hear of them in one message, and say hello at once
+  if not before and g == from and (Whispering() or GuildOn()) and type(sender) == "string" then
+    Broadcast(Body("N", { g = from, n = sender }), true, nil)
+  end
+  ns.Fire("MemberUpdated", rec, before or nil)
+  return true
 end
 
 local invitesOut = {}
@@ -768,6 +894,7 @@ local invitedAt = {}
 
 local acksSfotto = {}
 function C.AcksSfotto(guid) return acksSfotto[guid] == true end
+local oldSeen = {}
 local function Handle(body, sender, channel)
   local kind, payload = body:match("^(%u)~(.*)$")
   if not kind then return end
@@ -788,9 +915,10 @@ local function Handle(body, sender, channel)
   firstHeardAt = firstHeardAt or Clock()
   if type(sender) == "string" then nameOf[from] = sender end
   -- heard through the guild: they're in it, the guild reaches them (before its roster says so)
+  -- (a newcomer too, not in my list yet: the guild reaches him, the answers go there, once for everyone)
   if channel == "GUILD" then
     guildHeard[from] = Clock()
-    if not guildSet[from] and state.members[from] then guildSet[from] = true guildOnline[from] = true end
+    if not guildSet[from] then guildSet[from] = true guildOnline[from] = true end
   end
   -- back after a while (or heard for the first time): what was waiting for them goes now (a sfottò)
   if not wasOn then ns.Fire("PeerOnline", from) end
@@ -801,12 +929,30 @@ local function Handle(body, sender, channel)
   end
   local data = msg.x
   local changed = false
-  if kind == "H" then
-    -- a version that says when a sfottò reached it (1.0.12 on): the older ones get it once, never again
+  if kind == "Y" or kind == "P" then sync2[from] = Clock() end
+  if kind == "Y" then
     if type(data) == "table" and data.sk then acksSfotto[from] = true end
     OnHello(from, data, sender)
     if not state.members[from] and type(data) == "table" and type(data.n) == "string" then
       ns.Fire("PeerSeen", from)
+    end
+  elseif kind == "P" then
+    changed = OnPieces(from, data, sender)
+    if changed then kind = "M" end
+  elseif kind == "H" then
+    -- an addon before sync 2: it can't read us, nor we it; they're told to update when they see a newer one
+    if type(data) == "table" and data.sk then acksSfotto[from] = true end
+    if not oldSeen[from] or Clock() - oldSeen[from] > 1800 then
+      oldSeen[from] = Clock()
+      U.Log("Comms", tostring(sender), "c'ha 'na versione vecchia de l'addon (" .. tostring(type(data) == "table" and data.ver or "?") .. ")")
+      -- a hello in their language, once in a while: it tells them a newer addon is around (they're told to
+      -- update), and they still hand over the whole records they have newer than mine (taken as "M")
+      local d = {}
+      for g, r in pairs(state.members) do d[g] = r.up or 0 end
+      local old = { p = ns.PROTO, ver = ns.VERSION, n = myName, sv = state.settings.v or 0, av = state.admins.v or 0,
+        bv = state.bans.v or 0, d = d, sk = 1 }
+      if type(sender) == "string" and not (GuildOn() and guildSet[from]) then C.SendTo("H", old, sender)
+      else C.Send("H", old) end
     end
   elseif kind == "S" then
     changed = P.MergeSettings(state, data)
@@ -831,72 +977,12 @@ local function Handle(body, sender, channel)
       nameOf[data.g] = nameOf[data.g] or data.n
       newPeer(data.g, data.n, true)
     end
-  elseif kind == "E" then
-    -- a flash: a ding, a death, a squadra, on top of my copy of their record at once (its date stays: the
-    -- record itself, with everything else, still comes and is still asked for)
-    local cur = state.members[from]
-    if cur and type(data) == "table" and data.g == from and type(data.up) == "number" and data.up > (cur.up or 0) then
-      local new = U.Copy(cur)
-      if type(data.c) == "table" then
-        for k, v in pairs(data.c) do if k ~= "guid" and k ~= "up" and k ~= "stats" and k ~= "fresh" then new[k] = v end end
-      end
-      new.stats = type(new.stats) == "table" and new.stats or { t = {}, w = {} }
-      new.stats.t = type(new.stats.t) == "table" and new.stats.t or {}
-      new.stats.w = type(new.stats.w) == "table" and new.stats.w or {}
-      if type(data.t) == "table" then
-        for k, v in pairs(data.t) do if type(v) == "number" and v > (new.stats.t[k] or 0) then new.stats.t[k] = v end end
-      end
-      if type(data.w) == "table" then
-        for wk, kv in pairs(data.w) do
-          if type(wk) == "number" and type(kv) == "table" then
-            new.stats.w[wk] = type(new.stats.w[wk]) == "table" and new.stats.w[wk] or {}
-            for k, v in pairs(kv) do if type(v) == "number" and v > (new.stats.w[wk][k] or 0) then new.stats.w[wk][k] = v end end
-          end
-        end
-      end
-      local r = P.CleanMember(new)
-      if r then
-        r.up = cur.up
-        local oldLv, oldTeam = cur.lv, cur.team
-        if r.team ~= oldTeam and P.LogSwitch then P.LogSwitch(state, r, oldTeam, r.team, r.tat) end
-        state.members[from] = r
-        C.stats.flash = (C.stats.flash or 0) + 1
-        if oldLv and r.lv and r.lv > oldLv then ns.Fire("MemberDing", r, oldLv) end
-        if r.team ~= oldTeam then ns.Fire("MemberSwitched", r, oldTeam) end
-        ns.Fire("MemberUpdated", r, cur)
-        changed = true
-      end
-    end
   elseif kind == "F" then
     -- a sfottò: only the one it's for shows it
     ns.Fire("Sfotto", from, data)
   elseif kind == "X" then
     -- something happening now (a sfida thrown, a duel starting, a gufata): Sfide.lua shows it at once
     ns.Fire("Live", from, data)
-  elseif kind == "D" then
-    -- what changed in someone's record since their last whole one: good on any copy at least that new
-    if type(data) == "table" and type(data.g) == "string" and data.g == from and type(data.c) == "table"
-      and type(data.b) == "number" and type(data.up) == "number" then
-      local cur = state.members[data.g]
-      if cur and (cur.up or 0) >= data.b and data.up > (cur.up or 0) then
-        local new = {}
-        for k, v in pairs(cur) do new[k] = v end
-        for k, v in pairs(data.c) do new[k] = v end
-        if type(data.r) == "table" then for _, k in ipairs(data.r) do if type(k) == "string" then new[k] = nil end end end
-        new.guid, new.up = data.g, data.up
-        data = new
-        kind = "M"
-        C.stats.deltas = (C.stats.deltas or 0) + 1
-      elseif not cur or (cur.up or 0) < data.b then
-        -- my copy is too old for this change (a whole record got lost on the way): a hello, and they send it whole
-        C.stats.stale = (C.stats.stale or 0) + 1
-        local last = askedFull[from]
-        if type(sender) == "string" and (not last or Clock() - last > 20) then
-          askedFull[from] = Clock()
-          Schedule("H:" .. from .. ":full", function() C.HelloTo((Whispering() or GuildOn()) and sender or nil) end)
-        end
-      end
-    end
   end
   if kind == "M" then
     if type(data) == "table" and type(data.guid) == "string" then
@@ -905,6 +991,7 @@ local function Handle(body, sender, channel)
     local old = type(data) == "table" and type(data.guid) == "string" and state.members[data.guid]
     local oldLv, oldTeam = old and old.lv, old and old.team
     changed = P.MergeMember(state, data, me)
+    if changed and data.guid == me then C.MarkSelfDirty(1) end
     if changed then
       local rec = state.members[data.guid]
       if oldLv and rec.lv and rec.lv > oldLv then ns.Fire("MemberDing", rec, oldLv) end
@@ -1059,18 +1146,20 @@ function C.OnAddonMessage(prefix, text, channel, sender, target, zoneChannelID, 
   elseif first == "#" then
     local id, i, n, part = text:match("^#(%d+)~(%d+)~(%d+)~(.*)$")
     i, n = tonumber(i), tonumber(n)
-    if not id or not i or not n or n > 40 or i > n then return end
+    -- (a whole record of an old addon could be 40 pieces and more: up to 80 taken)
+    if not id or not i or not n or n > 80 or i > n then return end
     local key = tostring(sender) .. ":" .. id
     local entry = partsIn[key]
     if not entry or entry.n ~= n then entry = { n = n, got = 0, parts = {}, at = Clock() } partsIn[key] = entry end
     if not entry.parts[i] then entry.parts[i] = part entry.got = entry.got + 1 end
+    entry.at = Clock()
     if entry.got == n then
       partsIn[key] = nil
       Handle(table.concat(entry.parts), sender, channel)
     end
   end
-  -- forget half-received messages after a minute
-  for k, e in pairs(partsIn) do if Clock() - e.at > 60 then partsIn[k] = nil end end
+  -- forget a half-received message when no piece of it came for half a minute (a long one still coming is kept)
+  for k, e in pairs(partsIn) do if Clock() - e.at > 30 then partsIn[k] = nil end end
 end
 
 ----------------------------------------------------------------------
@@ -1109,7 +1198,7 @@ function C.Start(st, myGuid, playerName)
   chanBlocked = ForeverClient()
   seeds = {}
   for who in pairs(ns.db and type(ns.db.seeds) == "table" and ns.db.seeds[st.code] or {}) do seeds[who] = true end
-  fullSer, fullUp, fullAt = nil, nil, nil
+  heard, pending = {}, {}
   firstHeardAt = nil
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then pcall(C_ChatInfo.RegisterAddonMessagePrefix, PREFIX) end
   if not ticker then ticker = C_Timer.NewTicker(0.25, Tick) end
@@ -1120,6 +1209,9 @@ function C.Start(st, myGuid, playerName)
       local mine = state and state.members[me]
       if mine and mine.fresh and firstHeardAt and Clock() - firstHeardAt > 60 then
         P.UpdateSelf(state, me, { fresh = false }, "fresh")
+        mine.fsv = nil
+        -- (what waited for it, the counters above all, goes now)
+        C.MarkSelfDirty(1)
       end
       -- the guild says friends are online, but in five minutes not one message came through it (it doesn't carry
       -- them here, or they all have an older addon): back to whispers
@@ -1148,8 +1240,8 @@ function C.Start(st, myGuid, playerName)
   end
   C.JoinChannel()
   C.startedAt = Clock()
-  -- a flash says only what changed from here: never this PC's old fields over a newer copy the friends hold
-  if state.members[me] then NoteSent(state.members[me]) end
+  -- my pieces that changed while nothing could go (or never went: the first time with sync 2) go now
+  C.MarkSelfDirty(8)
   if not P.HasSettings(st) and C_Timer then C_Timer.After(4, function() if state and not P.HasSettings(state) then C.Search() end end) end
 end
 

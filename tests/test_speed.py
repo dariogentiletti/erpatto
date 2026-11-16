@@ -72,7 +72,8 @@ def lag(who, field, value, kind):
             if c is who or c.name in seen: continue
             r = c.state.members[who.guid]
             v = r and (r.lv if field == 'lv' else r.stats.t[field])
-            if field == 'dt' and v is not None and (r.lr is None or str(r.lr.by) != 'Lightning Hide'): v = None
+            # a death: the stone (it says how many in all; the counters follow a moment later)
+            if field == 'dt': v = (r.lr.n if r and r.lr is not None and str(r.lr.by) == 'Lightning Hide' else None)
             if v is not None and v >= value: seen[c.name] = T[0] - t0
         # the others keep playing meanwhile
         if int((T[0] - t0) * 4) % 20 == 0:
@@ -96,7 +97,7 @@ who = cl[5]
 dt = (who.state.members[who.guid].stats.t.dt or 0) + 1
 who.state.members[who.guid].stats.t.dt = dt; who.state.members[who.guid].up = who.state.members[who.guid].up + 1
 # the gravestone with its last words: the flash goes in two messages then
-who.state.members[who.guid].lr = who.lua.eval('function(at) return { at = at, lv = 12, k = "mostro", by = "Lightning Hide", z = "Durotar", w = "mo me sarvo, tranquilli, ce l\'ho sotto controllo sto lucertolone" } end')(int(T[0]))
+who.state.members[who.guid].lr = who.lua.eval('function(at, n) return { at = at, lv = 12, k = "mostro", by = "Lightning Hide", z = "Durotar", n = n, w = "mo me sarvo, tranquilli, ce l\'ho sotto controllo sto lucertolone" } end')(int(T[0]), dt)
 who.ns.C.MarkSelfDirty(0.3, True)
 w2 = lag(who, 'dt', dt, 'death')
 # someone new comes in with the code while everyone plays: how long before he has the patto, and they have him
