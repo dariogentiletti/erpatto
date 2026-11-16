@@ -733,7 +733,9 @@ P.MAX_PREV = 20
 P.PREV_DAYS = 60
 local function Total(rec, k) return rec and rec.stats and rec.stats.t and rec.stats.t[k] or 0 end
 -- deaths can go down (the doubles, the battlegrounds taken out): they never make a copy an "old life"
-local DOWN = { dt = true, em = true }
+-- the honorable kills too: the addon itself takes out the ones counted twice (Tracker.RepairPvP), so a friend's
+-- copy with more of them is the old wrong number, not an old life to give back (it went round every few minutes)
+local DOWN = { dt = true, em = true, hk = true, hw = true, hb = true }
 P.STAT_DOWN = DOWN
 function P.Behind(now, old)
   if type(now) ~= "table" or type(old) ~= "table" then return false end

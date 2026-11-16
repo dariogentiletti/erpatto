@@ -209,8 +209,11 @@ ns.On("SelfChanged", function(state, reason)
 end)
 
 -- my record came back from a friend (this PC had lost it): say so, and send it on as mine again
+local restoredSaid
 ns.On("SelfRestored", function()
-  U.Say("ho ritrovato li dati tua dall'amichi der patto: piotte, statistiche e titoli so' tornati.")
+  -- (once a session: it's news the first time)
+  if not restoredSaid then U.Say("ho ritrovato li dati tua dall'amichi der patto: piotte, statistiche e titoli so' tornati.") end
+  restoredSaid = true
   C.MarkSelfDirty(1)
   ns.Fire("Refresh")
 end)

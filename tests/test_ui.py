@@ -410,6 +410,13 @@ hk3, hw3 = st2.hk, st2.hw
 A.g.FIRE('PLAYER_PVP_KILLS_CHANGED')
 st2 = A.ns.MyRecord().stats.t
 check(hk3 - st2.hk == 1500 and hw3 - st2.hw == 1500 and st2.hk <= A.g.PVP_HK + A.g.PVP_SK, 'more kills counted than the game has: the 1500 extra come off pe\' strada (%s)' % (hk3 - st2.hk))
+# and a friend still holding the old, bigger number doesn't give it back as "your lost data" (it went round)
+old_ = A.lua.eval('function(r) local c = {} for k, v in pairs(r) do c[k] = v end c.stats = { t = {}, w = {} } for k, v in pairs(r.stats.t) do c.stats.t[k] = v end c.stats.t.hk = c.stats.t.hk + 1500 c.stats.t.hw = (c.stats.t.hw or 0) + 1500 c.up = r.up - 10 return c end')(A.ns.MyRecord())
+said0 = len([1 for x in A.g.CHAT.values() if 'ritrovato' in str(x)])
+hk4 = A.ns.MyRecord().stats.t.hk
+restored = A.ns.P.MergeMember(A.ns.state, old_, A.ns.recordGuid)
+check(not restored and A.ns.MyRecord().stats.t.hk == hk4 and len([1 for x in A.g.CHAT.values() if 'ritrovato' in str(x)]) == said0,
+      'a friend\'s copy with the kills counted twice isn\'t taken back, nothing said (%s)' % restored)
 A.lua.execute('GetPVPSessionStats = nil')
 # without today's count (only the lifetime total): a lump of 40 outside a battleground isn't pe' strada
 hw2 = A.ns.MyRecord().stats.t.hw
