@@ -231,11 +231,20 @@ function N.PlaceTop(f, fallback)
   f:SetPoint("TOP", UIParent, "TOP", 0, y / ((s and s > 0) and s or 1))
 end
 
-N.DING = { sheets = 3, frames = 72, fps = 12, sound = "ding.ogg" }
+-- the ding clip: Giampy at the disco for everyone, or the player's own video (the ones the user gave, cut with
+-- tools/make_clip.py): frame sheets of 1024 (fw x fh frames, cols x rows to a sheet) plus the sound, in Media/livello
+N.DING = { file = "ding", sheets = 3, frames = 72, fps = 12, fw = 256, fh = 144, cols = 4, rows = 7, dw = 320, dh = 180 }
+N.DING_CLIPS = {
+  ["Er Ghiacciolino"] = { file = "ghiacciolino", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
+}
+-- whose clip: by the name in the patto
+function N.DingClipOf(rec)
+  return rec and N.DING_CLIPS[U.Short(rec.name)] or N.DING
+end
 local dingClip
 function N.DingClip(rec)
   if not (rec and rec.lv) or ns.alt or not (ns.db and ns.db.opts.toasts) then return end
-  local c = N.DING
+  local c = N.DingClipOf(rec)
   if not dingClip then
     local f = CreateFrame("Frame", "ErPattoDing", UIParent)
     f:SetSize(320, 250)
@@ -258,6 +267,7 @@ function N.DingClip(rec)
     f.sub = H.Text(f.box, "GameFontHighlightSmall", "", 230, "CENTER")
     f.sub:SetPoint("TOP", f.title, "BOTTOM", 0, -6)
     f:SetScript("OnUpdate", function(self, el)
+      local c = self.clip
       self.t = self.t + (el or 0)
       local i = math.floor(self.t * c.fps)
       if i >= c.frames then
@@ -266,20 +276,24 @@ function N.DingClip(rec)
       end
       if i == self.shown then return end
       self.shown = i
-      local sheet, k = math.floor(i / 28) + 1, i % 28
-      local col, row = k % 4, math.floor(k / 4)
+      local per = c.cols * c.rows
+      local sheet, k = math.floor(i / per) + 1, i % per
+      local col, row = k % c.cols, math.floor(k / c.cols)
       if sheet ~= self.sheet then
         self.sheet = sheet
-        self.screen:SetTexture(H.MEDIA .. "livello\\ding" .. sheet .. ".tga")
+        self.screen:SetTexture(H.MEDIA .. "livello\\" .. c.file .. sheet .. ".tga")
       end
-      self.screen:SetTexCoord(col * 0.25, (col + 1) * 0.25, row * 144 / 1024, (row + 1) * 144 / 1024)
+      self.screen:SetTexCoord(col * c.fw / 1024, (col + 1) * c.fw / 1024, row * c.fh / 1024, (row + 1) * c.fh / 1024)
     end)
     f:SetScript("OnHide", function(self) if self.handle and StopSound then pcall(StopSound, self.handle) end self.handle = nil end)
     dingClip = f
   end
   local f = dingClip
   if f.handle and StopSound then pcall(StopSound, f.handle) end
-  f.t, f.shown, f.sheet = 0, nil, nil
+  f.t, f.shown, f.sheet, f.clip = 0, nil, nil, c
+  -- a tall video stands taller than Giampy's wide one, the box stays under it
+  f.screen:SetSize(c.dw, c.dh)
+  f:SetSize(math.max(c.dw, 260), c.dh + 70)
   local you = rec.guid == ns.recordGuid
   f.title:SetText((you and "Sei salito" or (Hex(rec) .. " è salito")) .. " ar livello |cffffffff" .. rec.lv .. "|r!")
   local took = type(rec.dl) == "table" and rec.dl.lv == rec.lv and rec.dl.s
@@ -288,7 +302,7 @@ function N.DingClip(rec)
   N.PlaceTop(f)
   f:Show()
   if PlaySoundFile and not (ns.db.opts.sound == false) then
-    local ok, _, handle = pcall(PlaySoundFile, H.MEDIA .. "livello\\" .. c.sound, "Master")
+    local ok, _, handle = pcall(PlaySoundFile, H.MEDIA .. "livello\\" .. c.file .. ".ogg", "Master")
     f.handle = ok and handle or nil
   end
 end

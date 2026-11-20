@@ -76,6 +76,18 @@ dc = A.g.ErPattoDing
 check(dc is not None and dc.shown and 'Pietro' in str(dc.title.text) and '5' in str(dc.title.text), 'ding: the clip with Giampy on the others\' screen: ' + str(dc and dc.title.text))
 check(any('livello' in str(x) and 'ding' in str(x) for x in A.g.SOUNDS.values()), 'and its music plays')
 check(B.g.ErPattoDing is not None and B.g.ErPattoDing.shown and 'Sei salito' in str(B.g.ErPattoDing.title.text), 'and on the screen of who levelled')
+# a player with his own video (the user gave one per player): his ding plays it, tall, with its sound
+A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+A.ns.News.DingClip(A.lua.table_from({'name': 'Er Ghiacciolino', 'lv': 12, 'guid': 'Player-9-GHI', 'cls': 'MAGE'}))
+dc = A.g.ErPattoDing
+dc.scripts.OnUpdate(dc, 2.4)  # (the stub runs no frames: one by hand, 2.4 s in: frame 28, the second sheet)
+check(dc.shown and 'ghiacciolino2.tga' in str(dc.screen.tex) and dc.screen.h == 320 and dc.screen.w == 180
+      and any('ghiacciolino.ogg' in str(x) for x in A.g.SOUNDS.values()), "Er Ghiacciolino's ding: his own video, tall, and its sound (%s %sx%s)" % (dc.screen.tex, dc.screen.w, dc.screen.h))
+A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+A.ns.News.DingClip(A.lua.table_from({'name': 'Pietro', 'lv': 6, 'guid': 'Player-1-BBB'}))
+dc.scripts.OnUpdate(dc, 0.1)
+check('livello\\ding' in str(dc.screen.tex) and dc.screen.h == 180, 'the others: still Giampy, wide (%s)' % dc.screen.tex)
+A.g.ErPattoDing.Hide(A.g.ErPattoDing)
 check(len(list(A.g.SOUNDS.values())) > 0, 'banner plays a sound')
 A.ns.db.opts.toasts = False
 B.g.P_LEVEL = 6; B.g.FIRE('PLAYER_LEVEL_UP', 6); secs(12)
