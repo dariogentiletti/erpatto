@@ -1,5 +1,5 @@
 # Er Patto: turns a video the user gave into a clip the addon can play: frame sheets (1024x1024 TGA, 12 frames a
-# second) plus the sound as ogg. A tall (phone) video gives tall frames, a wide one wide frames, 28 to a sheet.
+# second) plus the sound as ogg. A tall (phone) video gives tall frames, a wide one wide frames, the whole picture.
 # Usage: python3 tools/make_clip.py VIDEO START SECONDS OUTDIR NAME [preview.mp4]
 #   e.g. python3 tools/make_clip.py GHIACIOLETTO_LVL.MOV 13.65 6 Media/livello ghiacciolino
 # Prints the line for News.DING_CLIPS. With a preview path, also writes a small mp4 of the cut to check by eye.
@@ -21,8 +21,13 @@ for sd in st.get("side_data_list", []):
 if abs(rot) % 180 == 90:
     w, h = h, w
 tall = h > w
-fw, fh = (144, 256) if tall else (256, 144)
+# the whole picture, as it was shot: 256 on its long side (a phone's 9:16 gives 144x256, a 3:4 gives 192x256)
+if tall:
+    fh = 256; fw = int(round(256 * w / h / 2)) * 2
+else:
+    fw = 256; fh = int(round(256 * h / w / 2)) * 2
 cols, rows = SHEET // fw, SHEET // fh
+# shown 320 on its long side, as Giampy's clip
 per = cols * rows
 frames = int(round(secs * FPS))
 
@@ -53,4 +58,5 @@ if preview:
     subprocess.check_call(["ffmpeg", "-v", "error", "-y", "-framerate", str(FPS), "-i", os.path.join(tmp, "f%04d.png"),
                            "-i", os.path.join(outdir, name + ".ogg"), "-vf", "scale=iw*2:ih*2:flags=neighbor",
                            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", preview])
-print(f'{{ sheets = {sheets}, frames = {frames}, fps = {FPS}, fw = {fw}, fh = {fh}, cols = {cols}, rows = {rows} }}')
+dw, dh = (fw * 320 // 256, 320) if tall else (320, fh * 320 // 256)
+print(f'{{ file = "{name}", sheets = {sheets}, frames = {frames}, fps = {FPS}, fw = {fw}, fh = {fh}, cols = {cols}, rows = {rows}, dw = {dw}, dh = {dh} }}')

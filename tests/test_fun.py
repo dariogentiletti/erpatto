@@ -84,6 +84,15 @@ dc.scripts.OnUpdate(dc, 2.4)  # (the stub runs no frames: one by hand, 2.4 s in:
 check(dc.shown and 'ghiacciolino2.tga' in str(dc.screen.tex) and dc.screen.h == 320 and dc.screen.w == 180
       and any('ghiacciolino.ogg' in str(x) for x in A.g.SOUNDS.values()), "Er Ghiacciolino's ding: his own video, tall, and its sound (%s %sx%s)" % (dc.screen.tex, dc.screen.w, dc.screen.h))
 A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+A.ns.News.DingClip(A.lua.table_from({'name': 'Re Puma', 'lv': 20, 'guid': 'Player-9-PUM'}))
+dc.scripts.OnUpdate(dc, 4.9)  # frame 58: the 3:4 video has 20 to a sheet, so the third
+check('puma3.tga' in str(dc.screen.tex) and dc.screen.w == 240 and dc.screen.h == 320, "Re Puma's: his video, the whole picture (3:4) (%s %sx%s)" % (dc.screen.tex, dc.screen.w, dc.screen.h))
+A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+for who in ('Er Matto', 'Er Piromane'):
+    A.ns.News.DingClip(A.lua.table_from({'name': who, 'lv': 20, 'guid': 'Player-9-X'}))
+    dc.scripts.OnUpdate(dc, 0.1)
+    check(who.split()[1].lower() + '1.tga' in str(dc.screen.tex), '%s: his video (%s)' % (who, dc.screen.tex))
+    A.g.ErPattoDing.Hide(A.g.ErPattoDing)
 A.ns.News.DingClip(A.lua.table_from({'name': 'Pietro', 'lv': 6, 'guid': 'Player-1-BBB'}))
 dc.scripts.OnUpdate(dc, 0.1)
 check('livello\\ding' in str(dc.screen.tex) and dc.screen.h == 180, 'the others: still Giampy, wide (%s)' % dc.screen.tex)
