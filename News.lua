@@ -236,6 +236,7 @@ end
 N.DING = { file = "ding", sheets = 3, frames = 72, fps = 12, fw = 256, fh = 144, cols = 4, rows = 7, dw = 320, dh = 180 }
 N.DING_CLIPS = {
   ["Er Ghiacciolino"] = { file = "ghiacciolino", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
+  ["Er Canaro"] = { file = "canaro", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Matto"] = { file = "matto", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Piromane"] = { file = "piromane", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Re Puma"] = { file = "puma", sheets = 4, frames = 72, fps = 12, fw = 192, fh = 256, cols = 5, rows = 4, dw = 240, dh = 320 },

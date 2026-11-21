@@ -88,7 +88,7 @@ A.ns.News.DingClip(A.lua.table_from({'name': 'Re Puma', 'lv': 20, 'guid': 'Playe
 dc.scripts.OnUpdate(dc, 4.9)  # frame 58: the 3:4 video has 20 to a sheet, so the third
 check('puma3.tga' in str(dc.screen.tex) and dc.screen.w == 240 and dc.screen.h == 320, "Re Puma's: his video, the whole picture (3:4) (%s %sx%s)" % (dc.screen.tex, dc.screen.w, dc.screen.h))
 A.g.ErPattoDing.Hide(A.g.ErPattoDing)
-for who in ('Er Matto', 'Er Piromane'):
+for who in ('Er Matto', 'Er Piromane', 'Er Canaro'):
     A.ns.News.DingClip(A.lua.table_from({'name': who, 'lv': 20, 'guid': 'Player-9-X'}))
     dc.scripts.OnUpdate(dc, 0.1)
     check(who.split()[1].lower() + '1.tga' in str(dc.screen.tex), '%s: his video (%s)' % (who, dc.screen.tex))
