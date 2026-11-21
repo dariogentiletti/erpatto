@@ -88,11 +88,16 @@ A.ns.News.DingClip(A.lua.table_from({'name': 'Re Puma', 'lv': 20, 'guid': 'Playe
 dc.scripts.OnUpdate(dc, 4.9)  # frame 58: the 3:4 video has 20 to a sheet, so the third
 check('puma3.tga' in str(dc.screen.tex) and dc.screen.w == 240 and dc.screen.h == 320, "Re Puma's: his video, the whole picture (3:4) (%s %sx%s)" % (dc.screen.tex, dc.screen.w, dc.screen.h))
 A.g.ErPattoDing.Hide(A.g.ErPattoDing)
-for who in ('Er Matto', 'Er Piromane', 'Er Canaro'):
+for who in ('Er Matto', 'Er Piromane', 'Er Canaro', 'Er Cortello', 'Er Gnomo'):
     A.ns.News.DingClip(A.lua.table_from({'name': who, 'lv': 20, 'guid': 'Player-9-X'}))
     dc.scripts.OnUpdate(dc, 0.1)
     check(who.split()[1].lower() + '1.tga' in str(dc.screen.tex), '%s: his video (%s)' % (who, dc.screen.tex))
     A.g.ErPattoDing.Hide(A.g.ErPattoDing)
+A.ns.News.DingClip(A.lua.table_from({'name': 'Er Gnomo', 'lv': 40, 'guid': 'Player-9-GNO'}))
+dc.scripts.OnUpdate(dc, 6.9)  # his is 7 seconds: still on at 6.9, the last sheet
+check(dc.shown and 'gnomo3.tga' in str(dc.screen.tex), "Er Gnomo's runs seven seconds (%s)" % dc.screen.tex)
+dc.scripts.OnUpdate(dc, 0.5)
+check(not dc.shown, 'and then it goes')
 A.ns.News.DingClip(A.lua.table_from({'name': 'Pietro', 'lv': 6, 'guid': 'Player-1-BBB'}))
 dc.scripts.OnUpdate(dc, 0.1)
 check('livello\\ding' in str(dc.screen.tex) and dc.screen.h == 180, 'the others: still Giampy, wide (%s)' % dc.screen.tex)
