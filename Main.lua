@@ -515,7 +515,11 @@ handlers.MERCHANT_SHOW = function() T.OnMerchant(true) end
 handlers.MERCHANT_CLOSED = function() T.OnMerchant(false) end
 handlers.MAIL_SHOW = function() T.SetMoneyBlock("mail", true) end
 handlers.MAIL_CLOSED = function() T.SetMoneyBlock("mail", false) end
-handlers.TRADE_SHOW = function() T.SetMoneyBlock("trade", true) end
+handlers.TRADE_SHOW = function() T.SetMoneyBlock("trade", true) if T.OnTradeShow then T.OnTradeShow() end end
+handlers.TRADE_ACCEPT_UPDATE = function() if T.OnTradeAccept then T.OnTradeAccept() end end
+handlers.UI_INFO_MESSAGE = function(...) if T.OnInfoMessage then T.OnInfoMessage(...) end end
+handlers.MAIL_SEND_SUCCESS = function() if T.OnMailSent then T.OnMailSent(true) end end
+handlers.MAIL_FAILED = function() if T.OnMailSent then T.OnMailSent(false) end end
 handlers.TRADE_CLOSED = function() T.SetMoneyBlock("trade", false) end
 handlers.PLAYER_EQUIPMENT_CHANGED = function()
   T.RefreshSelf("equip")

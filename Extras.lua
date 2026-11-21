@@ -207,7 +207,7 @@ X.INFO = {
     "Sotto: er calendario de li cap de tutte le squadre." },
   gruppi = { "Squadre", "Le squadre der patto, chi c'è e a che livello sta. \"Passa qui\" pe' cambià squadra." },
   progresso = { "Progresso", "Corsa: chi va più forte (livelli, ore, quest, dungeon, sordi, rari, PvP).",
-    "Chicche: fortuna, pesca, raccolta, strada, morti ridicole, boss, nemesi.",
+    "Chicche: fortuna, pesca, raccolta, strada, morti ridicole, boss, generosità, nemesi.",
     "Titoli: chi è er primo in quarcosa vince 'n titolo, che compare in chat davanti ar nome.",
     "Diario: la settimana de ognuno. Confronto: tu contro 'n amico.",
     "Cimitero: tutti li morti der patto, co' l'urtime parole scritte in chat prima de morì, e chi sta a la gogna.",

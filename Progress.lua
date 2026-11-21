@@ -1,6 +1,7 @@
 -- Er Patto: the "Progresso" tab. Five pages:
 --   La Corsa: one card per thing worth doing well (level, time played, quests, dungeons, gold, gear, duels, BGs)
---   Le Chicche: the fun boards (luck, epics, fish, gathering, road, silly deaths, famous kills, duel ladder, nemesis)
+--   Le Chicche: the fun boards (luck, epics, fish, gathering, road, silly deaths, famous kills, duel ladder,
+--   generosity, nemesis)
 --   Titoli: every title, who holds it and how it's won
 --   Diario: one member's adventure (time against the plan, milestones, quests and zones, dungeons, professions)
 --   Confronto: you against another member, side by side, with your duels against each other
@@ -326,7 +327,8 @@ local ADV = {
   { key = "ladder", title = "Re der duello", fixed = true, tip = "Duelli tra voi der patto: vinti meno persi. Vale da sempre.",
     value = function(m) local w, l = LadderOf(m) return (w + l > 0) and (w - l + 1000) or 0 end,
     text = function(m) local w, l = LadderOf(m) return w .. "-" .. l end },
-  { key = "fl", title = "Voli presi", tip = "Grifoni, pipistrelli e viverne." },
+  { key = "gv", title = "Generosità", tip = "Quanto hai regalato a quelli der patto, co' lo scambio o co' la posta: sordi e robba (la robba a quanto la paga 'n mercante). Quello che t'hanno ridato loro se leva.",
+    text = function(m, md) return R().Money(H.StatOf(m, "gv", md), true) end },
   { key = "nemesi", title = "Nemesi der patto", tip = "Chi ha ammazzato più vorte quarcuno der patto.",
     rows = function()
       local agg = {}

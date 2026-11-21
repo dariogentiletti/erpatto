@@ -596,6 +596,66 @@ gold(1000)
 check(st().g - g3 == 1000 and A.ns.T.Bought()['Maglio'] and A.ns.T.Bought()['Maglio'].n == 1,
       'sold to the vendor and bought back: only the loot after counts, and it still cost 5s (%s)' % (st().g - g3))
 
+# generosity: what I give to the others of the patto (things at the vendor's price), less what they give me back
+A.lua.execute('''
+TMONEY, OMONEY, TMINE, TTHEIRS = 0, 0, {}, {}
+SELL[2589] = 10
+UNITS.NPC = { name = "Pietro" }
+GetPlayerTradeMoney = function() return TMONEY end
+GetTargetTradeMoney = function() return OMONEY end
+local function info(t) return function(i) local x = t()[i] if x then return x.name, 133, x.n, 1, true end end end
+local function link(t) return function(i) local x = t()[i] if x then return "|cffffffff|Hitem:" .. x.id .. "::::::::|h[" .. x.name .. "]|h|r" end end end
+GetTradePlayerItemInfo = info(function() return TMINE end)
+GetTradePlayerItemLink = link(function() return TMINE end)
+GetTradeTargetItemInfo = info(function() return TTHEIRS end)
+GetTradeTargetItemLink = link(function() return TTHEIRS end)
+ERR_TRADE_COMPLETE = "Trade complete."
+C_Item.GetItemInfo = function(x) local id = tonumber(x) or tonumber(tostring(x):match("item:(%d+)")) return "x", nil, 2, 1, 1, "Weapon", "x", 1, "", 1, SELL[id] end
+SENDMONEY, SENDCOD = 0, 0
+GetSendMailMoney = function() return SENDMONEY end
+GetSendMailCOD = function() return SENDCOD end
+GetSendMailItem = function(i) return nil end
+''')
+gv = lambda: (A.ns.MyRecord().stats.t.gv or 0)
+check(A.ns.db.gifts[A.ns.recordGuid]['Player-1-BBB'] == -20000 and gv() == 0, "Pietro's 2g by mail (above): he's ahead of me, and my generosity is none")
+A.ns.db.gifts = None
+def trade(who, give=0, things=(), get=0, done=True):
+    A.lua.execute('UNITS.NPC = { name = "%s" }; TMONEY = %d; OMONEY = %d; TMINE = { %s }' % (who, give, get, ', '.join('{ name = "%s", id = %d, n = %d }' % t for t in things)))
+    A.g.FIRE('TRADE_SHOW'); A.g.FIRE('TRADE_ACCEPT_UPDATE', 1, 0); A.g.FIRE('TRADE_ACCEPT_UPDATE', 1, 1); A.g.FIRE('TRADE_CLOSED')
+    if done: A.g.FIRE('UI_INFO_MESSAGE', 0, 'Trade complete.')
+    secs(3)
+trade('Pietro', 10000, [('Linen Cloth', 2589, 20)])
+check(gv() == 10000 + 20 * 10, 'a trade with Pietro: the gold and the cloth at the vendor price (%s)' % gv())
+trade('Pietro', 50000, done=False)
+check(gv() == 10200, 'a trade that never went through: nothing (%s)' % gv())
+trade('Uno de fori', 50000)
+check(gv() == 10200, 'to someone outside the patto: nothing')
+A.ns.MyRecord().alts = A.lua.eval('{ { name = "Er Altro", lv = 5 } }')
+trade('Er Altro', 50000)
+check(gv() == 10200, 'to my own alt: nothing')
+A.lua.execute('SENDMONEY = 5000'); A.ns.T.OnSendMail('Pietro'); A.g.FIRE('MAIL_SEND_SUCCESS')
+check(gv() == 15200, 'gold sent to Pietro by mail (%s)' % gv())
+A.lua.execute('SENDMONEY = 0; SENDCOD = 3000'); A.ns.T.OnSendMail('Pietro'); A.g.FIRE('MAIL_SEND_SUCCESS')
+A.lua.execute('SENDMONEY = 9000; SENDCOD = 0'); A.ns.T.OnSendMail('Pietro'); A.g.FIRE('MAIL_FAILED')
+check(gv() == 15200, 'a COD mail (a sale) and a mail that failed: nothing (%s)' % gv())
+A.g.MAILS[1] = A.lua.eval('{ sender = "Pietro", subject = "tie\'", money = 8000 }')
+A.g.FIRE('MAIL_SHOW'); A.g.TakeInboxMoney(1); A.g.TakeInboxMoney(1); A.g.P_MONEY = A.g.P_MONEY + 8000; A.g.FIRE('PLAYER_MONEY'); A.g.FIRE('MAIL_CLOSED'); secs(3)
+check(gv() == 15200 - 8000, 'Pietro gives 80s back (the mail clicked twice): it comes off once (%s)' % gv())
+trade('Pietro', 0, get=20000)
+check(gv() == 0, 'he gives back more than I gave: none left, never below zero (%s)' % gv())
+trade('Pietro', 5000)
+check(gv() == 0, 'and what I give now first pays him back (%s)' % gv())
+trade('Pietro', 20000)
+check(gv() == 20000 - 7800, 'then it counts again, past what I owed him (%s)' % gv())
+A.ns.UI.Show('progresso')
+pv = A.ns.UI._views.progresso
+pv.tabAdv.Click(pv.tabAdv)
+card = [c for c in pv.adv.cards.values() if str(c.metric.key) == 'gv']
+check(card and not [c for c in pv.adv.cards.values() if str(c.metric.key) == 'fl'] and any('Dario' in str(r.name.text) and 'GoldIcon' in str(r.value.text) for r in card[0].rows.values() if r.shown),
+      'Chicche: Generosità in place of Voli presi, with my 1g (%s)' % [(str(r.name.text), str(r.value.text)) for r in card[0].rows.values() if r.shown] if card else 'no card')
+pv.tabRank.Click(pv.tabRank)
+A.ns.UI.Show('home')
+
 # on-screen bar: blue behind (partly full), green at the cap, red above
 hudf = A.g.ErPattoHUD
 def hudstate():

@@ -172,10 +172,11 @@ end
 -- fi fish caught, he herbs, mi ore and stone, sk leather, lb blue items looted, le epic items looted,
 -- em silly deaths (falling, drowning, a much lower mob), nk famous mobs and bosses killed, tr yards travelled,
 -- fl flights taken, hs hearthstones used, gp seconds played in a group with someone of the patto,
--- hw honorable kills out in the world ("pe' strada"), hb honorable kills in battlegrounds and arenas (hk: all of them)
+-- hw honorable kills out in the world ("pe' strada"), hb honorable kills in battlegrounds and arenas (hk: all of them),
+-- gv copper given to the others of the patto (Tracker: generosity; it goes down when they give back)
 local STAT_KEYS = { "q", "dg", "dw", "dl", "bw", "bl", "ding", "g", "dt", "pt", "rk", "hk", "hn",
-  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp", "hw", "hb", "ga", "ap" }
-local STAT_MAX = { g = 1e11, ga = 1e11, pt = 1e8, hn = 1e8, tr = 1e9, gp = 1e8 }
+  "fi", "he", "mi", "sk", "lb", "le", "em", "nk", "tr", "fl", "hs", "gp", "hw", "hb", "ga", "ap", "gv" }
+local STAT_MAX = { g = 1e11, ga = 1e11, pt = 1e8, hn = 1e8, tr = 1e9, gp = 1e8, gv = 1e11 }
 
 -- { [string] = count }, at most `max` entries
 local function CleanCounts(t, max)
@@ -741,7 +742,8 @@ local function Total(rec, k) return rec and rec.stats and rec.stats.t and rec.st
 -- deaths can go down (the doubles, the battlegrounds taken out): they never make a copy an "old life"
 -- the honorable kills too: the addon itself takes out the ones counted twice (Tracker.RepairPvP), so a friend's
 -- copy with more of them is the old wrong number, not an old life to give back (it went round every few minutes)
-local DOWN = { dt = true, em = true, hk = true, hw = true, hb = true }
+-- generosity too: it goes down when a friend gives back
+local DOWN = { dt = true, em = true, hk = true, hw = true, hb = true, gv = true }
 P.ABSORB_FOR = 2 * 3600
 P.STAT_DOWN = DOWN
 function P.Behind(now, old)

@@ -36,7 +36,7 @@ Never:
   user gave, as ogg at seven speeds in Media/karaoke, and the two duel clips the user gave, as frame sheets
   plus ogg in Media/duello, with the "di più" of a rivincita; the Giampaolato's voices in Media/giampy; the
   burattino's music in Media/pupo; the ding clip (Giampy at the disco, frame sheets plus ogg) in Media/livello, with the players' own ding videos the user gives
-  (one per player, cut to 6 seconds with tools/make_clip.py, listed in News.DING_CLIPS);
+  (one per player, cut to 6 seconds with tools/make_clip.py, listed in News.DING_CLIPS; false for who wants none);
   the patto's faces for er faccione (the photos the user gave, f01..f19) and Corona cut to 10/15/20 seconds, plus
   the furbetto's 30 seconds five times louder, in Media/faccioni)
 - flat colour fills or tints for highlights (`SetColorTexture` with yellow, gradient bands, gold lines)

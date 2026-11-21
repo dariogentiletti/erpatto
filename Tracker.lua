@@ -526,8 +526,11 @@ end
 
 if type(hooksecurefunc) == "function" then
   for _, fn in ipairs({ "TakeInboxMoney", "AutoLootMailItem", "TakeInboxItem" }) do
-    if type(_G[fn]) == "function" then hooksecurefunc(fn, function(index) T.OnTakeMail(index) end) end
+    if type(_G[fn]) == "function" then
+      hooksecurefunc(fn, function(index, attach) T.OnTakeMail(index) if T.OnGotMail then T.OnGotMail(index, attach, fn) end end)
+    end
   end
+  if type(SendMail) == "function" then hooksecurefunc("SendMail", function(to) if T.OnSendMail then T.OnSendMail(to) end end) end
 end
 
 function T.OnMoney()
@@ -569,6 +572,178 @@ function T.OnMoney()
     return
   end
   Made(d, "w")
+end
+
+----------------------------------------------------------------------
+-- generosity ("gv"): what I give to the others of the patto (my own alts are me), gold and things (a thing at what
+-- a vendor pays for it), by trade or by mail; what one of them gives me comes off. Kept per friend, so giving and
+-- giving back (the same gold going round) makes nothing: gv is the sum, over the friends, of how much I'm ahead
+-- with each. A mail with COD is a sale, not a gift. Only played on the main, as the other counters.
+-- Cost: a few calls when a trade is accepted, a mail is sent or taken; nothing otherwise.
+----------------------------------------------------------------------
+local function GiftBook()
+  if not (ns.db and me) then return nil end
+  ns.db.gifts = type(ns.db.gifts) == "table" and ns.db.gifts or {}
+  ns.db.gifts[me] = type(ns.db.gifts[me]) == "table" and ns.db.gifts[me] or {}
+  return ns.db.gifts[me]
+end
+
+-- the patto record of a character (by its name, or as somebody's alt), when it isn't me or one of mine
+local function FriendOf(name)
+  name = U.Plain(name, "string")
+  if not (name and name ~= "" and state and state.members) then return nil end
+  local short = U.Short(name)
+  local found
+  for g, r in pairs(state.members) do
+    if U.Short(r.name or "") == short then found = g break end
+    for _, a in ipairs(type(r.alts) == "table" and r.alts or {}) do
+      if type(a) == "table" and U.Short(a.name or "") == short then found = g end
+    end
+  end
+  if not found or found == me or (ns.Tombola and ns.Tombola.Mine and ns.Tombola.Mine(found)) then return nil end
+  return found
+end
+T.FriendOf = FriendOf
+
+-- what a vendor pays for `count` of a thing (a link, an item id or a name)
+local function SellValue(item, count)
+  local f = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if not item or type(f) ~= "function" then return 0 end
+  local ok, _, _, _, _, _, _, _, _, _, _, price = pcall(f, item)
+  price = ok and U.Plain(price, "number") or 0
+  return math.max(0, price) * math.max(1, U.Plain(count, "number") or 1)
+end
+T.SellValue = SellValue
+
+-- given to a friend and got from him (copper): my generosity moves by how much further ahead of him I am now
+local function Gift(guid, given, got)
+  local book = GiftBook()
+  if not (book and guid and Ready()) then return end
+  local before = book[guid] or 0
+  local after = before + (given or 0) - (got or 0)
+  book[guid] = after
+  local d = math.max(0, after) - math.max(0, before)
+  if d == 0 then return end
+  local rec = state.members[me]
+  rec.stats = rec.stats or { t = {}, w = {} }
+  rec.stats.t = rec.stats.t or {}
+  rec.stats.w = rec.stats.w or {}
+  local wk = Week()
+  rec.stats.w[wk] = rec.stats.w[wk] or {}
+  rec.stats.t.gv = math.max(0, (rec.stats.t.gv or 0) + d)
+  rec.stats.w[wk].gv = math.max(0, (rec.stats.w[wk].gv or 0) + d)
+  rec.up = U.Now()
+  ns.Fire("SelfChanged", state, "gv")
+end
+T.Gift = Gift
+
+-- a thing in a slot (trade, mail): its count, whatever the client gives back (name, id, icon, count... or the
+-- older name, icon, count)
+local function CountOf(a2, a3, a4)
+  if type(a2) == "number" then return U.Plain(a4, "number") or 1 end
+  return U.Plain(a3, "number") or 1
+end
+
+-- the trade: who with, and what's on the table each time one of the two accepts; it counts once the game says
+-- "Trade complete"
+local trade
+function T.OnTradeShow()
+  -- (on Forever a name has a surname: "Er Nia" comes whole only from FullName)
+  local name = U.FullName and U.FullName("NPC") or (UnitName and U.Plain((UnitName("NPC")), "string"))
+  trade = { who = FriendOf(name) }
+end
+local function Side(info, link)
+  local v = 0
+  if type(info) ~= "function" then return 0 end
+  for i = 1, (MAX_TRADABLE_ITEMS or 6) do
+    -- (name, icon, how many, ...)
+    local ok, name, _, n = pcall(info, i)
+    if ok and name then
+      local lok, l = false, nil
+      if type(link) == "function" then lok, l = pcall(link, i) end
+      v = v + SellValue(lok and U.Plain(l, "string") or name, U.Plain(n, "number") or 1)
+    end
+  end
+  return v
+end
+function T.OnTradeAccept()
+  if not (trade and trade.who) then return end
+  trade.give = (U.Plain(GetPlayerTradeMoney and GetPlayerTradeMoney(), "number") or 0) + Side(GetTradePlayerItemInfo, GetTradePlayerItemLink)
+  trade.get = (U.Plain(GetTargetTradeMoney and GetTargetTradeMoney(), "number") or 0) + Side(GetTradeTargetItemInfo, GetTradeTargetItemLink)
+end
+function T.OnInfoMessage(...)
+  if not (trade and trade.who and trade.give and ERR_TRADE_COMPLETE) then return end
+  for i = 1, select("#", ...) do
+    if select(i, ...) == ERR_TRADE_COMPLETE then
+      local t = trade
+      trade = nil
+      Gift(t.who, t.give, t.get)
+      return
+    end
+  end
+end
+
+-- a mail sent to a friend: what's in it, once the game says it went
+local sending
+function T.OnSendMail(to)
+  sending = nil
+  local who = FriendOf(to)
+  if not who then return end
+  if GetSendMailCOD and (U.Plain(GetSendMailCOD(), "number") or 0) > 0 then return end
+  local v = U.Plain(GetSendMailMoney and GetSendMailMoney(), "number") or 0
+  if type(GetSendMailItem) == "function" then
+    for i = 1, (ATTACHMENTS_MAX_SEND or 12) do
+      local ok, name, a2, a3, a4 = pcall(GetSendMailItem, i)
+      if ok and name then
+        local lok, l = false, nil
+        if GetSendMailItemLink then lok, l = pcall(GetSendMailItemLink, i) end
+        v = v + SellValue(lok and U.Plain(l, "string") or name, CountOf(a2, a3, a4))
+      end
+    end
+  end
+  if v > 0 then sending = { who = who, give = v, at = GetTime() } end
+end
+function T.OnMailSent(ok)
+  local s = sending
+  sending = nil
+  if ok and s and GetTime() - s.at < 60 then Gift(s.who, s.give, 0) end
+end
+
+-- a mail from a friend taken (its gold, a thing, or all of it): what he gave me. Not a COD (bought, not given)
+-- nor the payment of one
+local gotSeen = {}
+function T.OnGotMail(index, attach, fn)
+  if type(index) ~= "number" or not GetInboxHeaderInfo then return end
+  local ok, _, _, sender, subject, money, cod, days = pcall(GetInboxHeaderInfo, index)
+  if not ok then return end
+  local who = FriendOf(sender)
+  if not who or (U.Plain(cod, "number") or 0) > 0 then return end
+  subject = U.Plain(subject, "string") or ""
+  if COD_PAYMENT then
+    local pat = T.PatternFrom(COD_PAYMENT)
+    if pat and string.match(subject, pat.pattern) then return end
+  end
+  local v = 0
+  if fn ~= "TakeInboxItem" then v = v + (U.Plain(money, "number") or 0) end
+  if fn ~= "TakeInboxMoney" and type(GetInboxItem) == "function" then
+    local from = type(attach) == "number" and attach or 1
+    local to = type(attach) == "number" and attach or (ATTACHMENTS_MAX_RECEIVE or 16)
+    for a = from, to do
+      local iok, name, a2, a3, a4 = pcall(GetInboxItem, index, a)
+      if iok and name then
+        local lok, l = false, nil
+        if GetInboxItemLink then lok, l = pcall(GetInboxItemLink, index, a) end
+        v = v + SellValue(lok and U.Plain(l, "string") or (type(a2) == "number" and a2) or name, CountOf(a2, a3, a4))
+      end
+    end
+  end
+  if v <= 0 then return end
+  -- (a second click before the mail empties is the same mail: once)
+  local key = table.concat({ tostring(sender), subject, tostring(money), tostring(attach or "*"), fn or "",
+    string.format("%.2f", U.Plain(days, "number") or 0) }, "|")
+  if gotSeen[key] then return end
+  gotSeen[key] = true
+  Gift(who, 0, v)
 end
 
 function T.CheckCap(level)
