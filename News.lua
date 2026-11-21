@@ -240,7 +240,10 @@ N.DING_CLIPS = {
   ["Er Cortello"] = { file = "cortello", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Giapponese"] = { file = "giapponese", sheets = 6, frames = 164, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Gnomo"] = { file = "gnomo", sheets = 3, frames = 84, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
+  ["Er Martellone"] = { file = "martellone", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Matto"] = { file = "matto", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
+  ["Er Mutanda"] = { file = "mutanda", sheets = 4, frames = 88, fps = 12, fw = 256, fh = 144, cols = 4, rows = 7, dw = 320, dh = 180 },
+  ["Er Nia"] = { file = "nia", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Er Piromane"] = { file = "piromane", sheets = 3, frames = 72, fps = 12, fw = 144, fh = 256, cols = 7, rows = 4, dw = 180, dh = 320 },
   ["Re Puma"] = { file = "puma", sheets = 4, frames = 72, fps = 12, fw = 192, fh = 256, cols = 5, rows = 4, dw = 240, dh = 320 },
 }
